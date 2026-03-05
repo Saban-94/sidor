@@ -102,7 +102,13 @@
         // פונקציית המוח - Gemini 3.1
         async function askGemini(text) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
-            const prompt = { contents: [{ parts: [{ text: `אתה נציג ח. סבן 1994. ענה ללקוח: ${text}` }] }] };
+            const prompt = { 
+    contents: [{ 
+        parts: [{ text: `אתה נציג המכירות הרשמי של ח. סבן 1994. 
+        הלקוח פנה בווטסאפ: ${text}
+        ענה לו בעברית מקצועית, ציין שיש לנו מנוף 15 מטר במידת הצורך, 
+        וחתום בסוף: 'בברכה, רמי - ח. סבן'.` }] 
+    }] };
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
