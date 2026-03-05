@@ -2,49 +2,90 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban Brain CRM - Fixed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Saban 1994 - Central Brain CRM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
     <style>
-        body { font-family: 'Assistant', sans-serif; }
+        body { font-family: 'Assistant', sans-serif; overflow: hidden; }
         .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .tab-content { display: none; height: calc(100vh - 120px); }
+        .tab-content { display: none; height: calc(100vh - 65px); }
         .tab-content.active { display: flex; }
+        .active-tab { border-bottom: 4px solid #075e54; color: #075e54; }
     </style>
 </head>
-<body class="bg-slate-50 flex flex-col h-screen overflow-hidden">
+<body class="bg-slate-50 flex flex-col h-screen">
 
-    <nav class="bg-white shadow-sm flex justify-around p-3 border-b shrink-0">
-        <button onclick="showTab('report')" class="font-bold text-blue-900"><i class="fas fa-clipboard-list ml-1"></i>סידור</button>
-        <button onclick="showTab('chat')" class="font-bold text-green-700"><i class="fab fa-whatsapp ml-1"></i>צ'אט AI</button>
+    <nav class="bg-white shadow-md flex justify-around p-3 z-50 shrink-0">
+        <button onclick="showTab('morning')" id="nav-morning" class="tab-btn pb-1 px-4 active-tab font-bold">
+            <i class="fas fa-clipboard-list ml-1"></i>דוח בוקר
+        </button>
+        <button onclick="showTab('chat')" id="nav-chat" class="tab-btn pb-1 px-4 font-bold text-green-700">
+            <i class="fab fa-whatsapp ml-1"></i>מוקד ווטסאפ (AI)
+        </button>
     </nav>
 
-    <div id="report" class="tab-content active flex-col p-4 overflow-y-auto">
-        <div class="bg-white p-6 rounded-3xl shadow-lg border-t-4 border-blue-600">
-            <h2 class="text-xl font-bold mb-4">🏗️ דוח בוקר - ח. סבן</h2>
-            <div class="grid grid-cols-1 gap-3">
-                <input id="rep-client" type="text" placeholder="שם הלקוח" class="p-4 bg-gray-50 border rounded-2xl outline-none">
-                <button id="sendReportBtn" class="bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-transform">שלח דוח 🚀</button>
+    <div id="morning" class="tab-content active flex-col p-4 overflow-y-auto">
+        <div class="max-w-2xl mx-auto w-full space-y-4">
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-t-4 border-blue-600">
+                <h2 class="text-xl font-bold mb-4 text-blue-900">🏗️ סידור עבודה - ח. סבן</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input id="rep-client" type="text" placeholder="שם הלקוח" class="p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input id="rep-address" type="text" placeholder="כתובת פריקה" class="p-3 bg-gray-50 border rounded-xl outline-none">
+                    <select id="rep-delivery" class="p-3 bg-gray-50 border rounded-xl">
+                        <option>הובלת משאית</option>
+                        <option>הובלת מנוף 15 מטר</option>
+                        <option>איסוף בלות פסולת</option>
+                        <option>עבודת מנוף</option>
+                    </select>
+                    <select id="rep-driver" class="p-3 bg-blue-50 border rounded-xl font-bold text-blue-800">
+                        <option value="עלי">עלי (נהג משאית) 🚚</option>
+                        <option value="חכמת">חכמת (נהג מנוף) 🏗️</option>
+                    </select>
+                </div>
+                <button id="sendReportBtn" class="w-full mt-4 bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-transform">שלח דוח בוקר 🚀</button>
+            </div>
+            
+            <div class="bg-white p-6 rounded-3xl shadow-lg">
+                <h2 class="font-bold mb-3 flex items-center gap-2"><i class="fas fa-robot text-green-600"></i> מה Gemini ענה לאחרונה?</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-right">
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr>
+                                <th class="p-2">לקוח</th>
+                                <th class="p-2">שאלה</th>
+                                <th class="p-2">מענה AI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ai-log-table">
+                            </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="chat" class="tab-content flex-col overflow-hidden">
-        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-4 flex flex-col gap-3"></div>
-        
-        <div class="p-3 bg-gray-100 flex gap-2 border-t shrink-0">
-            <input id="manual-msg" type="text" placeholder="הקלד הודעה..." 
-                   class="flex-1 p-3 rounded-full border outline-none focus:ring-2 focus:ring-green-500 bg-white">
-            <button id="manualReplyBtn" class="bg-[#075e54] text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-                <i class="fas fa-paper-plane"></i>
-            </button>
-        </div>
+    <div id="chat" class="tab-content overflow-hidden flex-row">
+        <aside class="w-1/3 bg-white border-l overflow-y-auto flex flex-col shadow-xl">
+            <div class="p-4 bg-gray-100 font-bold border-b italic">שיחות פעילות (JONI)</div>
+            <div id="customer-list" class="flex-1"></div>
+        </aside>
+
+        <main class="flex-1 flex flex-col whatsapp-bg relative">
+            <div id="chat-canvas" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
+                <div class="self-center bg-blue-100 text-blue-800 text-[10px] px-3 py-1 rounded-full shadow-sm mt-2">הודעות נשאבות אוטומטית מ-JONI</div>
+            </div>
+            <div class="p-3 bg-gray-100 flex gap-2 border-t">
+                <input id="manual-msg" type="text" placeholder="תשובה ידנית מרמי..." class="flex-1 p-3 rounded-full border outline-none shadow-inner bg-white">
+                <button id="manualReplyBtn" class="bg-[#075e54] text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, limit, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
@@ -52,47 +93,82 @@
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "whatsapp-8ffd1"
         };
+        const GEMINI_KEY = "הכנס_כאן_את_המפתח_שלך";
+        
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
+        const dbFS = getFirestore(app);
 
-        // פונקציית שליחה ידנית
-        const handleManualSend = async () => {
-            const input = document.getElementById('manual-msg');
-            const text = input.value.trim();
-            if (!text) return;
+        // פונקציית המוח - Gemini 3.1
+        async function askGemini(text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
+            const prompt = { contents: [{ parts: [{ text: `אתה נציג ח. סבן 1994. ענה ללקוח: ${text}` }] }] };
+            const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
+            const data = await res.json();
+            return data.candidates[0].content.parts[0].text;
+        }
 
-            try {
-                // שליחה למספר שלך כברירת מחדל או ללקוח פעיל
-                await push(ref(rtdb, 'saban94/send'), {
-                    to: "972508860896", 
-                    text: text
-                });
-                input.value = ''; // ניקוי שדה הכתיבה
-                console.log("הודעה נשלחה בהצלחה");
-            } catch (e) {
-                console.error("שגיאה בשליחה:", e);
-            }
-        };
-
-        // חיבור אירועים - תיקון אי זיהוי מקלדת ולחיצה
-        const msgInput = document.getElementById('manual-msg');
-        const sendBtn = document.getElementById('manualReplyBtn');
-
-        // זיהוי לחיצת Enter במקלדת
-        msgInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                handleManualSend();
+        // --- שאיבת הודעות מ-JONI (Realtime Database) ---
+        onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
+            const data = snap.val();
+            if (data) {
+                const id = Object.keys(data).pop();
+                const msg = data[id];
+                if (!msg.processed) {
+                    // 1. קבלת מענה מגימני
+                    const aiReply = await askGemini(msg.text);
+                    
+                    // 2. שליחה לווטסאפ דרך JONI
+                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
+                    
+                    // 3. יצירת קולקציה והיסטוריה ב-Firestore
+                    const histRef = collection(dbFS, "customers", msg.from, "chat_history");
+                    await addDoc(histRef, { text: msg.text, type: 'in', time: serverTimestamp() });
+                    await addDoc(histRef, { text: aiReply, type: 'out', time: serverTimestamp() });
+                    
+                    // 4. סימון כטופל
+                    set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
+                }
             }
         });
 
-        // זיהוי לחיצה על כפתור השליחה
-        sendBtn.addEventListener('click', handleManualSend);
+        // --- הצגת טבלת ה-AI בסידור ---
+        onSnapshot(query(collection(dbFS, "ai_logs"), orderBy("time", "desc"), limit(5)), (snap) => {
+            const table = document.getElementById('ai-log-table');
+            table.innerHTML = '';
+            snap.forEach(doc => {
+                const log = doc.data();
+                table.innerHTML += `<tr class="border-b">
+                    <td class="p-2">${log.phone}</td>
+                    <td class="p-2 text-xs">${log.question}</td>
+                    <td class="p-2 text-xs font-bold text-green-600">${log.answer}</td>
+                </tr>`;
+            });
+        });
 
-        // ניהול לשוניות
+        // ניהול תפריט
         window.showTab = (id) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
             document.getElementById(id).classList.add('active');
+            document.getElementById('nav-' + id).classList.add('active-tab');
         };
+
+        // פונקציית דוח בוקר
+        document.getElementById('sendReportBtn').onclick = async () => {
+            const report = `*📋 סידור ח. סבן*\n👤 לקוח: ${document.getElementById('rep-client').value}\n🚚 נהג: ${document.getElementById('rep-driver').value}\n📍 יעד: ${document.getElementById('rep-address').value}`;
+            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: report });
+            alert("דוח הבוקר נשלח!");
+        };
+
+        // פונקציית מענה ידני
+        document.getElementById('manualReplyBtn').onclick = async () => {
+            const text = document.getElementById('manual-msg').value;
+            if(!text) return;
+            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: text });
+            document.getElementById('manual-msg').value = '';
+        };
+
     </script>
 </body>
 </html>
