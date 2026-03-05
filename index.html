@@ -3,58 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - סטודיו צ'אטבוט וסידור עבודה</title>
+    <title>ח. סבן - שליחת דוח בוקר</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 font-sans text-right">
+<body class="bg-slate-100 min-h-screen p-4">
 
-    <div class="max-w-2xl mx-auto space-y-6">
-        <header class="bg-blue-800 text-white p-6 rounded-2xl shadow-lg text-center">
-            <h1 class="text-3xl font-extrabold">ח. סבן 1994 בע"מ 🏗️</h1>
-            <p class="mt-2 opacity-80">ניהול לוגיסטיקה וצ'אטבוט חכם</p>
-        </header>
+    <div class="max-w-md mx-auto space-y-4">
+        <div class="bg-blue-900 text-white p-6 rounded-2xl shadow-xl text-center border-b-4 border-yellow-500">
+            <h1 class="text-2xl font-bold">📋 יצירת דוח בוקר - ח. סבן</h1>
+            <p class="text-sm opacity-80">מערכת הפצה אוטומטית לנהגים</p>
+        </div>
 
-        <section class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-blue-600">
-            <h2 class="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
-                🎙️ סטודיו לניהול דיאלוג
-            </h2>
+        <div class="bg-white p-5 rounded-2xl shadow-md border border-gray-200">
+            <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">📦 פרטי משימה להיום</h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">בחר סטטוס למענה מהיר:</label>
-                    <select id="statusSelect" class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="הזמנה התקבלה וממתינה לשיבוץ 📝">הזמנה התקבלה</option>
-                        <option value="המנוף הועמס ויצא לדרך! 🚚">בדרך אליך</option>
-                        <option value="הפריקה בוצעה בהצלחה. תודה! ✅">בוצע בהצלחה</option>
-                        <option value="חל עיכוב קל עקב עומס, עמכם הסליחה ⏳">עיכוב זמני</option>
+                    <label class="block text-xs text-gray-500 mr-1">בחר נהג</label>
+                    <select id="driverSelect" class="w-full p-3 border rounded-xl bg-gray-50 font-bold">
+                        <option value="עלי">עלי</option>
+                        <option value="חכמת">חכמת</option>
                     </select>
                 </div>
+
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">מספר לקוח ידני (אופציונלי):</label>
-                    <input id="manualPhone" type="text" placeholder="972..." class="w-full p-3 border rounded-xl bg-gray-50 outline-none">
+                    <label class="block text-xs text-gray-500 mr-1">שם הלקוח / אתר</label>
+                    <input id="client" type="text" placeholder="למשל: זבולון-עדירן / שיין" class="w-full p-3 border rounded-xl bg-gray-50 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs text-gray-500 mr-1">יעד (עיר)</label>
+                        <input id="location" type="text" placeholder="רעננה" class="w-full p-3 border rounded-xl bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mr-1">כמות בלות (מקסימום 18)</label>
+                        <input id="bales" type="number" value="1" max="18" class="w-full p-3 border rounded-xl bg-gray-50">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-500 mr-1">שעת התחלה</label>
+                    <input id="startTime" type="time" value="07:00" class="w-full p-3 border rounded-xl bg-gray-50">
                 </div>
             </div>
 
-            <button id="sendQuickBtn" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">
-                שלח מענה סטטוס ללקוח 🚀
+            <button id="sendReportBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2">
+                🚀 שלח דוח לנהג עכשיו
             </button>
-        </section>
+        </div>
 
-        <section class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-green-600">
-            <h2 class="text-xl font-bold text-green-800 mb-4">📅 סידור עבודה יומי</h2>
-            <div id="order-list" class="space-y-3">
-                </div>
-            <button id="sendDailyBtn" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-md">
-                📤 הפץ סידור בוקר לכל הנהגים
-            </button>
-        </section>
+        <div id="statusMsg" class="text-center text-sm font-medium text-green-600 hidden">
+            הדוח הועבר ל-JONI בהצלחה! ✅
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // הגדרות Firebase שלך
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
@@ -68,75 +78,55 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // נתוני דוגמה לסידור (עלי וחכמת)
-        const dailyOrders = [
-            { time: "07:00", driver: "עלי", client: "זבולון-עדירן", location: "רעננה", phone: "972508860896" },
-            { time: "08:30", driver: "חכמת", client: "בן ענבר", location: "תל אביב", phone: "972502120038" }
-        ];
-
-        // הצגת ההזמנות במסך
-        const listDiv = document.getElementById('order-list');
-        dailyOrders.forEach(order => {
-            const card = document.createElement('div');
-            card.className = "p-4 border rounded-xl border-gray-100 bg-gray-50 hover:bg-blue-50 transition-colors flex justify-between items-center";
-            card.innerHTML = `
-                <div>
-                    <span class="text-blue-600 font-bold">${order.time}</span> | 
-                    <span class="font-bold text-gray-800">${order.driver}</span><br>
-                    <span class="text-sm text-gray-600">${order.client} (${order.location})</span>
-                </div>
-                <button onclick="window.setPhone('${order.phone}')" class="text-xs bg-gray-200 p-2 rounded-lg hover:bg-gray-300">בחר</button>
-            `;
-            listDiv.appendChild(card);
-        });
-
-        // פונקציה לעדכון מספר טלפון ידני מהרשימה
-        window.setPhone = (phone) => {
-            document.getElementById('manualPhone').value = phone;
+        // מספרי הטלפון של הנהגים
+        const driversPhones = {
+            "עלי": "972508860896", // מספר הנהג עלי
+            "חכמת": "972502120038" // מספר הנהג חכמת
         };
 
-        // לוגיקת שליחת הודעה בודדת (סטודיו)
-        async function sendQuickStatus() {
-            const phone = document.getElementById('manualPhone').value;
-            const status = document.getElementById('statusSelect').value;
-            
-            if (!phone || phone.length < 10) {
-                alert("נא להזין מספר טלפון תקין");
+        async function sendMorningReport() {
+            const driver = document.getElementById('driverSelect').value;
+            const client = document.getElementById('client').value;
+            const location = document.getElementById('location').value;
+            const bales = document.getElementById('bales').value;
+            const time = document.getElementById('startTime').value;
+            const btn = document.getElementById('sendReportBtn');
+
+            if(!client || !location) {
+                alert("רמי, נא למלא את כל הפרטים לפני השליחה");
                 return;
             }
 
-            const message = `*עדכון מח. סבן 1994 בע"מ* 🏗️\n\nשלום, ${status}\n\nלכל שאלה אנחנו כאן.`;
-            await pushToJONI(phone, message);
-            alert("הודעת סטטוס הועברה ל-JONI!");
-        }
+            btn.disabled = true;
+            btn.innerHTML = "מעבד...";
 
-        // לוגיקת שליחת כל הסידור (הפצה)
-        async function sendDailyReport() {
-            for (const order of dailyOrders) {
-                const message = `*📋 דו"ח סידור עבודה - ח. סבן*\n\n⏰ שעה: ${order.time}\n👤 נהג: ${order.driver}\n📍 יעד: ${order.location}\n🏗️ המנוף בדרך אליך!`;
-                await pushToJONI(order.phone, message);
-            }
-            alert("כל הסידור הופץ בהצלחה!");
-        }
+            // בניית הודעה מקצועית
+            const message = `*📋 דוח בוקר - ח. סבן 1994 בע"מ*\n\n` +
+                          `👤 *נהג:* ${driver}\n` +
+                          `⏰ *שעת יציאה:* ${time}\n` +
+                          `📍 *יעד:* ${location}\n` +
+                          `🏗️ *לקוח:* ${client}\n` +
+                          `📦 *כמות בלות:* ${bales}/18\n\n` +
+                          `_נא לאשר קבלת סידור זה. סע בזהירות!_ 🚛`;
 
-        // פונקציית העזר לשליחה ל-Firebase (JONI Webhook)
-        async function pushToJONI(phone, text) {
             try {
                 const msgRef = ref(db, 'saban94/send');
                 await push(msgRef, {
-                    to: phone,
-                    text: text
+                    to: driversPhones[driver],
+                    text: message
                 });
-                console.log(`הודעה ל-${phone} נשלחה ל-Firebase`);
+
+                document.getElementById('statusMsg').classList.remove('hidden');
+                setTimeout(() => document.getElementById('statusMsg').classList.add('hidden'), 3000);
             } catch (e) {
-                console.error("שגיאה בחיבור ל-Firebase", e);
+                alert("שגיאה בשליחה: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = "🚀 שלח דוח לנהג עכשיו";
             }
         }
 
-        // חיבור כפתורים
-        document.getElementById('sendQuickBtn').addEventListener('click', sendQuickStatus);
-        document.getElementById('sendDailyBtn').addEventListener('click', sendDailyReport);
-
+        document.getElementById('sendReportBtn').addEventListener('click', sendMorningReport);
     </script>
 </body>
 </html>
