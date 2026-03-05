@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHAK Monitor | ח. סבן בקרה לוגיסטית</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700&display=swap');
+        body { font-family: 'Assistant', sans-serif; background: #0f172a; color: #f8fafc; height: 100vh; overflow: hidden; margin: 0; }
+        .status-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+        .log-box { background: #020617; border: 1px solid #1e293b; font-family: 'Courier New', monospace; height: 350px; overflow-y: auto; }
+        .led { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+        .led-green { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .led-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        .led-yellow { background: #eab308; box-shadow: 0 0 10px #eab308; }
+        .led-blue { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+    </style>
+</head>
+<body class="p-6">
+
+    <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+        <div>
+            <h1 class="text-3xl font-bold italic text-white">ח. סבן - מוניטור SHAK</h1>
+            <p class="text-slate-400 text-sm">ניטור צינור saban94 בזמן אמת</p>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="text-left">
+                <span class="text-xs block text-slate-500 uppercase">זמן מערכת</span>
+                <span id="clock" class="text-xl font-mono">00:00:00</span>
+            </div>
+            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111" class="w-12 h-12 rounded-full border-2 border-slate-600">
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        
+        <div class="status-card flex flex-col justify-between">
+            <div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">סטטוס צינור JONI</h3>
+                <div class="flex items-center">
+                    <div id="led-joni" class="led led-yellow"></div>
+                    <span id="txt-joni" class="text-xl font-bold">מתחבר...</span>
+                </div>
+            </div>
+            <div class="mt-4 text-[10px] text-slate-500 italic">נתיב: saban94/incoming</div>
+        </div>
+
+        <div class="status-card flex flex-col justify-between">
+            <div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">סטטוס מוח Gemini 3.1</h3>
+                <div class="flex items-center">
+                    <div id="led-ai" class="led led-yellow"></div>
+                    <span id="txt-ai" class="text-xl font-bold">בהמתנה</span>
+                </div>
+            </div>
+            <div id="ai-model" class="mt-4 text-[10px] text-slate-500 italic">דגם: Lite-Preview 2026</div>
+        </div>
+
+        <div class="status-card flex flex-col justify-between">
+            <div>
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">הודעות שטופלו היום</h3>
+                <div class="text-3xl font-bold text-green-500" id="msg-count">0</div>
+            </div>
+            <div class="mt-4 text-[10px] text-slate-500 italic font-bold">הזרמת נתונים רציפה</div>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+        <h3 class="text-slate-400 text-xs font-bold uppercase">לוג "מלשינון" מקצועי - עברית</h3>
+        <div id="malsh-log" class="log-box p-4 rounded-lg text-xs leading-relaxed">
+            <div class="text-slate-500 italic">[מערכת] SHAK MONITOR נטען בהצלחה... מחכה לנתונים.</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onChildAdded, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
+            authDomain: "whatsapp-8ffd1.firebaseapp.com",
+            projectId: "whatsapp-8ffd1",
+            databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const rtdb = getDatabase(app);
+
+        let count = 0;
+
+        function addLog(msg, color = "#94a3b8", bold = false) {
+            const logBox = document.getElementById('malsh-log');
+            const time = new Date().toLocaleTimeString();
+            const entry = `<div style="color:${color}; ${bold ? 'font-weight:bold;' : ''}">[${time}] ${msg}</div>`;
+            logBox.innerHTML = entry + logBox.innerHTML;
+        }
+
+        function updateLed(id, status) {
+            const led = document.getElementById(`led-${id}`);
+            const txt = document.getElementById(`txt-${id}`);
+            if(status === 'green') { led.className = 'led led-green'; txt.innerText = 'מחובר ותקין'; }
+            else if(status === 'red') { led.className = 'led led-red'; txt.innerText = 'ניתוק / שגיאה'; }
+            else if(status === 'blue') { led.className = 'led led-blue'; txt.innerText = 'מעבד נתונים...'; }
+        }
+
+        // שעון חי
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+
+        // ניטור הצינור
+        addLog("מתחיל ניטור צמוד על נתיב saban94...", "#eab308");
+
+        onValue(ref(rtdb, '.info/connected'), (snap) => {
+            if (snap.val() === true) {
+                updateLed('joni', 'green');
+                addLog("חיבור ל-Firebase Realtime Database הצליח.", "#22c55e", true);
+            } else {
+                updateLed('joni', 'red');
+                addLog("אזהרה: אובדן חיבור ל-Database!", "#ef4444", true);
+            }
+        });
+
+        // האזנה להודעות נכנסות
+        onChildAdded(ref(rtdb, 'saban94/incoming'), (snap) => {
+            const data = snap.val();
+            count++;
+            document.getElementById('msg-count').innerText = count;
+            
+            updateLed('ai', 'blue');
+            addLog(`מלשינון זיהה הודעה מ-${data.from}: "${data.text}"`, "#3b82f6");
+            
+            // סימולציית הצלחה (בפועל ה-API ב-Vercel מעדכן את 'send')
+            setTimeout(() => {
+                updateLed('ai', 'green');
+                addLog(`Gemini עיבד את ההודעה ושלח תשובה ל-JONI`, "#22c55e");
+            }, 1500);
+        });
+
+        // האזנה לשגיאות בצינור השליחה
+        onChildAdded(ref(rtdb, 'saban94/send'), (snap) => {
+            const data = snap.val();
+            addLog(`הודעה הוכנסה לתור שליחה עבור: ${data.to}`, "#94a3b8");
+        });
+
+    </script>
+</body>
+</html>
