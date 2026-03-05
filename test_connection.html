@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saban AI - בדיקת מערכת</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; }
+        .bg-pending { background-color: #9ca3af; }
+        .bg-success { background-color: #10b981; }
+        .bg-error { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border-t-8 border-[#075e54]">
+        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">בדיקת צינורות ח. סבן 🛠️</h1>
+        
+        <div class="space-y-6">
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border">
+                <div class="flex items-center gap-3">
+                    <span id="dot-firebase" class="status-dot bg-pending"></span>
+                    <span class="font-medium text-gray-700">חיבור ל-Firebase RTDB</span>
+                </div>
+                <span id="label-firebase" class="text-xs text-gray-400 font-bold uppercase italic">Pending...</span>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border">
+                <div class="flex items-center gap-3">
+                    <span id="dot-api" class="status-dot bg-pending"></span>
+                    <span class="font-medium text-gray-700">תקינות מפתח API</span>
+                </div>
+                <span id="label-api" class="text-xs text-gray-400 font-bold uppercase italic">Pending...</span>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border">
+                <div class="flex items-center gap-3">
+                    <span id="dot-model" class="status-dot bg-pending"></span>
+                    <span class="font-medium text-gray-700">תאימות Gemini 3.1</span>
+                </div>
+                <span id="label-model" class="text-xs text-gray-400 font-bold uppercase italic">Pending...</span>
+            </div>
+        </div>
+
+        <div id="console-box" class="mt-6 bg-black text-green-400 p-4 rounded-lg text-[10px] font-mono h-32 overflow-y-auto">
+            > מתחיל הרצה...
+        </div>
+
+        <button onclick="runTests()" class="w-full mt-6 bg-[#075e54] text-white font-bold py-4 rounded-xl hover:bg-[#054c44] transition-all shadow-lg active:scale-95">
+            הרץ בדיקה מחדש 🚀
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // הגדרות שלך
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
+            authDomain: "whatsapp-8ffd1.firebaseapp.com",
+            databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "whatsapp-8ffd1"
+        };
+        const GEMINI_KEY = "הכנס_כאן_מפתח_אמיתי";
+        const MODEL_NAME = "gemini-3.1-flash-lite-preview";
+
+        const log = (msg) => {
+            const box = document.getElementById('console-box');
+            box.innerHTML += `<br>> ${msg}`;
+            box.scrollTop = box.scrollHeight;
+        };
+
+        const updateStatus = (id, success, label) => {
+            const dot = document.getElementById(`dot-${id}`);
+            const text = document.getElementById(`label-${id}`);
+            dot.className = `status-dot ${success ? 'bg-success' : 'bg-error'}`;
+            text.innerText = label;
+            text.className = `text-xs font-bold uppercase italic ${success ? 'text-green-600' : 'text-red-600'}`;
+        };
+
+        window.runTests = async () => {
+            log("מתחיל סדרת בדיקות...");
+
+            // 1. בדיקת Firebase
+            try {
+                const app = initializeApp(firebaseConfig);
+                const db = getDatabase(app);
+                await set(ref(db, 'saban94/diagnostic_test'), { last_run: Date.now() });
+                updateStatus('firebase', true, 'Online');
+                log("✅ Firebase מגיב וכותב בהצלחה.");
+            } catch (e) {
+                updateStatus('firebase', false, 'Error');
+                log(`❌ שגיאת Firebase: ${e.message}`);
+            }
+
+            // 2. בדיקת API & Model Compatibility
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_KEY}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    if (data.error.message.includes("key")) {
+                        updateStatus('api', false, 'Invalid Key');
+                        log("❌ המפתח של Gemini לא תקין.");
+                    } else if (data.error.message.includes("model")) {
+                        updateStatus('model', false, 'Incompatible');
+                        log(`❌ המודל ${MODEL_NAME} לא זמין באזור זה.`);
+                    }
+                } else if (data.candidates) {
+                    updateStatus('api', true, 'Valid');
+                    updateStatus('model', true, 'Supported');
+                    log(`✅ המודל ${MODEL_NAME} מגיב מצוין!`);
+                    log(`תשובה מה-AI: ${data.candidates[0].content.parts[0].text}`);
+                }
+            } catch (e) {
+                log(`❌ שגיאת רשת/API: ${e.message}`);
+            }
+        };
+
+        // הרצה אוטומטית בטעינה
+        runTests();
+    </script>
+</body>
+</html>
