@@ -3,51 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban AI Studio | WhatsApp Mirror</title>
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="icon" href="data:,">
-    <link rel="manifest" href='data:application/json,{"name":"Saban AI","short_name":"Saban","display":"standalone","start_url":"/index.html"}'>
-
+    <title>Saban AI Studio | Customer Cards</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
-        body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
         .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .bubble-in { background: #ffffff; border-radius: 0 8px 8px 8px; align-self: flex-start; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
-        .bubble-out { background: #dcf8c6; border-radius: 8px 0 8px 8px; align-self: flex-end; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
-        .tab-content { display: none; width: 100%; height: 100%; flex-direction: column; }
-        .tab-content.active { display: flex; }
+        .bubble-in { background: #ffffff; border-radius: 8px 8px 8px 0; align-self: flex-start; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
+        .bubble-out { background: #dcf8c6; border-radius: 8px 8px 0 8px; align-self: flex-end; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
+        .client-card { border-right: 4px solid #4587de; transition: all 0.2s; }
+        .client-card:hover { background-color: #f8fafc; transform: scale(1.02); }
     </style>
 </head>
 <body class="flex flex-row h-full w-full">
 
-    <aside class="w-[60px] bg-[#eae6df] border-l flex flex-col items-center py-6 gap-8 text-[#54656f] shrink-0">
-        <button onclick="window.showTab('dispatch')" title="סידור עבודה"><i class="fas fa-truck-loading text-xl"></i></button>
-        <button onclick="window.showTab('chat')" title="צ'אט AI"><i class="fab fa-whatsapp text-2xl"></i></button>
-        <button onclick="document.getElementById('csv-upload').click()" title="הזרקת היסטוריה"><i class="fas fa-file-import text-xl"></i></button>
+    <aside class="w-[70px] bg-[#eae6df] border-l flex flex-col items-center py-6 gap-8 text-[#54656f] shrink-0">
+        <button onclick="window.location.reload()"><i class="fas fa-sync-alt text-xl"></i></button>
+        <button onclick="document.getElementById('csv-upload').click()"><i class="fas fa-file-import text-xl"></i></button>
         <input type="file" id="csv-upload" class="hidden" accept=".csv">
     </aside>
 
-    <aside class="w-[320px] bg-white border-l flex flex-col shrink-0">
-        <header class="p-4 bg-[#f0f2f5] border-b font-bold text-lg text-[#111b21]">הזמנות ח. סבן</header>
-        <div id="customer-list" class="flex-1 overflow-y-auto"></div>
+    <aside class="w-[350px] bg-white border-l flex flex-col shrink-0 shadow-xl">
+        <header class="p-5 bg-[#f0f2f5] border-b">
+            <h2 class="font-bold text-xl text-slate-800 italic">לקוחות ח. סבן</h2>
+            <div class="mt-2 bg-white flex items-center px-3 py-1.5 rounded-full border shadow-sm">
+                <i class="fas fa-search text-gray-400 text-xs ml-2"></i>
+                <input type="text" placeholder="חיפוש בכרטיסים..." class="text-xs outline-none w-full">
+            </div>
+        </header>
+        <div id="customer-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+            </div>
     </aside>
 
-    <main class="flex-1 relative overflow-hidden">
-        <div id="dispatch" class="tab-content p-8 overflow-y-auto">
-            <h2 class="text-3xl font-extrabold text-[#111b21] mb-6">סידור לוגיסטי חכם</h2>
-            <div id="dispatch-data" class="bg-white rounded-3xl p-6 shadow-sm border">לחץ על ייבוא CSV להזרקת נתונים...</div>
-        </div>
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        <header id="chat-header" class="h-[70px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between shrink-0 hidden">
+            <div class="flex items-center gap-3">
+                <div id="active-initial" class="w-10 h-10 bg-[#4587de] rounded-full flex items-center justify-center text-white font-bold">S</div>
+                <div>
+                    <span id="active-name" class="font-bold text-sm block leading-none text-slate-800">בחר לקוח</span>
+                    <small id="active-phone" class="text-[10px] text-gray-500 font-mono"></small>
+                </div>
+            </div>
+            <div class="flex gap-4 text-gray-500"><i class="fas fa-phone-alt"></i><i class="fas fa-ellipsis-v"></i></div>
+        </header>
 
-        <div id="chat" class="tab-content active">
-            <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center gap-3">
-                <div class="w-10 h-10 bg-[#4587de] rounded-full flex items-center justify-center text-white font-bold">S</div>
-                <span id="active-name" class="font-bold text-sm">בחר לקוח מהרשימה</span>
-            </header>
-            <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-2"></div>
+        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-2">
+            <div class="flex flex-col items-center justify-center h-full opacity-30">
+                <i class="fab fa-whatsapp text-6xl mb-4"></i>
+                <p class="font-bold">בחר כרטיס לקוח להצגת היסטוריה</p>
+            </div>
         </div>
     </main>
 
@@ -65,21 +70,10 @@
         const app = initializeApp(firebaseConfig);
         const dbFS = getFirestore(app);
 
-        // חשיפת פונקציות ל-Global Scope למניעת שגיאות onclick
-        window.showTab = (id) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-        };
-
-        // פונקציית תיקון תאריך עבור JONI CSV (פורמט: 3.12.2025 11:13:16)
-        function formatSabanTimestamp(dateStr, timeStr) {
-            try {
-                const dParts = dateStr.trim().split('.');
-                if (dParts.length !== 3) return null;
-                const isoDate = `${dParts[2]}-${dParts[1].padStart(2, '0')}-${dParts[0].padStart(2, '0')}`;
-                const dateObj = new Date(`${isoDate}T${timeStr.trim()}`);
-                return isNaN(dateObj.getTime()) ? null : dateObj;
-            } catch (e) { return null; }
+        // פונקציית חילוץ שם לקוח מהפורמט של JONI
+        function parseClientName(text) {
+            const nameMatch = text.match(/👤\s*([^📱\n]+)/);
+            return nameMatch ? nameMatch[1].trim() : "לקוח כללי";
         }
 
         // הזרקה מקצועית מה-CSV
@@ -88,52 +82,55 @@
             const reader = new FileReader();
             reader.onload = async (event) => {
                 const lines = event.target.result.split('\n').slice(1);
-                let count = 0;
                 for (let line of lines) {
                     const parts = line.split(',');
                     if (parts.length < 4) continue;
                     
-                    const [dateStr, timeStr, sender, text] = parts;
-                    const timestamp = formatSabanTimestamp(dateStr, timeStr);
-                    
-                    if (!timestamp) continue;
-
-                    // חילוץ טלפון מתוך הטקסט (כפי שמופיע ב-JONI CSV)
+                    const [date, time, sender, text] = parts;
                     const phoneMatch = text.match(/\+972\d+/);
-                    const phone = phoneMatch ? phoneMatch[0] : "קבוצה_כללית";
+                    const phone = phoneMatch ? phoneMatch[0] : "General";
+                    const clientName = parseClientName(text);
 
+                    // 1. בניית כרטיס לקוח
+                    await setDoc(doc(dbFS, "customers", phone), {
+                        name: clientName,
+                        phone: phone,
+                        last_activity: new Date()
+                    }, { merge: true });
+
+                    // 2. הזרקה להיסטוריה
                     await addDoc(collection(dbFS, "customers", phone, "chat_history"), {
                         text: text.replace(/^"|"$/g, '').trim(),
                         type: sender.includes("הזמנות ח. סבן") ? 'in' : 'out',
-                        timestamp: timestamp
+                        timestamp: new Date()
                     });
-
-                    await setDoc(doc(dbFS, "customers", phone), { 
-                        last_msg: text, 
-                        updatedAt: timestamp 
-                    }, { merge: true });
-                    count++;
                 }
-                alert(`הוזרקו ${count} הודעות בהצלחה!`);
+                alert("כרטיסי הלקוח נבנו בהצלחה!");
             };
             reader.readAsText(file);
         };
 
-        // טעינת רשימת לקוחות בזמן אמת
+        // טעינת רשימת כרטיסים
         onSnapshot(collection(dbFS, "customers"), (snap) => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
             snap.forEach(d => {
+                const c = d.data();
                 list.insertAdjacentHTML('beforeend', `
-                    <div onclick="window.loadChat('${d.id}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer transition">
-                        <div class="font-bold text-sm text-[#111b21]">${d.id}</div>
-                        <div class="text-[11px] text-gray-500 truncate">${d.data().last_msg || ''}</div>
+                    <div onclick="window.loadCard('${d.id}')" class="client-card p-4 bg-white rounded-xl shadow-sm cursor-pointer flex items-center gap-3">
+                        <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                            ${(c.name || 'L').charAt(0)}
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <div class="font-bold text-sm text-slate-800">${c.name || d.id}</div>
+                            <div class="text-[10px] text-slate-500 font-mono">${d.id}</div>
+                        </div>
                     </div>`);
             });
         });
 
-        window.loadChat = (phone) => {
-            document.getElementById('active-name').innerText = phone;
+        window.loadCard = (phone) => {
+            document.getElementById('chat-header').classList.remove('hidden');
             const q = query(collection(dbFS, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
             onSnapshot(q, (snap) => {
                 const canvas = document.getElementById('chat-canvas');
@@ -141,11 +138,7 @@
                 snap.forEach(docSnap => {
                     const m = docSnap.data();
                     const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
-                    canvas.insertAdjacentHTML('beforeend', `
-                        <div class="${style} p-3 max-w-[85%] text-sm mb-1">
-                            ${m.text}
-                            <div class="text-[9px] text-gray-400 mt-1 text-left">${new Date(m.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                        </div>`);
+                    canvas.insertAdjacentHTML('beforeend', `<div class="${style} p-3 max-w-[85%] text-sm mb-1">${m.text}</div>`);
                 });
                 canvas.scrollTop = canvas.scrollHeight;
             });
