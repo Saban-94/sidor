@@ -1,58 +1,50 @@
-// api/gemini.js
+// api/gemini.js - ה-Autopilot של ראמי מסארוה
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const { message } = req.body;
+    const { message, senderPhone } = req.body;
 
-    if (!apiKey) return res.status(500).json({ error: 'Missing API Key in Environment Variables' });
+    if (!apiKey) return res.status(500).json({ error: 'Missing API Key' });
 
-    // רשימת מודלים לפי סדר עדיפות (מהחדש והחכם ביותר ליציב ביותר)
+    // הגדרת הזהות של הטייס האוטומטי
+    const systemPrompt = `
+    אתה ה"טייס האוטומטי" והעוזר האישי של ראמי מסארוה מחברת ח. סבן חומרי בניין 1994 בע"מ.
+    תפקידך: לנהל הזמנות, לתאם משלוחי חול ובטון, ולענות ללקוחות בווטסאפ בשמו של ראמי.
+    סגנון: מקצועי, ענייני, אדיב ומהיר. 
+    אם הפנייה היא מראמי (+972508861080), פנה אליו כ"ראמי הבוס" ותן לו סטטוס לוגיסטי.
+    אם הפנייה מלקוח אחר, ענה בשם "הצוות של ח. סבן".
+    
+    הודעה נכנסת: ${message}
+    `;
+
     const modelPriority = [
-        "gemini-3.1-flash-lite-preview", // הושק ב-3 במרץ 2026
+        "gemini-3.1-flash-lite-preview",
         "gemini-3-flash-preview",
-        "gemini-1.5-flash",             // Fallback יציב
-        "gemini-1.5-flash-8b"           // מהיר במיוחד
+        "gemini-1.5-flash"
     ];
 
-    let lastError = null;
-
-    // לולאת הדילוג בין המודלים
     for (const modelName of modelPriority) {
         try {
-            console.log(`🤖 מנסה להפעיל מודל: ${modelName}`);
-            
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: `אתה מנהל לוגיסטי בכיר בחברת ח.סבן חומרי בניין. ענה לראמי או ללקוח בצורה מקצועית, קצרה ועניינית: ${message}` }]
-                    }]
+                    contents: [{ parts: [{ text: systemPrompt }] }]
                 })
             });
 
             const data = await response.json();
-
-            if (response.ok && data.candidates && data.candidates[0].content) {
-                const reply = data.candidates[0].content.parts[0].text;
+            if (response.ok && data.candidates) {
                 return res.status(200).json({ 
-                    reply, 
-                    modelUsed: modelName,
-                    status: "success" 
+                    reply: data.candidates[0].content.parts[0].text, 
+                    modelUsed: modelName 
                 });
-            } else {
-                lastError = data.error ? data.error.message : "Response not ok";
-                console.warn(`⚠️ מודל ${modelName} נכשל: ${lastError}`);
             }
-
         } catch (err) {
-            lastError = err.message;
-            console.error(`❌ תקלה טכנית במודל ${modelName}:`, lastError);
+            console.error(`Model ${modelName} failed, skipping...`);
         }
     }
-
-    return res.status(500).json({ error: "כל המודלים נכשלו", details: lastError });
+    return res.status(500).json({ error: "All models failed" });
 }
