@@ -3,67 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - Dashboard סידור עבודה</title>
+    <title>ח. סבן - מערכת סידור עבודה</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-slate-50 min-h-screen pb-20">
+<body class="bg-slate-100 min-h-screen pb-10 font-sans">
 
-    <nav class="bg-blue-900 text-white p-4 shadow-xl sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-extrabold tracking-tight">H.SABAN 1994 <span class="text-yellow-400">LOGISTICS</span></h1>
-            <div id="status-indicator" class="flex items-center gap-2 text-xs bg-blue-800 px-3 py-1 rounded-full">
-                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                מחובר ל-Firebase
+    <header class="bg-blue-900 text-white p-6 shadow-2xl border-b-4 border-yellow-500 sticky top-0 z-50">
+        <div class="max-w-2xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black">H.SABAN 1994</h1>
+                <p class="text-xs opacity-80">מערכת ניהול הזמנות וסידור נהגים</p>
             </div>
+            <i class="fas fa-truck-loading text-3xl text-yellow-400"></i>
         </div>
-    </nav>
+    </header>
 
-    <main class="max-w-5xl mx-auto p-4 space-y-6">
+    <main class="max-w-2xl mx-auto p-4 space-y-6">
         
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <i class="fas fa-plus-circle text-blue-600"></i> הוספת משימה לסידור
+        <div class="bg-white rounded-3xl shadow-lg p-6 border border-slate-200">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
+                <i class="fas fa-file-invoice text-blue-600"></i> פרטי הזמנה חדשה
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input id="newTime" type="time" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" value="07:00">
-                <input id="newClient" type="text" placeholder="לקוח וכתובת פריקה" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-                <select id="newDriver" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="עלי">עלי - משאית 🚚</option>
-                    <option value="חכמת">חכמת - מנוף 🏗️</option>
-                </select>
-                <button id="addBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95">
-                    הוסף ללוח
+            
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">תאריך</label>
+                        <input id="date" type="date" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">שעה</label>
+                        <input id="time" type="time" value="07:00" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">שם לקוח</label>
+                        <input id="client" type="text" placeholder="שם הלקוח" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">כתובת</label>
+                        <input id="address" type="text" placeholder="עיר ורחוב" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">סוג פריקה / הובלה</label>
+                        <select id="deliveryType" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option>הובלת משאית</option>
+                            <option>הובלת מנוף</option>
+                            <option>הובלת מנוף 15 מטר</option>
+                            <option>משיכה עצמית</option>
+                            <option>מוביל חיצוני</option>
+                            <option>איסוף בלות פסולת</option>
+                            <option>גישה לאתר+עבודת מנוף</option>
+                            <option>עבודת מנוף</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">מחסן</label>
+                        <select id="warehouse" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option>התלמיד</option>
+                            <option>החרש</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">בחירת נהג</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="selectDriver('עלי')" id="btn-ali" class="driver-btn p-3 border-2 rounded-xl font-bold transition-all text-slate-600 border-slate-200">
+                            עלי (משאית) 🚚
+                        </button>
+                        <button onclick="selectDriver('חכמת')" id="btn-hachmat" class="driver-btn p-3 border-2 rounded-xl font-bold transition-all text-slate-600 border-slate-200">
+                            חכמת (מנוף) 🏗️
+                        </button>
+                    </div>
+                </div>
+
+                <button id="sendBtn" class="w-full bg-blue-600 hover:bg-blue-800 text-white font-black py-4 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 mt-4 text-xl">
+                    <i class="fab fa-whatsapp"></i> שלח סידור לנהג 🚀
                 </button>
             </div>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-4">
-                <div class="bg-blue-600 text-white p-3 rounded-t-xl font-bold flex justify-between items-center">
-                    <span>עלי 🚚</span>
-                    <span id="count-ali" class="bg-blue-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
-                </div>
-                <div id="list-ali" class="space-y-3 bg-white p-4 rounded-b-xl shadow-sm border border-slate-200 min-h-[150px]"></div>
-            </div>
-
-            <div class="space-y-4">
-                <div class="bg-emerald-600 text-white p-3 rounded-t-xl font-bold flex justify-between items-center">
-                    <span>חכמת 🏗️</span>
-                    <span id="count-hachmat" class="bg-emerald-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
-                </div>
-                <div id="list-hachmat" class="space-y-3 bg-white p-4 rounded-b-xl shadow-sm border border-slate-200 min-h-[150px]"></div>
-            </div>
-        </div>
-
     </main>
-
-    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4">
-        <button id="sendReport" class="w-full bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white font-black text-xl py-5 rounded-2xl shadow-2xl shadow-green-200 flex items-center justify-center gap-3 transition-all transform active:scale-95">
-            <i class="fab fa-whatsapp text-2xl"></i>
-            שלח דוח בוקר ישיר 🚀
-        </button>
-    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -82,91 +108,51 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let sidor = JSON.parse(localStorage.getItem('saban_db')) || [];
+        let selectedDriver = "";
+        const driverPhones = { "עלי": "972508860896", "חכמת": "972502120038" };
 
-        function updateUI() {
-            const aliList = document.getElementById('list-ali');
-            const hachmatList = document.getElementById('list-hachmat');
-            aliList.innerHTML = '';
-            hachmatList.innerHTML = '';
-
-            let aliCount = 0, hachmatCount = 0;
-
-            sidor.sort((a,b) => a.time.localeCompare(b.time)).forEach((item, index) => {
-                const card = `
-                    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border-r-4 ${item.driver === 'עלי' ? 'border-blue-500' : 'border-emerald-500'}">
-                        <div class="text-sm">
-                            <span class="font-black text-slate-700">${item.time}</span> | 
-                            <span class="text-slate-600 font-medium">${item.client}</span>
-                        </div>
-                        <button onclick="removeItem(${index})" class="text-red-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
-                    </div>
-                `;
-                if(item.driver === 'עלי') {
-                    aliList.innerHTML += card;
-                    aliCount++;
-                } else {
-                    hachmatList.innerHTML += card;
-                    hachmatCount++;
-                }
-            });
-
-            document.getElementById('count-ali').innerText = `${aliCount} משימות`;
-            document.getElementById('count-hachmat').innerText = `${hachmatCount} משימות`;
-            localStorage.setItem('saban_db', JSON.stringify(sidor));
-        }
-
-        document.getElementById('addBtn').onclick = () => {
-            const client = document.getElementById('newClient').value;
-            if(!client) return;
-            sidor.push({
-                time: document.getElementById('newTime').value,
-                client: client,
-                driver: document.getElementById('newDriver').value
-            });
-            document.getElementById('newClient').value = '';
-            updateUI();
+        window.selectDriver = (name) => {
+            selectedDriver = name;
+            document.querySelectorAll('.driver-btn').forEach(btn => btn.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-600'));
+            const activeBtn = document.getElementById(`btn-${name === 'עלי' ? 'ali' : 'hachmat'}`);
+            activeBtn.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-600');
         };
 
-        window.removeItem = (index) => {
-            sidor.splice(index, 1);
-            updateUI();
-        };
+        document.getElementById('sendBtn').onclick = async () => {
+            if (!selectedDriver) return alert("רמי, נא לבחור נהג!");
+            
+            const data = {
+                date: document.getElementById('date').value,
+                time: document.getElementById('time').value,
+                client: document.getElementById('client').value,
+                address: document.getElementById('address').value,
+                delivery: document.getElementById('deliveryType').value,
+                warehouse: document.getElementById('warehouse').value
+            };
 
-        document.getElementById('sendReport').onclick = async () => {
-            if(sidor.length === 0) return alert("רמי, הסידור ריק!");
-
-            const today = new Date().toLocaleDateString('he-IL');
-            let report = `*📋 דוח בוקר - ח. סבן 1994 בע"מ*\n*תאריך:* ${today}\n\n`;
-
-            const ali = sidor.filter(o => o.driver === 'עלי');
-            const hachmat = sidor.filter(o => o.driver === 'חכמת');
-
-            if(ali.length > 0) {
-                report += `*🚚 עלי (מנוף):*\n`;
-                ali.forEach(o => report += `• ${o.time} - ${o.client}\n`);
-            }
-
-            if(hachmat.length > 0) {
-                report += `\n*🏗️ חכמת (מנוף):*\n`;
-                hachmat.forEach(o => report += `• ${o.time} - ${o.client}\n`);
-            }
-
-            report += `\n_הדוח הופק אוטומטית ממערכת SABAN-LOGIC_ 🚀`;
+            const message = `*📋 סידור עבודה - ח. סבן 1994 בע"מ*\n\n` +
+                          `📅 *תאריך:* ${data.date}\n` +
+                          `⏰ *שעה:* ${data.time}\n` +
+                          `👤 *לקוח:* ${data.client}\n` +
+                          `📍 *כתובת:* ${data.address}\n\n` +
+                          `🏗️ *סוג פריקה:* ${data.delivery}\n` +
+                          `🏠 *מחסן:* ${data.warehouse}\n` +
+                          `🚛 *נהג:* ${selectedDriver}\n\n` +
+                          `_נא לאשר קבלת סידור. סע בזהירות!_ 🚀`;
 
             try {
-                // שליחה ישירה ל-Firebase שבו JONI מאזין
                 await push(ref(db, 'saban94/send'), {
-                    to: "972508860896", // מספר קבוצת דוח בוקר או מספר מנהל
-                    text: report
+                    to: driverPhones[selectedDriver],
+                    text: message
                 });
-                alert("הדוח נשלח ישירות לווטסאפ דרך השרת! ✅");
+                alert("הסידור נשלח בהצלחה ל-" + selectedDriver + " ✅");
             } catch (e) {
                 alert("שגיאה בשליחה: " + e.message);
             }
         };
 
-        updateUI();
+        // הגדרת תאריך להיום כברירת מחדל
+        document.getElementById('date').valueAsDate = new Date();
     </script>
 </body>
 </html>
