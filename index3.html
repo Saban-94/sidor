@@ -7,185 +7,125 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
     <style>
-        body { font-family: 'Assistant', sans-serif; overflow: hidden; }
+        body { font-family: 'Assistant', sans-serif; }
         .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
         .tab-content { display: none; }
         .tab-content.active { display: flex; }
-        .active-tab-btn { border-bottom: 3px solid #075e54; color: #075e54; font-weight: bold; }
     </style>
 </head>
-<body class="bg-gray-50 h-screen flex flex-col">
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
 
-    <nav class="bg-white shadow-md flex justify-around p-3 text-gray-600 z-50">
-        <button onclick="showTab('morning')" id="btn-morning" class="tab-btn pb-2 px-4 transition">
-            <i class="fas fa-sun ml-2"></i>דוח בוקר
-        </button>
-        <button onclick="showTab('whatsapp')" id="btn-whatsapp" class="tab-btn pb-2 px-4 transition active-tab-btn">
-            <i class="fab fa-whatsapp ml-2"></i>ניהול ווטסאפ
-        </button>
-        <button onclick="showTab('training')" id="btn-training" class="tab-btn pb-2 px-4 transition">
-            <i class="fas fa-brain ml-2"></i>אימון המוח (AI)
-        </button>
+    <nav class="bg-white shadow-sm flex justify-around p-3 border-b">
+        <button onclick="showTab('report')" class="flex items-center gap-2 font-bold text-blue-900"><i class="fas fa-clipboard-list"></i> טופס דוח בוקר</button>
+        <button onclick="showTab('chat')" class="flex items-center gap-2 font-bold text-green-700"><i class="fab fa-whatsapp"></i> מוקד ווטסאפ (AI)</button>
     </nav>
 
-    <div id="morning" class="tab-content flex-col p-6 overflow-y-auto h-full">
-        <h1 class="text-2xl font-bold mb-4 text-[#075e54]">דוח בוקר - ח. סבן 1994</h1>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white p-6 rounded-xl shadow-sm border-r-4 border-blue-500">
-                <h3 class="text-gray-500 text-sm">פניות חדשות היום</h3>
-                <p id="stat-new" class="text-3xl font-bold text-blue-600">0</p>
+    <div id="report" class="tab-content active flex-col p-6 overflow-y-auto h-full">
+        <div class="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-lg border-t-4 border-blue-600">
+            <h2 class="text-xl font-bold mb-4">🏗️ הזנת סידור עבודה - ח. סבן</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <input id="rep-date" type="date" class="p-3 border rounded-xl bg-gray-50">
+                <input id="rep-time" type="time" value="07:00" class="p-3 border rounded-xl bg-gray-50">
+                <input id="rep-client" type="text" placeholder="שם הלקוח" class="p-3 border rounded-xl bg-gray-50 col-span-2">
+                <input id="rep-address" type="text" placeholder="כתובת פריקה" class="p-3 border rounded-xl bg-gray-50 col-span-2">
+                
+                <select id="rep-delivery" class="p-3 border rounded-xl bg-gray-50">
+                    <option>הובלת משאית</option>
+                    <option>הובלת מנוף</option>
+                    <option>הובלת מנוף 15 מטר</option>
+                    <option>משיכה עצמית</option>
+                    <option>איסוף בלות פסולת</option>
+                    <option>גישה לאתר + עבודת מנוף</option>
+                </select>
+                
+                <select id="rep-warehouse" class="p-3 border rounded-xl bg-gray-50">
+                    <option>מחסן החרש</option>
+                    <option>מחסן התלמיד</option>
+                </select>
+
+                <select id="rep-driver" class="p-3 border rounded-xl bg-blue-50 font-bold col-span-2">
+                    <option value="עלי">עלי (נהג משאית) 🚚</option>
+                    <option value="חכמת">חכמת (נהג מנוף) 🏗️</option>
+                </select>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border-r-4 border-green-500">
-                <h3 class="text-gray-500 text-sm">מענה אוטומטי (Gemini)</h3>
-                <p id="stat-ai" class="text-3xl font-bold text-green-600">0</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border-r-4 border-yellow-500">
-                <h3 class="text-gray-500 text-sm">ממתינים לטיפול רמי</h3>
-                <p id="stat-manual" class="text-3xl font-bold text-yellow-600">0</p>
-            </div>
-        </div>
-        <div class="mt-8 bg-white rounded-xl shadow-sm p-4">
-            <h2 class="font-bold mb-4 border-b pb-2">תחזית לוגיסטית להיום</h2>
-            <ul class="space-y-3 text-sm text-gray-600 italic">
-                <li>* בדיקת מלאי בלות חול במחסן החרש...</li>
-                <li>* סנכרון מנוף 15 מטר מול דרישות לקוח...</li>
-            </ul>
+            <button onclick="sendMorningReport()" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">שלח דוח לנהג ולקבוצה 🚀</button>
         </div>
     </div>
 
-    <div id="whatsapp" class="tab-content flex h-full overflow-hidden active">
-        <aside class="w-1/3 border-l bg-white flex flex-col h-full">
-            <div id="customer-list" class="flex-1 overflow-y-auto">
-                </div>
-        </aside>
-
-        <main class="flex-1 flex flex-col whatsapp-bg relative">
-            <header class="bg-gray-100 p-3 flex items-center justify-between shadow-sm z-10">
-                <div class="flex items-center gap-3 border-r-4 border-green-500 pr-2">
-                    <img id="active-avatar" src="https://ui-avatars.com/api/?name=Guest" class="w-10 h-10 rounded-full">
-                    <div>
-                        <h2 id="active-name" class="font-bold text-sm">בחר לקוח מהרשימה</h2>
-                        <span class="text-[10px] text-green-600">מחובר למספר 972508860896</span>
-                    </div>
-                </div>
-            </header>
-
-            <div id="chat-canvas" class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4">
-                </div>
-
-            <footer class="bg-gray-100 p-3 flex gap-2">
-                <input id="manual-msg" type="text" placeholder="הקלד תשובה ידנית..." class="flex-1 p-2 rounded-lg border focus:outline-none">
-                <button onclick="sendManual()" class="bg-[#075e54] text-white px-4 py-2 rounded-lg"><i class="fas fa-paper-plane"></i></button>
-            </footer>
+    <div id="chat" class="tab-content h-full flex overflow-hidden">
+        <aside class="w-1/3 bg-white border-l overflow-y-auto" id="customer-list"></aside>
+        <main class="flex-1 flex flex-col whatsapp-bg">
+            <div id="chat-canvas" class="flex-1 p-6 overflow-y-auto flex flex-col space-y-3"></div>
+            <div class="p-4 bg-gray-100 flex gap-2 border-t">
+                <input id="manual-msg" type="text" placeholder="תשובה ידנית..." class="flex-1 p-2 rounded-lg outline-none">
+                <button onclick="manualReply()" class="bg-[#075e54] text-white px-4 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+            </div>
         </main>
-    </div>
-
-    <div id="training" class="tab-content flex-col p-6 overflow-y-auto h-full bg-slate-50">
-        <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl">
-            <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-                <i class="fas fa-microchip text-blue-600"></i> מרכז אימון המוח - ח. סבן
-            </h2>
-            <p class="text-gray-500 mb-6">כאן אתה מלמד את Gemini איך להתנהג, מה המחירים ואיך לענות.</p>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-bold mb-1">פקודת בסיס (System Prompt):</label>
-                    <textarea id="ai-instructions" rows="6" class="w-full border p-3 rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-blue-400">
-אתה המזכיר האישי של ח. סבן 1994. 
-הסגנון שלך: מקצועי, קצר, אדיב מאוד.
-מידע חשוב:
-1. בלה חול עולה X ש"ח.
-2. הובלה עם מנוף 15 מטר זמינה רק בתיאום מראש.
-3. מחסנים: החרש והתלמיד.
-ברכה: "שלום, הגעת לח. סבן 1994, במה אוכל לעזור?"</textarea>
-                </div>
-                <button onclick="saveBrain()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg">
-                    עדכן וזכור את המידע החדש <i class="fas fa-save mr-2"></i>
-                </button>
-            </div>
-        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-        import { getFirestore, doc, setDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        // הגדרות Firebase ו-Gemini
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "whatsapp-8ffd1"
         };
-
+        const GEMINI_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs"
+        
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
         const dbFS = getFirestore(app);
-        
-        let currentPhone = "972508860896";
 
-        // Tab Switcher
-        window.showTab = (tabId) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab-btn'));
-            document.getElementById(tabId).classList.add('active');
-            document.getElementById('btn-' + tabId).classList.add('active-tab-btn');
+        // --- פונקציית המוח (Gemini 3.1) ---
+        async function askGemini(text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
+            const prompt = { contents: [{ parts: [{ text: `אתה נציג ח. סבן 1994. ענה ללקוח: ${text}` }] }] };
+            const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
+            const data = await res.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // --- ניהול דוח בוקר ---
+        window.sendMorningReport = async () => {
+            const client = document.getElementById('rep-client').value;
+            const driver = document.getElementById('rep-driver').value;
+            const report = `*📋 דוח בוקר ח. סבן*\n👤 לקוח: ${client}\n🚚 נהג: ${driver}\n🏗️ סוג: ${document.getElementById('rep-delivery').value}`;
+            
+            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: report });
+            alert("הדוח נשלח!");
         };
 
-        // Realtime Logic: Incoming Message
-        onValue(ref(rtdb, 'saban94/incoming'), async (snapshot) => {
-            const data = snapshot.val();
+        // --- לוגיקת צ'אט בוט אוטומטי ---
+        onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
+            const data = snap.val();
             if (data) {
-                const lastId = Object.keys(data).pop();
-                const msg = data[lastId];
-
-                if (!msg.processed) {
-                    // Update CRM List
-                    updateCustomerList(msg.from, msg.text);
-                    // Save to Firestore Memory
-                    await addDoc(collection(dbFS, "customers", msg.from, "chat_history"), {
-                        text: msg.text, type: 'in', time: serverTimestamp()
-                    });
-                    // Logic to trigger AI response here...
-                    set(ref(rtdb, `saban94/incoming/${lastId}/processed`), true);
+                const id = Object.keys(data).pop();
+                const msg = data[id];
+                if (!msg.ai_done) {
+                    const aiReply = await askGemini(msg.text);
+                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
+                    
+                    // שמירה בזיכרון Firestore
+                    const hist = collection(dbFS, "customers", msg.from, "chat_history");
+                    await addDoc(hist, { text: msg.text, type: 'in', time: serverTimestamp() });
+                    await addDoc(hist, { text: aiReply, type: 'out', time: serverTimestamp() });
+                    
+                    set(ref(rtdb, `saban94/incoming/${id}/ai_done`), true);
                 }
             }
         });
 
-        function updateCustomerList(phone, text) {
-            const list = document.getElementById('customer-list');
-            const item = `
-                <div onclick="loadChat('${phone}')" class="p-4 border-b hover:bg-gray-50 cursor-pointer flex items-center gap-3">
-                    <img src="https://ui-avatars.com/api/?name=${phone}" class="w-12 h-12 rounded-full">
-                    <div class="flex-1"><h4 class="font-bold text-sm">${phone}</h4><p class="text-xs text-gray-500 truncate">${text}</p></div>
-                </div>`;
-            list.insertAdjacentHTML('afterbegin', item);
-        }
-
-        window.loadChat = (phone) => {
-            currentPhone = phone;
-            document.getElementById('active-name').innerText = phone;
-            document.getElementById('active-avatar').src = `https://ui-avatars.com/api/?name=${phone}`;
-            
-            const q = query(collection(dbFS, "customers", phone, "chat_history"), orderBy("time", "asc"));
-            onSnapshot(q, (snap) => {
-                const canvas = document.getElementById('chat-canvas');
-                canvas.innerHTML = '';
-                snap.forEach(d => {
-                    const m = d.data();
-                    const side = m.type === 'in' ? 'bg-white self-start' : 'bg-[#dcf8c6] self-end';
-                    canvas.insertAdjacentHTML('beforeend', `<div class="${side} p-2 rounded-lg shadow-sm max-w-[70%] text-sm">${m.text}</div>`);
-                });
-                canvas.scrollTop = canvas.scrollHeight;
-            });
+        window.showTab = (id) => {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
         };
 
-        window.saveBrain = () => {
-            const text = document.getElementById('ai-instructions').value;
-            localStorage.setItem('saban_ai_knowledge', text);
-            alert("המוח עודכן! Gemini כעת יודע את המידע החדש.");
-        };
-
+        document.getElementById('rep-date').valueAsDate = new Date();
     </script>
 </body>
 </html>
