@@ -1,10 +1,10 @@
 {
-  "name": "Saban Sidor",
+  "name": "Saban AI Studio",
   "short_name": "ח. סבן",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1e40af",
+  "theme_color": "#4587de",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/1063/1063307.png",
