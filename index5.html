@@ -4,16 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Saban AI Studio - Enterprise</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="icon" href="data:,">
+    <link rel="manifest" href='data:application/json,{"name":"Saban AI Studio","short_name":"Saban AI","display":"standalone","start_url":"."}'>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
         body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
         .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
         .bubble-in { background: #ffffff; border-radius: 8px 8px 8px 0; align-self: flex-start; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
         .bubble-out { background: #dcf8c6; border-radius: 8px 8px 0 8px; align-self: flex-end; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
-        .tab-content { display: none; width: 100%; height: 100%; }
-        .tab-content.active { display: flex; }
     </style>
 </head>
 <body class="flex flex-row h-full w-full">
@@ -31,7 +35,7 @@
     </aside>
 
     <main class="flex-1 relative">
-        <div id="chat" class="tab-content active flex-col h-full">
+        <div id="chat" class="tab-content active flex flex-col h-full">
             <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center gap-3">
                 <div id="active-avatar" class="w-10 h-10 bg-[#4587de] rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm">S</div>
                 <div>
@@ -64,52 +68,48 @@
         const dbFS = getFirestore(app);
         let activePhone = "";
 
-        // --- הזרקת היסטוריה מקובץ CSV ---
+        // תיקון פונקציית הזרקת ה-CSV
         document.getElementById('csv-upload').onchange = async (e) => {
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = async (event) => {
                 const lines = event.target.result.split('\n').slice(1);
                 for (let line of lines) {
-                    const [date, time, sender, text] = line.split(',');
-                    if (!text) continue;
+                    const parts = line.split(',');
+                    if (parts.length < 4) continue;
                     
-                    const phone = text.match(/\+972\d+/) ? text.match(/\+972\d+/)[0] : "General";
+                    const [dateStr, timeStr, sender, text] = parts;
+                    
+                    // המרת פורמט תאריך מ-3.12.2025 ל-2025-12-03
+                    const dateParts = dateStr.trim().split('.');
+                    if (dateParts.length !== 3) continue;
+                    const formattedDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+                    
+                    const timestamp = new Date(`${formattedDate}T${timeStr.trim()}`);
+                    
+                    // בדיקת תקינות הזמן לפני השליחה ל-Firestore
+                    if (isNaN(timestamp.getTime())) {
+                        console.error("Invalid date found:", dateStr, timeStr);
+                        continue;
+                    }
+
+                    const phoneMatch = text.match(/\+972\d+/);
+                    const phone = phoneMatch ? phoneMatch[0] : "General";
                     const isSaban = sender.includes("הזמנות ח. סבן");
                     
                     await addDoc(collection(dbFS, "customers", phone, "chat_history"), {
-                        text: text.replace(/^"|"$/g, ''),
+                        text: text.replace(/^"|"$/g, '').trim(),
                         type: isSaban ? 'in' : 'out',
-                        timestamp: new Date(`${date.split('.').reverse().join('-')}T${time}`)
+                        timestamp: timestamp
                     });
                     await setDoc(doc(dbFS, "customers", phone), { name: phone, last_msg: text }, { merge: true });
                 }
-                alert("ההיסטוריה הוזרקה לצינור!");
+                alert("ההיסטוריה הוזרקה בהצלחה!");
             };
             reader.readAsText(file);
         };
 
-        // --- ניהול הצינור מול JONI ---
-        onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
-            const data = snap.val();
-            if (data) {
-                const id = Object.keys(data).pop();
-                const msg = data[id];
-                if (!msg.processed) {
-                    const historyRef = collection(dbFS, "customers", msg.from, "chat_history");
-                    await addDoc(historyRef, { text: msg.text, type: 'in', timestamp: serverTimestamp() });
-                    
-                    // הפעלת המוח (AI Agent)
-                    const aiReply = "שלום, אני המוח של ח. סבן. ההזמנה שלך בטיפול."; 
-                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
-                    await addDoc(historyRef, { text: aiReply, type: 'out', timestamp: serverTimestamp() });
-                    
-                    set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
-                }
-            }
-        });
-
-        // --- רינדור רשימת לקוחות והיסטוריה ---
+        // הצגת רשימת לקוחות והיסטוריה
         onSnapshot(collection(dbFS, "customers"), (snap) => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
@@ -140,6 +140,11 @@
                 });
                 canvas.scrollTop = canvas.scrollHeight;
             });
+        };
+        
+        window.showTab = (id) => {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.getElementById(id).style.display = 'flex';
         };
 
         document.getElementById('btn-send').onclick = async () => {
