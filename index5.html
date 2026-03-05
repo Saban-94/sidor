@@ -1,88 +1,182 @@
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Saban AI Studio | Rami Msarwh</title>
+    
+    <link rel="icon" type="image/jpeg" href="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111">
 
-    // קונפיגורציה המבוססת על המאגר שלך
-    const firebaseConfig = {
-        apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
-        databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "whatsapp-8ffd1"
-    };
+    <link rel="manifest" href='data:application/json,{"name":"Saban AI Studio","short_name":"Saban AI","display":"standalone","start_url":"/index.html"}'>
 
-    const app = initializeApp(firebaseConfig);
-    const dbFS = getFirestore(app);
-    const rtdb = getDatabase(app);
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+        body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
+        .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        .bubble-in { background: #ffffff; border-radius: 0 10px 10px 10px; align-self: flex-start; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .bubble-out { background: #dcf8c6; border-radius: 10px 0 10px 10px; align-self: flex-end; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .active-card { background-color: #f0f2f5; border-right: 4px solid #00a884; }
+        .sidebar-icon { transition: all 0.2s; cursor: pointer; }
+        .sidebar-icon:hover { color: #00a884; transform: scale(1.1); }
+    </style>
+</head>
+<body class="flex flex-row h-full w-full">
 
-    const ramiPhone = "+972508860896";
+    <aside class="w-[65px] bg-[#eae6df] border-l flex flex-col items-center py-6 gap-8 text-[#54656f] shrink-0">
+        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-md">
+            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111" alt="Rami">
+        </div>
+        <i class="fas fa-comment-dots text-2xl sidebar-icon"></i>
+        <i class="fas fa-users text-2xl sidebar-icon"></i>
+        <button onclick="document.getElementById('csv-upload').click()">
+            <i class="fas fa-file-import text-2xl sidebar-icon"></i>
+        </button>
+        <input type="file" id="csv-upload" class="hidden" accept=".csv">
+    </aside>
 
-    // פונקציה לתיקון תאריכים מה-CSV (מונעת שגיאות Invalid Date)
-    function safeParseDate(dStr, tStr) {
-        try {
-            const p = dStr.split('.');
-            if (p.length !== 3) return null;
-            const iso = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T${tStr.trim()}`;
-            const d = new Date(iso);
-            return isNaN(d.getTime()) ? null : d;
-        } catch(e) { return null; }
-    }
+    <aside class="w-[350px] bg-white border-l flex flex-col shrink-0 overflow-hidden">
+        <header class="p-4 bg-[#f0f2f5] border-b">
+            <h1 class="font-bold text-xl text-[#111b21]">הזמנות ח. סבן</h1>
+        </header>
+        <div id="customer-list" class="flex-1 overflow-y-auto">
+            </div>
+    </aside>
 
-    // צינור ריל-טיים (JONI Sync) - מאזין להודעות בשידור חי
-    function startRamiLiveSync() {
-        const incomingRef = ref(rtdb, 'saban94/incoming');
-        onValue(incomingRef, async (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const lastKey = Object.keys(data).pop();
-                const msg = data[lastKey];
-                
-                // אם ההודעה היא מראמי או אליו, הזרק לכרטיס האישי
-                if (msg.from === ramiPhone || msg.to === ramiPhone) {
-                    await addDoc(collection(dbFS, "customers", ramiPhone, "chat_history"), {
-                        text: msg.text,
-                        type: msg.from === ramiPhone ? 'out' : 'in',
-                        timestamp: serverTimestamp(),
-                        source: 'JONI_LIVE'
-                    });
-                }
-            }
-        });
-    }
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        <header id="chat-header" class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div id="header-avatar" class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold overflow-hidden">?</div>
+                <div>
+                    <span id="active-name" class="font-bold text-sm block">בחר לקוח</span>
+                    <span id="active-phone" class="text-[10px] text-gray-500">היסטוריית הזמנות</span>
+                </div>
+            </div>
+        </header>
 
-    // פונקציית הזרקת היסטוריה מהקובץ שהעלית
-    window.injectRamiHistory = async (csvText) => {
-        const lines = csvText.split('\n').slice(1);
-        let count = 0;
-        for (let line of lines) {
-            const parts = line.split(',');
-            if (parts.length < 4) continue;
-            const [date, time, sender, text] = parts;
-            const ts = safeParseDate(date, time);
-            
-            // בדיקה אם ההודעה קשורה לראמי (לפי שם השולח או תוכן)
-            if (sender.includes("ראמי") || text.includes(ramiPhone)) {
-                await addDoc(collection(dbFS, "customers", ramiPhone, "chat_history"), {
-                    text: text.trim().replace(/^"|"$/g, ''),
-                    type: sender.includes("ראמי") ? 'out' : 'in',
-                    timestamp: ts || new Date(),
-                    source: 'CSV_IMPORT'
-                });
-                count++;
-            }
+        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-3">
+            </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
+            authDomain: "whatsapp-8ffd1.firebaseapp.com",
+            projectId: "whatsapp-8ffd1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const ramiPhone = "+972508860896";
+
+        // פונקציה לתיקון פורמט התאריך מה-CSV (D.M.YYYY)
+        function parseSabanDate(dStr, tStr) {
+            try {
+                const p = dStr.trim().split('.');
+                if (p.length !== 3) return null;
+                const formattedDate = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+                const dateObj = new Date(`${formattedDate}T${tStr.trim()}`);
+                return isNaN(dateObj.getTime()) ? null : dateObj;
+            } catch (e) { return null; }
         }
-        console.log(`הוזרקו ${count} הודעות לצינור של ראמי.`);
-    };
 
-    // אתחול הכרטיס של ראמי עם התמונה והפרטים
-    async function initRamiCard() {
-        await setDoc(doc(dbFS, "customers", ramiPhone), {
-            name: "ראמי מסארוה",
-            photo: "https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?...",
-            role: "Owner",
-            phone: ramiPhone
-        }, { merge: true });
-        startRamiLiveSync();
-    }
+        // 1. אתחול כרטיס ראמי
+        async function initRami() {
+            await setDoc(doc(db, "customers", ramiPhone), {
+                name: "ראמי מסארוה",
+                photo: "https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111",
+                isOwner: true
+            }, { merge: true });
+        }
+        initRami();
 
-    initRamiCard();
-</script>
+        // 2. הזרקה מה-CSV לתוך הצינור
+        document.getElementById('csv-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const lines = event.target.result.split('\n').slice(1);
+                let imported = 0;
+                for (let line of lines) {
+                    const row = line.split(',');
+                    if (row.length < 4) continue;
+                    
+                    const [dateStr, timeStr, sender, text] = row;
+                    const timestamp = parseSabanDate(dateStr, timeStr);
+                    if (!timestamp) continue;
+
+                    // זיהוי טלפון בטקסט או שיוך לראמי
+                    const phoneMatch = text.match(/\+972\d+/);
+                    const phone = phoneMatch ? phoneMatch[0] : (sender.includes("ראמי") ? ramiPhone : "General");
+                    const clientName = text.match(/👤\s*([^📱\n]+)/)?.[1]?.trim() || (sender.includes("ראמי") ? "ראמי" : "לקוח");
+
+                    // עדכון כרטיס הלקוח
+                    await setDoc(doc(db, "customers", phone), { name: clientName, lastUpdate: timestamp }, { merge: true });
+
+                    // הוספת הודעה להיסטוריה
+                    await addDoc(collection(db, "customers", phone, "chat_history"), {
+                        text: text.replace(/^"|"$/g, '').trim(),
+                        type: sender.includes("הזמנות ח. סבן") ? 'in' : 'out',
+                        timestamp: Timestamp.fromDate(timestamp)
+                    });
+                    imported++;
+                }
+                alert(`הוזרקו ${imported} הודעות בהצלחה!`);
+            };
+            reader.readAsText(file);
+        };
+
+        // 3. טעינת רשימת הלקוחות (סיידבר)
+        onSnapshot(collection(db, "customers"), (snap) => {
+            const list = document.getElementById('customer-list');
+            list.innerHTML = '';
+            snap.forEach(d => {
+                const c = d.data();
+                const isRami = d.id === ramiPhone;
+                list.insertAdjacentHTML('beforeend', `
+                    <div onclick="window.loadChat('${d.id}', '${c.name || d.id}', '${c.photo || ''}')" 
+                         class="p-4 border-b hover:bg-gray-50 cursor-pointer flex items-center gap-3 transition">
+                        <div class="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-green-600 text-white font-bold">
+                            ${c.photo ? `<img src="${c.photo}">` : (c.name ? c.name[0] : '?')}
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-bold text-sm">${c.name || d.id} ${isRami ? '👑' : ''}</div>
+                            <div class="text-[10px] text-gray-400">${d.id}</div>
+                        </div>
+                    </div>`);
+            });
+        });
+
+        // 4. טעינת צ'אט נבחר
+        window.loadChat = (phone, name, photo) => {
+            document.getElementById('active-name').innerText = name;
+            document.getElementById('active-phone').innerText = phone;
+            const avatar = document.getElementById('header-avatar');
+            avatar.innerHTML = photo ? `<img src="${photo}">` : name[0];
+
+            const q = query(collection(db, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
+            onSnapshot(q, (snap) => {
+                const canvas = document.getElementById('chat-canvas');
+                canvas.innerHTML = '';
+                snap.forEach(docSnap => {
+                    const m = docSnap.data();
+                    const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
+                    const time = m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+                    canvas.insertAdjacentHTML('beforeend', `
+                        <div class="${style} p-3 max-w-[85%] text-sm">
+                            ${m.text}
+                            <div class="text-[9px] text-gray-400 mt-1 text-left">${time}</div>
+                        </div>`);
+                });
+                canvas.scrollTop = canvas.scrollHeight;
+            });
+        };
+    </script>
+</body>
+</html>
