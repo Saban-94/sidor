@@ -3,25 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - ניהול סידור עבודה</title>
+    <title>ח. סבן - סטודיו צ'אטבוט וסידור עבודה</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 p-4">
-    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
-        <h1 class="text-2xl font-bold text-center mb-6 text-blue-800">🏗️ סידור עבודה ח. סבן</h1>
-        
-        <div id="order-list" class="space-y-4">
+<body class="bg-gray-50 min-h-screen p-4 font-sans text-right">
+
+    <div class="max-w-2xl mx-auto space-y-6">
+        <header class="bg-blue-800 text-white p-6 rounded-2xl shadow-lg text-center">
+            <h1 class="text-3xl font-extrabold">ח. סבן 1994 בע"מ 🏗️</h1>
+            <p class="mt-2 opacity-80">ניהול לוגיסטיקה וצ'אטבוט חכם</p>
+        </header>
+
+        <section class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-blue-600">
+            <h2 class="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                🎙️ סטודיו לניהול דיאלוג
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">בחר סטטוס למענה מהיר:</label>
+                    <select id="statusSelect" class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="הזמנה התקבלה וממתינה לשיבוץ 📝">הזמנה התקבלה</option>
+                        <option value="המנוף הועמס ויצא לדרך! 🚚">בדרך אליך</option>
+                        <option value="הפריקה בוצעה בהצלחה. תודה! ✅">בוצע בהצלחה</option>
+                        <option value="חל עיכוב קל עקב עומס, עמכם הסליחה ⏳">עיכוב זמני</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">מספר לקוח ידני (אופציונלי):</label>
+                    <input id="manualPhone" type="text" placeholder="972..." class="w-full p-3 border rounded-xl bg-gray-50 outline-none">
+                </div>
             </div>
 
-        <button id="sendBtn" class="w-full mt-6 bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700">
-            📤 שלח דו"ח בוקר אוטומטי
-        </button>
+            <button id="sendQuickBtn" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">
+                שלח מענה סטטוס ללקוח 🚀
+            </button>
+        </section>
+
+        <section class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-green-600">
+            <h2 class="text-xl font-bold text-green-800 mb-4">📅 סידור עבודה יומי</h2>
+            <div id="order-list" class="space-y-3">
+                </div>
+            <button id="sendDailyBtn" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-md">
+                📤 הפץ סידור בוקר לכל הנהגים
+            </button>
+        </section>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // הגדרות Firebase שלך
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
@@ -35,50 +68,75 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // נתוני סידור
+        // נתוני דוגמה לסידור (עלי וחכמת)
         const dailyOrders = [
-            { time: "07:00", driver: "עלי", client: "זבולון-עדירן/שיין", location: "רעננה", phone: "972508860896" },
-            { time: "07:00", driver: "חכמת", client: "בן ענבר", location: "תל אביב", phone: "972502120038" }
+            { time: "07:00", driver: "עלי", client: "זבולון-עדירן", location: "רעננה", phone: "972508860896" },
+            { time: "08:30", driver: "חכמת", client: "בן ענבר", location: "תל אביב", phone: "972502120038" }
         ];
 
-        // הצגת ההזמנות
+        // הצגת ההזמנות במסך
         const listDiv = document.getElementById('order-list');
         dailyOrders.forEach(order => {
             const card = document.createElement('div');
-            card.className = "p-3 border rounded border-gray-200 bg-blue-50";
-            card.innerHTML = `<strong>${order.time} | ${order.driver}</strong><br>${order.client} - ${order.location}`;
+            card.className = "p-4 border rounded-xl border-gray-100 bg-gray-50 hover:bg-blue-50 transition-colors flex justify-between items-center";
+            card.innerHTML = `
+                <div>
+                    <span class="text-blue-600 font-bold">${order.time}</span> | 
+                    <span class="font-bold text-gray-800">${order.driver}</span><br>
+                    <span class="text-sm text-gray-600">${order.client} (${order.location})</span>
+                </div>
+                <button onclick="window.setPhone('${order.phone}')" class="text-xs bg-gray-200 p-2 rounded-lg hover:bg-gray-300">בחר</button>
+            `;
             listDiv.appendChild(card);
         });
 
-        // פונקציית השליחה
-        async function sendDailyReport() {
-            const btn = document.getElementById('sendBtn');
-            btn.disabled = true;
-            btn.innerText = "שולח...";
+        // פונקציה לעדכון מספר טלפון ידני מהרשימה
+        window.setPhone = (phone) => {
+            document.getElementById('manualPhone').value = phone;
+        };
 
+        // לוגיקת שליחת הודעה בודדת (סטודיו)
+        async function sendQuickStatus() {
+            const phone = document.getElementById('manualPhone').value;
+            const status = document.getElementById('statusSelect').value;
+            
+            if (!phone || phone.length < 10) {
+                alert("נא להזין מספר טלפון תקין");
+                return;
+            }
+
+            const message = `*עדכון מח. סבן 1994 בע"מ* 🏗️\n\nשלום, ${status}\n\nלכל שאלה אנחנו כאן.`;
+            await pushToJONI(phone, message);
+            alert("הודעת סטטוס הועברה ל-JONI!");
+        }
+
+        // לוגיקת שליחת כל הסידור (הפצה)
+        async function sendDailyReport() {
+            for (const order of dailyOrders) {
+                const message = `*📋 דו"ח סידור עבודה - ח. סבן*\n\n⏰ שעה: ${order.time}\n👤 נהג: ${order.driver}\n📍 יעד: ${order.location}\n🏗️ המנוף בדרך אליך!`;
+                await pushToJONI(order.phone, message);
+            }
+            alert("כל הסידור הופץ בהצלחה!");
+        }
+
+        // פונקציית העזר לשליחה ל-Firebase (JONI Webhook)
+        async function pushToJONI(phone, text) {
             try {
-                for (const order of dailyOrders) {
-                    const message = `*📋 דו"ח הזמנה - ח. סבן*\n\n⏰ ${order.time}\n👤 ${order.client}\n📍 ${order.location}\n🏗️ המנוף בדרך!`;
-                    
-                    const msgRef = ref(db, 'saban94/send');
-                    const newMsgRef = push(msgRef);
-                    await set(newMsgRef, {
-                        to: order.phone,
-                        text: message
-                    });
-                }
-                alert("הדו\"ח נשלח לכל הלקוחות בהצלחה! 🚀");
-            } catch (error) {
-                console.error(error);
-                alert("שגיאה בשליחה ל-Firebase");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "📤 שלח דו\"ח בוקר אוטומטי";
+                const msgRef = ref(db, 'saban94/send');
+                await push(msgRef, {
+                    to: phone,
+                    text: text
+                });
+                console.log(`הודעה ל-${phone} נשלחה ל-Firebase`);
+            } catch (e) {
+                console.error("שגיאה בחיבור ל-Firebase", e);
             }
         }
 
-        // חיבור הפונקציה לכפתור (פותר את בעיית ה-ReferenceError)
-        document.getElementById('sendBtn').addEventListener('click', sendDailyReport);
+        // חיבור כפתורים
+        document.getElementById('sendQuickBtn').addEventListener('click', sendQuickStatus);
+        document.getElementById('sendDailyBtn').addEventListener('click', sendDailyReport);
+
     </script>
 </body>
 </html>
