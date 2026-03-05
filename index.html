@@ -2,40 +2,62 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Saban AI | Autopilot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Saban AI Studio | Autopilot</title>
+    
+    <link rel="icon" type="image/jpeg" href="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
-        body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
-        .whatsapp-bg { background: #e5ddd5 url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .bubble { max-width: 80%; padding: 8px 12px; border-radius: 10px; margin-bottom: 4px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .bubble-in { background: white; align-self: flex-start; }
-        .bubble-out { background: #dcf8c6; align-self: flex-end; }
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+        body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; margin: 0; }
+        .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        
+        /* תיקון לחיצה: מוודא שהאלמנטים לא חוסמים אחד את השני */
+        #customer-list div { cursor: pointer !important; z-index: 20; position: relative; }
+        #send-btn { cursor: pointer !important; z-index: 30; }
+        
+        .bubble-in { background: #ffffff; border-radius: 0 10px 10px 10px; align-self: flex-start; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; }
+        .bubble-out { background: #dcf8c6; border-radius: 10px 0 10px 10px; align-self: flex-end; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; }
+        
+        /* עיצוב רשימת לקוחות */
+        .customer-card { transition: all 0.2s; border-right: 4px solid transparent; }
+        .customer-card:hover { background-color: #f8fafc; border-right-color: #00a884; }
     </style>
 </head>
-<body class="w-full">
+<body class="w-full flex h-full overflow-hidden">
 
-    <aside class="w-[300px] bg-white border-l flex flex-col shrink-0 shadow-lg">
-        <header class="p-4 bg-[#f0f2f5] border-b flex justify-between items-center">
-            <h1 class="font-bold text-lg">ח. סבן AI</h1>
-            <div id="ai-status" class="w-3 h-3 bg-gray-400 rounded-full" title="סטטוס מוח"></div>
+    <aside class="w-[320px] bg-white border-l flex flex-col shrink-0 shadow-xl z-10 overflow-hidden">
+        <header class="p-4 bg-[#f0f2f5] border-b shrink-0 flex justify-between items-center">
+            <h1 class="font-bold text-lg text-slate-800 italic">ח. סבן AI</h1>
+            <div id="ai-status" class="w-3 h-3 bg-gray-400 rounded-full shadow-sm" title="סטטוס מוח"></div>
         </header>
-        <div id="customer-list" class="flex-1 overflow-y-auto"></div>
+        <div id="customer-list" class="flex-1 overflow-y-auto pointer-events-auto">
+            </div>
     </aside>
 
-    <main class="flex-1 flex flex-col">
-        <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold">S</div>
-            <span id="active-chat-name" class="font-bold">בחר לקוח מהרשימה</span>
+    <main class="flex-1 flex flex-col relative h-full overflow-hidden z-0">
+        <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-[#00a884] flex items-center justify-center text-white font-bold italic shadow-sm">S</div>
+                <div>
+                    <span id="active-chat-name" class="font-bold text-sm block">בחר לקוח מהרשימה</span>
+                    <span id="active-status-text" class="text-[10px] text-gray-500 italic font-semibold">Autopilot Monitoring...</span>
+                </div>
+            </div>
         </header>
 
-        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col"></div>
+        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-3">
+            <div class="self-center bg-[#fff5c4] text-[11px] px-3 py-1 rounded shadow-sm opacity-80">המערכת מסונכרנת מול JONI</div>
+        </div>
 
-        <footer class="p-3 bg-[#f0f2f5] flex gap-2">
-            <input id="msg-input" type="text" placeholder="שלח הודעה ידנית..." class="flex-1 p-2 rounded-lg outline-none">
-            <button id="send-btn" class="bg-[#00a884] text-white px-4 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+        <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3 shrink-0 relative z-30">
+            <input id="msg-input" type="text" placeholder="כתוב הודעה ידנית..." class="flex-1 p-2.5 rounded-lg border-none outline-none text-sm shadow-inner bg-white">
+            <button id="send-btn" class="bg-[#00a884] text-white w-10 h-10 rounded-full shadow-md flex items-center justify-center hover:bg-[#008f6f] active:scale-95 transition-all">
+                <i class="fas fa-paper-plane text-sm"></i>
+            </button>
         </footer>
     </main>
 
@@ -55,52 +77,59 @@
         const db = getFirestore(app);
         const rtdb = getDatabase(app);
 
-        // האזנה ל-JONI
+        // פונקציית עדכון נורה (מלשינון)
+        function updatePulse(status) {
+            const el = document.getElementById('ai-status');
+            const txt = document.getElementById('active-status-text');
+            if (status === 'loading') { el.className = "w-3 h-3 bg-yellow-500 animate-pulse rounded-full"; txt.innerText = "Gemini חושב..."; }
+            else if (status === 'online') { el.className = "w-3 h-3 bg-green-500 rounded-full"; txt.innerText = "הטייס האוטומטי פעיל"; }
+            else { el.className = "w-3 h-3 bg-red-500 rounded-full"; txt.innerText = "שגיאת תקשורת"; }
+        }
+
+        // האזנה ל-JONI (saban94)
         onChildAdded(ref(rtdb, 'saban94/incoming'), async (snap) => {
             const data = snap.val();
             if (!data) return;
             const phone = data.from.toString();
 
-            // 1. עדכון Firestore
+            // 1. עדכון Firestore לצורך הצגה בממשק
             await setDoc(doc(db, "customers", phone), { lastUpdate: serverTimestamp() }, { merge: true });
             await addDoc(collection(db, "customers", phone, "chat_history"), { text: data.text, type: 'in', timestamp: serverTimestamp() });
 
-            // 2. הפעלת המוח (Autopilot)
-            updateStatus('loading');
-            try {
-                const res = await fetch('/api/gemini', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: data.text, senderPhone: phone })
-                });
-                const ai = await res.json();
+            // 2. הפעלת המוח (Autopilot) רק להודעות חדשות
+            if (data.time > Date.now() - 60000) {
+                updatePulse('loading');
+                try {
+                    const res = await fetch('/api/gemini', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: data.text, senderPhone: phone })
+                    });
+                    const ai = await res.json();
 
-                // 3. שליחה חזרה לווטסאפ
-                await push(ref(rtdb, 'saban94/send'), { to: phone, text: ai.reply, timestamp: Date.now() });
-                updateStatus('online');
-            } catch (e) {
-                updateStatus('offline');
+                    // 3. שליחה חזרה לווטסאפ דרך JONI
+                    await push(ref(rtdb, 'saban94/send'), { to: phone, text: ai.reply, timestamp: Date.now() });
+                    updatePulse('online');
+                } catch (e) { updatePulse('error'); }
             }
         });
 
-        function updateStatus(s) {
-            const el = document.getElementById('ai-status');
-            if(s === 'loading') el.className = "w-3 h-3 bg-yellow-500 animate-pulse rounded-full";
-            else if(s === 'online') el.className = "w-3 h-3 bg-green-500 rounded-full";
-            else el.className = "w-3 h-3 bg-red-500 rounded-full";
-        }
-
-        // טעינת רשימת לקוחות
+        // רשימת לקוחות לחיצה
         onSnapshot(query(collection(db, "customers"), orderBy("lastUpdate", "desc")), (snap) => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
             snap.forEach(d => {
-                list.insertAdjacentHTML('beforeend', `<div onclick="window.loadChat('${d.id}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer font-bold">${d.id}</div>`);
+                const card = document.createElement('div');
+                card.className = "p-4 border-b customer-card font-bold text-sm text-slate-700 select-none";
+                card.innerText = `לקוח: ${d.id}`;
+                card.onclick = () => window.loadChat(d.id);
+                list.appendChild(card);
             });
         });
 
+        // טעינת צ'אט
         window.loadChat = (phone) => {
-            document.getElementById('active-chat-name').innerText = phone;
+            document.getElementById('active-chat-name').innerText = `צ'אט: ${phone}`;
             const q = query(collection(db, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
             onSnapshot(q, (snap) => {
                 const canvas = document.getElementById('chat-canvas');
@@ -108,10 +137,20 @@
                 snap.forEach(docSnap => {
                     const m = docSnap.data();
                     const cls = m.type === 'in' ? 'bubble-in' : 'bubble-out';
-                    canvas.insertAdjacentHTML('beforeend', `<div class="bubble ${cls}">${m.text}</div>`);
+                    canvas.insertAdjacentHTML('beforeend', `<div class="${cls}">${m.text}</div>`);
                 });
                 canvas.scrollTop = canvas.scrollHeight;
             });
+        };
+
+        // כפתור שליחה ידני לחיץ
+        document.getElementById('send-btn').onclick = async () => {
+            const input = document.getElementById('msg-input');
+            const phone = document.getElementById('active-chat-name').innerText.replace("צ'אט: ", "");
+            if (!input.value.trim() || phone === "בחר לקוח מהרשימה") return;
+
+            await push(ref(rtdb, 'saban94/send'), { to: phone, text: input.value, timestamp: Date.now() });
+            input.value = '';
         };
     </script>
 </body>
