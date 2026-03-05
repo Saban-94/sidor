@@ -1,4 +1,4 @@
-// api/gemini.js - ה-Autopilot של ראמי מסארוה
+// api/gemini.js - ה-Autopilot של ראמי מסארוה (ח. סבן)
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -6,6 +6,13 @@ export default async function handler(req, res) {
     const { message, senderPhone } = req.body;
 
     if (!apiKey) return res.status(500).json({ error: 'Missing API Key' });
+
+    // רשימת מודלים לפי סדר עדיפות (לפי עדכוני מרץ 2026)
+    const modelPriority = [
+        "gemini-3.1-flash-lite-preview", 
+        "gemini-3-flash-preview",
+        "gemini-1.5-flash"
+    ];
 
     // הגדרת הזהות של הטייס האוטומטי
     const systemPrompt = `
@@ -18,15 +25,11 @@ export default async function handler(req, res) {
     הודעה נכנסת: ${message}
     `;
 
-    const modelPriority = [
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3-flash-preview",
-        "gemini-1.5-flash"
-    ];
-
     for (const modelName of modelPriority) {
         try {
+            console.log(`🤖 מנסה להפעיל מודל: ${modelName}`);
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -43,8 +46,8 @@ export default async function handler(req, res) {
                 });
             }
         } catch (err) {
-            console.error(`Model ${modelName} failed, skipping...`);
+            console.warn(`⚠️ מודל ${modelName} נכשל, מדלג...`);
         }
     }
-    return res.status(500).json({ error: "All models failed" });
+    return res.status(500).json({ error: "כל המודלים נכשלו בשרת גוגל" });
 }
