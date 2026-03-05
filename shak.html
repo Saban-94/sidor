@@ -2,147 +2,160 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHAK Monitor | ח. סבן בקרה לוגיסטית</title>
+    <title>SHAK Control Center | ח. סבן לוגיסטיקה</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700&display=swap');
-        body { font-family: 'Assistant', sans-serif; background: #0f172a; color: #f8fafc; height: 100vh; overflow: hidden; margin: 0; }
-        .status-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
-        .log-box { background: #020617; border: 1px solid #1e293b; font-family: 'Courier New', monospace; height: 350px; overflow-y: auto; }
-        .led { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px; }
-        .led-green { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-        .led-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
-        .led-yellow { background: #eab308; box-shadow: 0 0 10px #eab308; }
-        .led-blue { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+        body { font-family: 'Assistant', sans-serif; background: #f8fafc; color: #1e293b; height: 100vh; overflow: hidden; }
+        .glass-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .terminal-box { background: #1e293b; color: #38bdf8; font-family: monospace; border-radius: 8px; height: 300px; overflow-y: auto; padding: 15px; font-size: 12px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .pulse-green { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .pulse-red { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
     </style>
 </head>
 <body class="p-6">
 
-    <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-        <div>
-            <h1 class="text-3xl font-bold italic text-white">ח. סבן - מוניטור SHAK</h1>
-            <p class="text-slate-400 text-sm">ניטור צינור saban94 בזמן אמת</p>
-        </div>
-        <div class="flex items-center gap-6">
-            <div class="text-left">
-                <span class="text-xs block text-slate-500 uppercase">זמן מערכת</span>
-                <span id="clock" class="text-xl font-mono">00:00:00</span>
-            </div>
-            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111" class="w-12 h-12 rounded-full border-2 border-slate-600">
-        </div>
-    </header>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
-        <div class="status-card flex flex-col justify-between">
+    <div class="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600 text-white p-2 rounded-lg"><i class="fas fa-satellite-dish"></i></div>
             <div>
-                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">סטטוס צינור JONI</h3>
-                <div class="flex items-center">
-                    <div id="led-joni" class="led led-yellow"></div>
-                    <span id="txt-joni" class="text-xl font-bold">מתחבר...</span>
-                </div>
+                <h1 class="text-xl font-bold text-slate-800">SHAK MONITOR v3.5</h1>
+                <p class="text-[10px] text-slate-500 font-bold">נתיב פעיל: saban94 | ווטסאפ: 972508860896</p>
             </div>
-            <div class="mt-4 text-[10px] text-slate-500 italic">נתיב: saban94/incoming</div>
         </div>
-
-        <div class="status-card flex flex-col justify-between">
-            <div>
-                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">סטטוס מוח Gemini 3.1</h3>
-                <div class="flex items-center">
-                    <div id="led-ai" class="led led-yellow"></div>
-                    <span id="txt-ai" class="text-xl font-bold">בהמתנה</span>
-                </div>
-            </div>
-            <div id="ai-model" class="mt-4 text-[10px] text-slate-500 italic">דגם: Lite-Preview 2026</div>
-        </div>
-
-        <div class="status-card flex flex-col justify-between">
-            <div>
-                <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">הודעות שטופלו היום</h3>
-                <div class="text-3xl font-bold text-green-500" id="msg-count">0</div>
-            </div>
-            <div class="mt-4 text-[10px] text-slate-500 italic font-bold">הזרמת נתונים רציפה</div>
+        <div id="diagnostics-summary" class="bg-slate-50 px-4 py-2 rounded-full text-xs font-bold border border-slate-200 text-slate-600">
+            <span class="status-dot pulse-red mr-2" id="main-led"></span> בדיקת מערכת...
         </div>
     </div>
 
-    <div class="flex flex-col gap-2">
-        <h3 class="text-slate-400 text-xs font-bold uppercase">לוג "מלשינון" מקצועי - עברית</h3>
-        <div id="malsh-log" class="log-box p-4 rounded-lg text-xs leading-relaxed">
-            <div class="text-slate-500 italic">[מערכת] SHAK MONITOR נטען בהצלחה... מחכה לנתונים.</div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="glass-card p-5 col-span-1">
+            <h3 class="text-xs font-bold text-blue-600 uppercase mb-4"><i class="fas fa-vial mr-1"></i> מזרק נתונים (Test)</h3>
+            <button onclick="injectTestMessage()" class="w-full bg-blue-600 text-white text-sm font-bold py-3 rounded-lg hover:bg-blue-700 transition-all shadow-md">
+                הזרק הודעת בדיקה
+            </button>
+            <p class="text-[9px] text-slate-400 mt-2 italic text-center">מדמה הודעת לקוח נכנסת לצינור</p>
+        </div>
+
+        <div class="glass-card p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">בריאות הצינור</h3>
+            <div class="text-2xl font-bold" id="pipe-health">0%</div>
+            <div class="w-full bg-slate-100 h-1 rounded-full mt-2"><div id="health-bar" class="bg-red-500 h-1 w-0 transition-all duration-500"></div></div>
+        </div>
+
+        <div id="rules-card" class="glass-card p-5 border-l-4 border-l-slate-300">
+            <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">אבחון חוקיות (Rules)</h3>
+            <div id="rules-status" class="text-sm font-bold">בודק הרשאות...</div>
+        </div>
+
+        <div class="glass-card p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">הודעות בצינור</h3>
+            <div class="text-2xl font-bold text-blue-600" id="msg-counter">0</div>
+        </div>
+    </div>
+
+    <div class="glass-card p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xs font-bold text-slate-700 uppercase"><i class="fas fa-list-ul mr-1"></i> לוג מלשינון בזמן אמת</h3>
+            <button onclick="clearLogs()" class="text-[10px] text-slate-400 hover:text-red-500 italic">נקה לוגים</button>
+        </div>
+        <div id="terminal" class="terminal-box">
+            <div class="text-slate-400 italic">המערכת מאזינה... ממתין לשינוי ב-Database.</div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onChildAdded, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
             projectId: "whatsapp-8ffd1",
-            databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app" 
+            databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app"
         };
 
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
 
-        let count = 0;
-
-        function addLog(msg, color = "#94a3b8", bold = false) {
-            const logBox = document.getElementById('malsh-log');
+        function log(msg, type = 'info') {
+            const colors = { info: '#38bdf8', error: '#f87171', success: '#4ade80', warn: '#fbbf24' };
+            const box = document.getElementById('terminal');
             const time = new Date().toLocaleTimeString();
-            const entry = `<div style="color:${color}; ${bold ? 'font-weight:bold;' : ''}">[${time}] ${msg}</div>`;
-            logBox.innerHTML = entry + logBox.innerHTML;
+            box.innerHTML = `<div><span style="color:gray">[${time}]</span> <span style="color:${colors[type]}">${msg}</span></div>` + box.innerHTML;
         }
 
-        function updateLed(id, status) {
-            const led = document.getElementById(`led-${id}`);
-            const txt = document.getElementById(`txt-${id}`);
-            if(status === 'green') { led.className = 'led led-green'; txt.innerText = 'מחובר ותקין'; }
-            else if(status === 'red') { led.className = 'led led-red'; txt.innerText = 'ניתוק / שגיאה'; }
-            else if(status === 'blue') { led.className = 'led led-blue'; txt.innerText = 'מעבד נתונים...'; }
+        // --- כלי אבחון חוקיות (Rules) ---
+        function runDiagnostics() {
+            log("מריץ אבחון מערכת...", "info");
+            const testRef = ref(rtdb, '.info/connected');
+            
+            onValue(testRef, (snap) => {
+                if (snap.val() === true) {
+                    log("חיבור פיזי ל-Database תקין.", "success");
+                    checkPermissions();
+                } else {
+                    log("כשל בחיבור פיזי! בדוק את ה-URL או החיבור לאינטרנט.", "error");
+                    updateUI('כשל בחיבור', 'red', 0);
+                }
+            });
         }
 
-        // שעון חי
-        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+        async function checkPermissions() {
+            try {
+                // מנסה לכתוב לנתיב בדיקה כדי לבדוק חוקיות
+                const diagRef = ref(rtdb, 'saban94/diagnostic_test');
+                await set(diagRef, { last_check: Date.now(), status: "ok" });
+                
+                log("חוקיות (Rules) תקינה: יש הרשאת כתיבה לנתיב saban94.", "success");
+                updateUI('הכל ירוק', 'green', 100);
+                document.getElementById('rules-status').innerText = "הרשאות תקינות (Full Access)";
+                document.getElementById('rules-card').className = "glass-card p-5 border-l-4 border-l-green-500";
+            } catch (e) {
+                log("כשל חוקיות! ה-Database חסום לכתיבה. בדוק את לשונית Rules.", "error");
+                updateUI('חסימת הרשאות', 'red', 30);
+                document.getElementById('rules-status').innerText = "שגיאת Permission Denied";
+                document.getElementById('rules-card').className = "glass-card p-5 border-l-4 border-l-red-500";
+            }
+        }
 
-        // ניטור הצינור
-        addLog("מתחיל ניטור צמוד על נתיב saban94...", "#eab308");
+        function updateUI(text, color, health) {
+            const led = document.getElementById('main-led');
+            led.className = `status-dot pulse-${color} mr-2`;
+            document.getElementById('diagnostics-summary').innerText = text;
+            document.getElementById('pipe-health').innerText = health + "%";
+            document.getElementById('health-bar').style.width = health + "%";
+            document.getElementById('health-bar').className = `h-1 transition-all duration-500 bg-${color === 'green' ? 'green' : 'red'}-500`;
+        }
 
-        onValue(ref(rtdb, '.info/connected'), (snap) => {
-            if (snap.val() === true) {
-                updateLed('joni', 'green');
-                addLog("חיבור ל-Firebase Realtime Database הצליח.", "#22c55e", true);
-            } else {
-                updateLed('joni', 'red');
-                addLog("אזהרה: אובדן חיבור ל-Database!", "#ef4444", true);
+        // --- כלי הזרקת נתונים (Injection) ---
+        window.injectTestMessage = async () => {
+            log("מזריק הודעת בדיקה לצינור...", "warn");
+            try {
+                const incomingRef = ref(rtdb, 'saban94/incoming');
+                await push(incomingRef, {
+                    from: "972508861080",
+                    text: "הזרקת בדיקה מהמלשינון: האם הצינור עובד?",
+                    time: Date.now()
+                });
+                log("הזרקה הצליחה! בדוק אם הממשק קיבל את ההודעה.", "success");
+            } catch (e) {
+                log("הזרקה נכשלה: " + e.message, "error");
+            }
+        };
+
+        // האזנה להודעות בזמן אמת
+        let msgCount = 0;
+        onValue(ref(rtdb, 'saban94/incoming'), (snap) => {
+            if (snap.exists()) {
+                msgCount = Object.keys(snap.val()).length;
+                document.getElementById('msg-counter').innerText = msgCount;
             }
         });
 
-        // האזנה להודעות נכנסות
-        onChildAdded(ref(rtdb, 'saban94/incoming'), (snap) => {
-            const data = snap.val();
-            count++;
-            document.getElementById('msg-count').innerText = count;
-            
-            updateLed('ai', 'blue');
-            addLog(`מלשינון זיהה הודעה מ-${data.from}: "${data.text}"`, "#3b82f6");
-            
-            // סימולציית הצלחה (בפועל ה-API ב-Vercel מעדכן את 'send')
-            setTimeout(() => {
-                updateLed('ai', 'green');
-                addLog(`Gemini עיבד את ההודעה ושלח תשובה ל-JONI`, "#22c55e");
-            }, 1500);
-        });
-
-        // האזנה לשגיאות בצינור השליחה
-        onChildAdded(ref(rtdb, 'saban94/send'), (snap) => {
-            const data = snap.val();
-            addLog(`הודעה הוכנסה לתור שליחה עבור: ${data.to}`, "#94a3b8");
-        });
-
+        runDiagnostics();
     </script>
 </body>
 </html>
