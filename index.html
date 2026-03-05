@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban AI Studio | Autopilot</title>
+    <title>Saban AI Studio | Rami Msarwh Autopilot</title>
     
     <link rel="icon" type="image/jpeg" href="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111">
 
@@ -14,50 +14,59 @@
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
         body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
         .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .bubble-in { background: #ffffff; border-radius: 0 10px 10px 10px; align-self: flex-start; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; }
-        .bubble-out { background: #dcf8c6; border-radius: 10px 0 10px 10px; align-self: flex-end; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; }
+        .bubble-in { background: #ffffff; border-radius: 0 10px 10px 10px; align-self: flex-start; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; position: relative; }
+        .bubble-out { background: #dcf8c6; border-radius: 10px 0 10px 10px; align-self: flex-end; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 80%; padding: 8px 12px; position: relative; }
+        .active-card { background-color: #f0f2f5; border-right: 4px solid #00a884; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #ced0d1; border-radius: 10px; }
     </style>
 </head>
 <body class="w-full flex h-full">
 
     <aside class="w-[65px] bg-[#eae6df] border-l flex flex-col items-center py-6 gap-8 text-[#54656f] shrink-0">
-        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer">
-            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111">
+        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer" onclick="location.reload()">
+            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111" alt="Rami">
         </div>
-        <button onclick="document.getElementById('csv-upload').click()"><i class="fas fa-file-import text-2xl hover:text-green-600"></i></button>
+        <button title="ייבוא CSV" onclick="document.getElementById('csv-upload').click()"><i class="fas fa-file-import text-2xl hover:text-green-600"></i></button>
         <input type="file" id="csv-upload" class="hidden" accept=".csv">
     </aside>
 
-    <aside class="w-[300px] bg-white border-l flex flex-col shrink-0 shadow-lg">
-        <header class="p-4 bg-[#f0f2f5] border-b">
-            <h1 class="font-bold text-xl text-slate-800 italic">ח. סבן AI</h1>
+    <aside class="w-[320px] bg-white border-l flex flex-col shrink-0 shadow-xl z-10">
+        <header class="p-4 bg-[#f0f2f5] border-b flex items-center justify-between">
+            <h1 class="font-bold text-lg text-slate-800 italic">ח. סבן AI</h1>
+            <span id="global-status" class="w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm" title="JONI Connected"></span>
         </header>
-        <div id="customer-list" class="flex-1 overflow-y-auto"></div>
+        <div id="customer-list" class="flex-1 overflow-y-auto">
+            </div>
     </aside>
 
     <main class="flex-1 flex flex-col relative h-full overflow-hidden">
-        <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between shrink-0">
+        <header id="chat-header" class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3">
-                <div id="active-avatar" class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold overflow-hidden text-sm italic">S</div>
+                <div id="header-avatar" class="w-10 h-10 rounded-full bg-[#00a884] flex items-center justify-center text-white font-bold overflow-hidden">S</div>
                 <div>
-                    <span id="active-name" class="font-bold text-sm block">בחר לקוח</span>
-                    <span id="active-status" class="text-[10px] text-green-600 font-bold italic italic">מחובר לצינור JONI</span>
+                    <span id="active-name" class="font-bold text-sm block leading-tight">בחר צ'אט</span>
+                    <span id="active-model" class="text-[10px] text-gray-500 italic">Autopilot Monitoring...</span>
                 </div>
             </div>
         </header>
 
-        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-3"></div>
+        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-3 scroll-smooth">
+            <div class="self-center bg-[#fff5c4] text-[11px] px-3 py-1 rounded shadow-sm mb-4">הודעות מוצפנות ומסונכרנות דרך JONI</div>
+        </div>
 
         <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3 shrink-0">
-            <input id="msg-input" type="text" placeholder="כתוב הודעה לראמי..." class="flex-1 p-2.5 rounded-lg border-none outline-none text-sm">
-            <button id="send-btn" class="bg-[#00a884] text-white w-10 h-10 rounded-full shadow-md"><i class="fas fa-paper-plane text-sm"></i></button>
+            <input id="msg-input" type="text" placeholder="הקלד הודעה לראמי (הפרטי)..." class="flex-1 p-2.5 rounded-lg border-none outline-none text-sm shadow-inner">
+            <button id="send-btn" class="bg-[#00a884] text-white w-10 h-10 rounded-full shadow-md transition hover:scale-105 active:scale-95 flex items-center justify-center">
+                <i class="fas fa-paper-plane text-sm"></i>
+            </button>
         </footer>
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getDatabase, ref, onChildAdded, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getDatabase, ref, onChildAdded, push, serverTimestamp as rtdbTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
@@ -70,55 +79,89 @@
         const db = getFirestore(app);
         const rtdb = getDatabase(app);
 
-        const RAMI_PRIVATE = "+972508861080";
+        const RAMI_PRIVATE = "972508861080"; // המספר הפרטי שלך כפי שהוא מופיע ב-JONI
 
-        // 1. מאזין להודעות ווטסאפ נכנסות (JONI Pipeline)
-        onChildAdded(ref(rtdb, 'saban94/incoming'), async (snap) => {
-            const data = snap.val();
-            if (!data) return;
+        // 1. "רשת דייגים" - האזנה לכל נתיבי ההודעות האפשריים ב-Firebase
+        const channels = ['saban94/incoming', 'whatsapp-8ffd1/incoming', 'incoming'];
+        
+        channels.forEach(path => {
+            onChildAdded(ref(rtdb, path), async (snapshot) => {
+                const data = snapshot.val();
+                if (!data || !data.text) return;
 
-            // עדכון הממשק ב-Firestore
-            await addDoc(collection(db, "customers", data.from, "chat_history"), {
-                text: data.text, type: 'in', timestamp: serverTimestamp()
+                const phone = (data.from || data.sender || "Unknown").toString().replace('+', '');
+                
+                // עדכון Firestore - משקף את ההודעה בממשק בזמן אמת
+                await setDoc(doc(db, "customers", phone), { 
+                    name: phone === RAMI_PRIVATE ? "ראמי מסארוה (פרטי)" : "לקוח: " + phone,
+                    lastUpdate: serverTimestamp()
+                }, { merge: true });
+
+                await addDoc(collection(db, "customers", phone, "chat_history"), {
+                    text: data.text,
+                    type: 'in',
+                    timestamp: serverTimestamp()
+                });
+
+                // הפעלת Autopilot במידה וההודעה חדשה (מה-5 דקות האחרונות)
+                const msgTime = data.time || Date.now();
+                if (msgTime > Date.now() - 300000) {
+                    processWithAI(data.text, phone, path);
+                }
             });
+        });
 
-            // הפעלת המוח (Autopilot)
+        // 2. פונקציית הטייס האוטומטי (קריאה ל-Gemini ושליחה חזרה ל-JONI)
+        async function processWithAI(text, phone, originalPath) {
             try {
                 const res = await fetch('/api/gemini', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: data.text, senderPhone: data.from })
+                    body: JSON.stringify({ message: text, senderPhone: phone })
                 });
                 const aiData = await res.json();
 
-                // שליחה חזרה לווטסאפ דרך JONI
-                await push(ref(rtdb, 'saban94/send'), {
-                    to: data.from,
-                    text: aiData.reply,
-                    timestamp: Date.now()
-                });
+                if (aiData.reply) {
+                    // שליחה חזרה לווטסאפ דרך הנתיב המתאים ב-JONI
+                    const outPath = originalPath.replace('incoming', 'send');
+                    await push(ref(rtdb, outPath), {
+                        to: phone,
+                        text: aiData.reply,
+                        timestamp: Date.now()
+                    });
 
-                // תיעוד התשובה ב-Firestore
-                await addDoc(collection(db, "customers", data.from, "chat_history"), {
-                    text: `[AI]: ${aiData.reply}`, type: 'out', timestamp: serverTimestamp()
-                });
-            } catch (err) { console.error("API Error:", err); }
-        });
+                    // תיעוד התשובה בממשק
+                    await addDoc(collection(db, "customers", phone, "chat_history"), {
+                        text: `[Autopilot]: ${aiData.reply}`,
+                        type: 'out',
+                        timestamp: serverTimestamp()
+                    });
+                }
+            } catch (e) { console.error("Autopilot Error:", e); }
+        }
 
-        // 2. רשימת לקוחות והיסטוריה
-        onSnapshot(collection(db, "customers"), (snap) => {
+        // 3. הצגת רשימת לקוחות ב-Sidebar
+        onSnapshot(query(collection(db, "customers"), orderBy("lastUpdate", "desc")), (snap) => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
             snap.forEach(d => {
                 const c = d.data();
+                const isRami = d.id === RAMI_PRIVATE;
                 list.insertAdjacentHTML('beforeend', `
-                    <div onclick="window.loadChat('${d.id}', '${c.name || d.id}')" class="p-4 border-b hover:bg-slate-50 cursor-pointer flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-bold">${(c.name || 'L')[0]}</div>
-                        <div class="text-sm font-bold text-slate-700">${c.name || d.id}</div>
+                    <div onclick="window.loadChat('${d.id}', '${c.name || d.id}')" 
+                         class="p-4 border-b hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-all border-r-4 border-transparent hover:border-[#00a884]">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-[#00a884] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                            ${isRami ? '<i class="fas fa-user-tie"></i>' : (c.name ? c.name[0] : 'L')}
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <div class="font-bold text-sm text-slate-800 truncate">${c.name || d.id}</div>
+                            <div class="text-[10px] text-gray-500 italic">לחץ לצפייה בהיסטוריה</div>
+                        </div>
                     </div>`);
             });
         });
 
+        // 4. טעינת צ'אט לקוח
         window.loadChat = (phone, name) => {
             document.getElementById('active-name').innerText = name;
             const q = query(collection(db, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
@@ -128,11 +171,34 @@
                 snap.forEach(docSnap => {
                     const m = docSnap.data();
                     const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
-                    canvas.insertAdjacentHTML('beforeend', `<div class="${style} mb-1">${m.text}</div>`);
+                    canvas.insertAdjacentHTML('beforeend', `
+                        <div class="${style} text-sm">
+                            ${m.text}
+                            <div class="text-[9px] text-gray-400 mt-1 text-left">
+                                ${m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...'}
+                            </div>
+                        </div>`);
                 });
                 canvas.scrollTop = canvas.scrollHeight;
             });
         };
+
+        // 5. שליחה ידנית מהממשק (למקרי חירום)
+        document.getElementById('send-btn').onclick = async () => {
+            const input = document.getElementById('msg-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // שליחה לראמי הפרטי כברירת מחדל
+            await push(ref(rtdb, 'saban94/send'), {
+                to: RAMI_PRIVATE,
+                text: msg,
+                timestamp: Date.now()
+            });
+
+            input.value = '';
+        };
+
     </script>
 </body>
 </html>
