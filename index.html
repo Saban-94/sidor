@@ -3,92 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - מערכת סידור עבודה</title>
+    <title>ח. סבן - ניהול סידור עבודה חכם</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-slate-100 min-h-screen pb-10 font-sans">
+<body class="bg-slate-100 min-h-screen pb-20 font-sans text-right">
 
     <header class="bg-blue-900 text-white p-6 shadow-2xl border-b-4 border-yellow-500 sticky top-0 z-50">
-        <div class="max-w-2xl mx-auto flex justify-between items-center">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-black">H.SABAN 1994</h1>
-                <p class="text-xs opacity-80">מערכת ניהול הזמנות וסידור נהגים</p>
+                <h1 class="text-2xl font-black italic">H.SABAN 1994</h1>
+                <p class="text-xs opacity-80 font-bold">מערכת ניהול סידור עבודה ובוט לוגיסטי</p>
             </div>
             <i class="fas fa-truck-loading text-3xl text-yellow-400"></i>
         </div>
     </header>
 
-    <main class="max-w-2xl mx-auto p-4 space-y-6">
+    <main class="max-w-4xl mx-auto p-4 space-y-6">
         
         <div class="bg-white rounded-3xl shadow-lg p-6 border border-slate-200">
             <h2 class="text-lg font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
-                <i class="fas fa-file-invoice text-blue-600"></i> פרטי הזמנה חדשה
+                <i class="fas fa-plus-circle text-blue-600"></i> הזנה לסידור היומי
             </h2>
             
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">תאריך</label>
-                        <input id="date" type="date" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">שעה</label>
-                        <input id="time" type="time" value="07:00" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">שם לקוח</label>
-                        <input id="client" type="text" placeholder="שם הלקוח" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">כתובת</label>
-                        <input id="address" type="text" placeholder="עיר ורחוב" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">סוג פריקה / הובלה</label>
-                        <select id="deliveryType" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                            <option>הובלת משאית</option>
-                            <option>הובלת מנוף</option>
-                            <option>הובלת מנוף 15 מטר</option>
-                            <option>משיכה עצמית</option>
-                            <option>מוביל חיצוני</option>
-                            <option>איסוף בלות פסולת</option>
-                            <option>גישה לאתר+עבודת מנוף</option>
-                            <option>עבודת מנוף</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">מחסן</label>
-                        <select id="warehouse" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                            <option>התלמיד</option>
-                            <option>החרש</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">בחירת נהג</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="selectDriver('עלי')" id="btn-ali" class="driver-btn p-3 border-2 rounded-xl font-bold transition-all text-slate-600 border-slate-200">
-                            עלי (משאית) 🚚
-                        </button>
-                        <button onclick="selectDriver('חכמת')" id="btn-hachmat" class="driver-btn p-3 border-2 rounded-xl font-bold transition-all text-slate-600 border-slate-200">
-                            חכמת (מנוף) 🏗️
-                        </button>
-                    </div>
-                </div>
-
-                <button id="sendBtn" class="w-full bg-blue-600 hover:bg-blue-800 text-white font-black py-4 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 mt-4 text-xl">
-                    <i class="fab fa-whatsapp"></i> שלח סידור לנהג 🚀
-                </button>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input id="time" type="time" value="07:00" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="client" type="text" placeholder="שם לקוח" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="address" type="text" placeholder="כתובת / אתר" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="deliveryType" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <option>הובלת משאית</option>
+                    <option>הובלת מנוף</option>
+                    <option>משיכה עצמית</option>
+                    <option>איסוף בלות פסולת</option>
+                </select>
+                <select id="driver" class="p-3 bg-slate-50 border rounded-xl font-bold text-blue-900">
+                    <option value="עלי">עלי (משאית) 🚚</option>
+                    <option value="חכמת">חכמת (מנוף) 🏗️</option>
+                </select>
+                <button id="addBtn" class="bg-blue-600 hover:bg-blue-800 text-white font-black py-3 rounded-xl shadow-md transition-all">הוסף ללוח</button>
             </div>
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-4">
+                <div class="bg-blue-600 text-white p-3 rounded-t-2xl font-bold flex justify-between items-center shadow-md">
+                    <span>🚚 עלי</span>
+                    <span id="count-ali" class="bg-blue-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
+                </div>
+                <div id="list-ali" class="space-y-3 bg-white p-4 rounded-b-2xl shadow-sm border border-slate-200 min-h-[150px]"></div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-emerald-600 text-white p-3 rounded-t-2xl font-bold flex justify-between items-center shadow-md">
+                    <span>🏗️ חכמת</span>
+                    <span id="count-hachmat" class="bg-emerald-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
+                </div>
+                <div id="list-hachmat" class="space-y-3 bg-white p-4 rounded-b-2xl shadow-sm border border-slate-200 min-h-[150px]"></div>
+            </div>
+        </div>
+
+        <button id="sendTotalBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-black text-xl py-5 rounded-2xl shadow-2xl flex items-center justify-center gap-3 transition-all transform active:scale-95 mt-10">
+            <i class="fab fa-whatsapp text-2xl"></i> שלח סידור סופי לקבוצה 🚀
+        </button>
     </main>
 
     <script type="module">
@@ -108,51 +84,92 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let selectedDriver = "";
-        const driverPhones = { "עלי": "972508860896", "חכמת": "972502120038" };
+        let sidor = JSON.parse(localStorage.getItem('saban_sidor_db')) || [];
 
-        window.selectDriver = (name) => {
-            selectedDriver = name;
-            document.querySelectorAll('.driver-btn').forEach(btn => btn.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-600'));
-            const activeBtn = document.getElementById(`btn-${name === 'עלי' ? 'ali' : 'hachmat'}`);
-            activeBtn.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-600');
-        };
+        function render() {
+            const aliList = document.getElementById('list-ali');
+            const hachmatList = document.getElementById('list-hachmat');
+            aliList.innerHTML = '';
+            hachmatList.innerHTML = '';
 
-        document.getElementById('sendBtn').onclick = async () => {
-            if (!selectedDriver) return alert("רמי, נא לבחור נהג!");
+            let counts = { עלי: 0, חכמת: 0 };
+
+            sidor.sort((a,b) => a.time.localeCompare(b.time)).forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = "p-3 bg-slate-50 rounded-xl border-r-4 " + (item.driver === 'עלי' ? 'border-blue-500' : 'border-emerald-500') + " flex justify-between items-center shadow-sm";
+                card.innerHTML = `
+                    <div class="text-sm">
+                        <span class="font-black text-slate-800">${item.time}</span> | 
+                        <span class="text-slate-600">${item.client}</span><br>
+                        <span class="text-[10px] text-slate-400">${item.address}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editItem(${index})" class="text-blue-400 hover:text-blue-600 p-1"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteItem(${index})" class="text-red-300 hover:text-red-600 p-1"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                if(item.driver === 'עלי') { aliList.appendChild(card); counts.עלי++; }
+                else { hachmatList.appendChild(card); counts.חכמת++; }
+            });
+
+            document.getElementById('count-ali').innerText = `${counts.עלי} משימות`;
+            document.getElementById('count-hachmat').innerText = `${counts.חכמת} משימות`;
+            localStorage.setItem('saban_sidor_db', JSON.stringify(sidor));
+        }
+
+        document.getElementById('addBtn').onclick = () => {
+            const client = document.getElementById('client').value;
+            if(!client) return alert("הכנס שם לקוח");
             
-            const data = {
-                date: document.getElementById('date').value,
+            sidor.push({
                 time: document.getElementById('time').value,
-                client: document.getElementById('client').value,
+                client: client,
                 address: document.getElementById('address').value,
                 delivery: document.getElementById('deliveryType').value,
-                warehouse: document.getElementById('warehouse').value
-            };
-
-            const message = `*📋 סידור עבודה - ח. סבן 1994 בע"מ*\n\n` +
-                          `📅 *תאריך:* ${data.date}\n` +
-                          `⏰ *שעה:* ${data.time}\n` +
-                          `👤 *לקוח:* ${data.client}\n` +
-                          `📍 *כתובת:* ${data.address}\n\n` +
-                          `🏗️ *סוג פריקה:* ${data.delivery}\n` +
-                          `🏠 *מחסן:* ${data.warehouse}\n` +
-                          `🚛 *נהג:* ${selectedDriver}\n\n` +
-                          `_נא לאשר קבלת סידור. סע בזהירות!_ 🚀`;
-
-            try {
-                await push(ref(db, 'saban94/send'), {
-                    to: driverPhones[selectedDriver],
-                    text: message
-                });
-                alert("הסידור נשלח בהצלחה ל-" + selectedDriver + " ✅");
-            } catch (e) {
-                alert("שגיאה בשליחה: " + e.message);
-            }
+                driver: document.getElementById('driver').value
+            });
+            clearForm();
+            render();
         };
 
-        // הגדרת תאריך להיום כברירת מחדל
-        document.getElementById('date').valueAsDate = new Date();
+        window.deleteItem = (i) => { if(confirm("למחוק הזמנה?")) { sidor.splice(i, 1); render(); } };
+
+        window.editItem = (i) => {
+            const item = sidor[i];
+            document.getElementById('time').value = item.time;
+            document.getElementById('client').value = item.client;
+            document.getElementById('address').value = item.address;
+            document.getElementById('deliveryType').value = item.delivery;
+            document.getElementById('driver').value = item.driver;
+            sidor.splice(i, 1);
+            render();
+        };
+
+        function clearForm() {
+            document.getElementById('client').value = '';
+            document.getElementById('address').value = '';
+        }
+
+        document.getElementById('sendTotalBtn').onclick = async () => {
+            if(sidor.length === 0) return alert("הסידור ריק");
+            let report = `*📋 סידור סופי - ח. סבן 1994 בע"מ*\n\n`;
+            
+            ['עלי', 'חכמת'].forEach(d => {
+                const tasks = sidor.filter(o => o.driver === d);
+                if(tasks.length > 0) {
+                    report += `*${d === 'עלי' ? '🚚 עלי' : '🏗️ חכמת'}:*\n`;
+                    tasks.forEach(o => report += `• ${o.time}: ${o.client} (${o.address})\n`);
+                    report += `\n`;
+                }
+            });
+
+            try {
+                await push(ref(db, 'saban94/send'), { to: "972508860896", text: report });
+                alert("סידור נשלח לקבוצה! ✅");
+            } catch (e) { alert("שגיאה בשליחה"); }
+        };
+
+        render();
     </script>
 </body>
 </html>
