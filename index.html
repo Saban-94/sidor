@@ -51,30 +51,31 @@
         });
 
         // פונקציית שליחה (Enter & Button)
-        async function doSend() {
-            const input = document.getElementById('msg-input');
-            const phone = document.getElementById('active-name').innerText;
-            if(!input.value.trim() || phone === "בחר שיחה") return;
-            
-            await push(ref(rtdb, 'saban94/send'), { to: phone, text: input.value, timestamp: Date.now() });
-            input.value = '';
-            input.focus();
-        }
+async function doSend() {
+        const input = document.getElementById('msg-input');
+        const phone = document.getElementById('active-name').innerText;
+        if(!input.value.trim() || phone.includes("בחר")) return;
 
-        document.getElementById('send-btn').onclick = doSend;
-        document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') doSend(); };
-
-        // האזנה להודעות נכנסות (מדמה ווטסאפ)
-        onChildAdded(ref(rtdb, 'saban94/incoming'), (snap) => {
-            const data = snap.val();
-            const phone = data.from;
-            const list = document.getElementById('customer-list');
-            
-            if(!document.getElementById(`card-${phone}`)) {
-                list.insertAdjacentHTML('beforeend', `<div id="card-${phone}" onclick="window.loadChat('${phone}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer font-bold">${phone}</div>`);
-            }
+        // שליחה לנתיב ש-JONI מאזין לו
+        const sendRef = ref(rtdb, 'saban94/send');
+        await push(sendRef, {
+            to: phone,
+            text: input.value,
+            timestamp: Date.now()
         });
 
+        // עדכון היסטוריה ב-Firestore
+        const histRef = collection(db, "customers", phone, "chat_history");
+        await addDoc(histRef, { text: input.value, type: 'out', timestamp: serverTimestamp() });
+
+        input.value = '';
+        input.focus();
+    }
+    
+    // מאזין למקלדת Enter
+    document.getElementById('msg-input').addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') { e.preventDefault(); doSend(); }
+    });
         window.loadChat = (phone) => {
             document.getElementById('active-name').innerText = phone;
             document.getElementById('msg-input').focus();
