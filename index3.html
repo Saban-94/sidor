@@ -109,28 +109,19 @@
         }
 
         // --- שאיבת הודעות מ-JONI (Realtime Database) ---
-        onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
-            const data = snap.val();
-            if (data) {
-                const id = Object.keys(data).pop();
-                const msg = data[id];
-                if (!msg.processed) {
-                    // 1. קבלת מענה מגימני
-                    const aiReply = await askGemini(msg.text);
-                    
-                    // 2. שליחה לווטסאפ דרך JONI
-                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
-                    
-                    // 3. יצירת קולקציה והיסטוריה ב-Firestore
-                    const histRef = collection(dbFS, "customers", msg.from, "chat_history");
-                    await addDoc(histRef, { text: msg.text, type: 'in', time: serverTimestamp() });
-                    await addDoc(histRef, { text: aiReply, type: 'out', time: serverTimestamp() });
-                    
-                    // 4. סימון כטופל
-                    set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
-                }
-            }
-        });
+        // המאזין שמושך את ההודעה מ-JONI ומציג באפליקציה
+onValue(ref(rtdb, 'saban94/incoming'), (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+        const id = Object.keys(data).pop();
+        const msg = data[id];
+        
+        // הצגת ההודעה בקנבס הדינמי
+        renderMessage(msg.text, 'left'); 
+        
+        console.log("הודעה נשאבה בהצלחה מ-JONI!");
+    }
+});
 
         // --- הצגת טבלת ה-AI בסידור ---
         onSnapshot(query(collection(dbFS, "ai_logs"), orderBy("time", "desc"), limit(5)), (snap) => {
