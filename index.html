@@ -3,61 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - שליחת דוח בוקר</title>
+    <title>ח. סבן - ניהול סידור יומי</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    </style>
 </head>
-<body class="bg-slate-100 min-h-screen p-4">
+<body class="bg-gray-100 min-h-screen font-sans">
 
-    <div class="max-w-md mx-auto space-y-4">
-        <div class="bg-blue-900 text-white p-6 rounded-2xl shadow-xl text-center border-b-4 border-yellow-500">
-            <h1 class="text-2xl font-bold">📋 יצירת דוח בוקר - ח. סבן</h1>
-            <p class="text-sm opacity-80">מערכת הפצה אוטומטית לנהגים</p>
-        </div>
+    <div class="max-w-4xl mx-auto p-4 space-y-6">
+        <header class="bg-blue-900 text-white p-6 rounded-2xl shadow-lg text-center">
+            <h1 class="text-2xl font-bold">🏗️ ניהול סידור עבודה - ח. סבן</h1>
+            <p class="opacity-80">שיבוץ נהגים ושליחה לקבוצה</p>
+        </header>
 
-        <div class="bg-white p-5 rounded-2xl shadow-md border border-gray-200">
-            <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">📦 פרטי משימה להיום</h2>
-            
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs text-gray-500 mr-1">בחר נהג</label>
-                    <select id="driverSelect" class="w-full p-3 border rounded-xl bg-gray-50 font-bold">
-                        <option value="עלי">עלי</option>
-                        <option value="חכמת">חכמת</option>
-                    </select>
-                </div>
+        <section class="bg-white p-6 rounded-2xl shadow-md border-b-4 border-yellow-500">
+            <h2 class="font-bold text-lg mb-4">➕ הוספת הזמנה חדשה</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input id="newTime" type="time" class="p-3 border rounded-xl bg-gray-50" value="07:00">
+                <input id="newClient" type="text" placeholder="לקוח ומיקום" class="p-3 border rounded-xl bg-gray-50">
+                <select id="newDriver" class="p-3 border rounded-xl bg-gray-50 font-bold text-blue-800">
+                    <option value="עלי">עלי 🚚</option>
+                    <option value="חכמת">חכמת 🏗️</option>
+                </select>
+                <button id="addOrderBtn" class="bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">הוסף ללוח</button>
+            </div>
+        </section>
 
-                <div>
-                    <label class="block text-xs text-gray-500 mr-1">שם הלקוח / אתר</label>
-                    <input id="client" type="text" placeholder="למשל: זבולון-עדירן / שיין" class="w-full p-3 border rounded-xl bg-gray-50 outline-none">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs text-gray-500 mr-1">יעד (עיר)</label>
-                        <input id="location" type="text" placeholder="רעננה" class="w-full p-3 border rounded-xl bg-gray-50">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-500 mr-1">כמות בלות (מקסימום 18)</label>
-                        <input id="bales" type="number" value="1" max="18" class="w-full p-3 border rounded-xl bg-gray-50">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs text-gray-500 mr-1">שעת התחלה</label>
-                    <input id="startTime" type="time" value="07:00" class="w-full p-3 border rounded-xl bg-gray-50">
-                </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-md">
+                <h3 class="text-center font-bold text-xl text-blue-700 border-b pb-2 mb-4">עמודת עלי 🚚</h3>
+                <div id="ali-list" class="space-y-3 min-h-[100px]"></div>
             </div>
 
-            <button id="sendReportBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2">
-                🚀 שלח דוח לנהג עכשיו
-            </button>
+            <div class="bg-white p-4 rounded-2xl shadow-md">
+                <h3 class="text-center font-bold text-xl text-green-700 border-b pb-2 mb-4">עמודת חכמת 🏗️</h3>
+                <div id="hachmat-list" class="space-y-3 min-h-[100px]"></div>
+            </div>
         </div>
 
-        <div id="statusMsg" class="text-center text-sm font-medium text-green-600 hidden">
-            הדוח הועבר ל-JONI בהצלחה! ✅
+        <div class="text-center pb-10">
+            <button id="sendToGroupBtn" class="bg-green-600 hover:bg-green-700 text-white text-xl font-extrabold py-5 px-10 rounded-2xl shadow-2xl transition-all transform hover:scale-105 w-full">
+                📤 שלח סידור סופי לקבוצת הווטסאפ
+            </button>
+            <button onclick="clearSidor()" class="mt-4 text-red-500 text-sm underline">איפוס סידור יומי</button>
         </div>
     </div>
 
@@ -78,55 +64,79 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // מספרי הטלפון של הנהגים
-        const driversPhones = {
-            "עלי": "972508860896", // מספר הנהג עלי
-            "חכמת": "972502120038" // מספר הנהג חכמת
-        };
+        let orders = JSON.parse(localStorage.getItem('saban_sidor')) || [];
 
-        async function sendMorningReport() {
-            const driver = document.getElementById('driverSelect').value;
-            const client = document.getElementById('client').value;
-            const location = document.getElementById('location').value;
-            const bales = document.getElementById('bales').value;
-            const time = document.getElementById('startTime').value;
-            const btn = document.getElementById('sendReportBtn');
+        function renderOrders() {
+            const aliList = document.getElementById('ali-list');
+            const hachmatList = document.getElementById('hachmat-list');
+            aliList.innerHTML = '';
+            hachmatList.innerHTML = '';
 
-            if(!client || !location) {
-                alert("רמי, נא למלא את כל הפרטים לפני השליחה");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = "מעבד...";
-
-            // בניית הודעה מקצועית
-            const message = `*📋 דוח בוקר - ח. סבן 1994 בע"מ*\n\n` +
-                          `👤 *נהג:* ${driver}\n` +
-                          `⏰ *שעת יציאה:* ${time}\n` +
-                          `📍 *יעד:* ${location}\n` +
-                          `🏗️ *לקוח:* ${client}\n` +
-                          `📦 *כמות בלות:* ${bales}/18\n\n` +
-                          `_נא לאשר קבלת סידור זה. סע בזהירות!_ 🚛`;
-
-            try {
-                const msgRef = ref(db, 'saban94/send');
-                await push(msgRef, {
-                    to: driversPhones[driver],
-                    text: message
-                });
-
-                document.getElementById('statusMsg').classList.remove('hidden');
-                setTimeout(() => document.getElementById('statusMsg').classList.add('hidden'), 3000);
-            } catch (e) {
-                alert("שגיאה בשליחה: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = "🚀 שלח דוח לנהג עכשיו";
-            }
+            orders.sort((a, b) => a.time.localeCompare(b.time)).forEach((order, index) => {
+                const item = document.createElement('div');
+                item.className = "p-3 bg-gray-50 border-r-4 border-blue-500 rounded shadow-sm flex justify-between items-center";
+                item.innerHTML = `<div><span class="font-bold">${order.time}</span> | ${order.client}</div>`;
+                
+                if (order.driver === 'עלי') aliList.appendChild(item);
+                else hachmatList.appendChild(item);
+            });
+            localStorage.setItem('saban_sidor', JSON.stringify(orders));
         }
 
-        document.getElementById('sendReportBtn').addEventListener('click', sendMorningReport);
+        document.getElementById('addOrderBtn').onclick = () => {
+            const client = document.getElementById('newClient').value;
+            if (!client) return alert("רמי, הכנס שם לקוח");
+            
+            orders.push({
+                time: document.getElementById('newTime').value,
+                client: client,
+                driver: document.getElementById('newDriver').value
+            });
+            document.getElementById('newClient').value = '';
+            renderOrders();
+        };
+
+        window.clearSidor = () => {
+            if(confirm("למחוק את כל הסידור?")) {
+                orders = [];
+                renderOrders();
+            }
+        };
+
+        document.getElementById('sendToGroupBtn').onclick = async () => {
+            if (orders.length === 0) return alert("הסידור ריק");
+
+            let report = `*📋 סידור עבודה סופי - ח. סבן 1994 בע"מ*\n\n`;
+            
+            const aliOrders = orders.filter(o => o.driver === 'עלי');
+            const hachmatOrders = orders.filter(o => o.driver === 'חכמת');
+
+            if (aliOrders.length > 0) {
+                report += `*🚚 עמודת עלי:*\n`;
+                aliOrders.forEach(o => report += `• ${o.time}: ${o.client}\n`);
+            }
+
+            if (hachmatOrders.length > 0) {
+                report += `\n*🏗️ עמודת חכמת:*\n`;
+                hachmatOrders.forEach(o => report += `• ${o.time}: ${o.client}\n`);
+            }
+
+            report += `\n_נא לאשר קבלת הסידור. סעו בזהירות!_ 🚛`;
+
+            try {
+                // שליחה לקבוצת דוח בוקר (יש להזין כאן את ה-Group ID או מספר היעד של הקבוצה ב-JONI)
+                const msgRef = ref(db, 'saban94/send');
+                await push(msgRef, {
+                    to: "972508860896", // כאן תשים את ה-ID של הקבוצה או מספר מנהל לצורך בדיקה
+                    text: report
+                });
+                alert("הסידור המרוכז נשלח בהצלחה ל-JONI! ✅");
+            } catch (e) {
+                alert("שגיאה בשליחה ל-Firebase");
+            }
+        };
+
+        renderOrders();
     </script>
 </body>
 </html>
