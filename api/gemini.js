@@ -1,38 +1,58 @@
 // api/gemini.js
 export default async function handler(req, res) {
-    // מאפשר גישה מכל מקום (CORS)
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'Missing API Key' });
+    const { message } = req.body;
 
-    try {
-        const { message } = req.body;
-        
-        // שימוש במודל שראינו שעובד לך בבדיקה
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    if (!apiKey) return res.status(500).json({ error: 'Missing API Key in Environment Variables' });
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: `אתה עוזר לוגיסטי בחברת ח.סבן. נתח והשב על: ${message}` }] }]
-            })
-        });
+    // רשימת מודלים לפי סדר עדיפות (מהחדש והחכם ביותר ליציב ביותר)
+    const modelPriority = [
+        "gemini-3.1-flash-lite-preview", // הושק ב-3 במרץ 2026
+        "gemini-3-flash-preview",
+        "gemini-1.5-flash",             // Fallback יציב
+        "gemini-1.5-flash-8b"           // מהיר במיוחד
+    ];
 
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
+    let lastError = null;
 
-        const reply = data.candidates[0].content.parts[0].text;
-        return res.status(200).json({ reply });
+    // לולאת הדילוג בין המודלים
+    for (const modelName of modelPriority) {
+        try {
+            console.log(`🤖 מנסה להפעיל מודל: ${modelName}`);
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-    } catch (error) {
-        console.error('Brain Error:', error.message);
-        return res.status(500).json({ error: error.message });
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: `אתה מנהל לוגיסטי בכיר בחברת ח.סבן חומרי בניין. ענה לראמי או ללקוח בצורה מקצועית, קצרה ועניינית: ${message}` }]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.candidates && data.candidates[0].content) {
+                const reply = data.candidates[0].content.parts[0].text;
+                return res.status(200).json({ 
+                    reply, 
+                    modelUsed: modelName,
+                    status: "success" 
+                });
+            } else {
+                lastError = data.error ? data.error.message : "Response not ok";
+                console.warn(`⚠️ מודל ${modelName} נכשל: ${lastError}`);
+            }
+
+        } catch (err) {
+            lastError = err.message;
+            console.error(`❌ תקלה טכנית במודל ${modelName}:`, lastError);
+        }
     }
+
+    return res.status(500).json({ error: "כל המודלים נכשלו", details: lastError });
 }
