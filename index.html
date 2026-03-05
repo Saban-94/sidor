@@ -2,174 +2,219 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן - ניהול סידור עבודה חכם</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Saban AI Studio | Rami Msarwh</title>
+    
+    <link rel="icon" type="image/jpeg" href="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111">
+
+    <link rel="manifest" href='data:application/json,{"name":"Saban AI Studio","short_name":"Saban AI","display":"standalone","start_url":"/index.html"}'>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+        body { font-family: 'Assistant', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
+        .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        .bubble-in { background: #ffffff; border-radius: 0 10px 10px 10px; align-self: flex-start; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 85%; }
+        .bubble-out { background: #dcf8c6; border-radius: 10px 0 10px 10px; align-self: flex-end; box-shadow: 0 1px 1px rgba(0,0,0,0.1); max-width: 85%; }
+        .active-card { background-color: #f0f2f5; border-right: 4px solid #00a884; }
+    </style>
 </head>
-<body class="bg-slate-100 min-h-screen pb-20 font-sans text-right">
+<body class="flex flex-row h-full w-full">
 
-    <header class="bg-blue-900 text-white p-6 shadow-2xl border-b-4 border-yellow-500 sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-black italic">H.SABAN 1994</h1>
-                <p class="text-xs opacity-80 font-bold">מערכת ניהול סידור עבודה ובוט לוגיסטי</p>
-            </div>
-            <i class="fas fa-truck-loading text-3xl text-yellow-400"></i>
+    <aside class="w-[65px] bg-[#eae6df] border-l flex flex-col items-center py-6 gap-8 text-[#54656f] shrink-0">
+        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer" onclick="window.loadChat('+972508860896', 'ראמי מסארוה', 'https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111')">
+            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111" title="פרופיל ראמי">
         </div>
-    </header>
+        <button title="ייבוא CSV" onclick="document.getElementById('csv-upload').click()"><i class="fas fa-file-import text-2xl hover:text-green-600"></i></button>
+        <input type="file" id="csv-upload" class="hidden" accept=".csv">
+    </aside>
 
-    <main class="max-w-4xl mx-auto p-4 space-y-6">
-        
-        <div class="bg-white rounded-3xl shadow-lg p-6 border border-slate-200">
-            <h2 class="text-lg font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
-                <i class="fas fa-plus-circle text-blue-600"></i> הזנה לסידור היומי
-            </h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input id="time" type="time" value="07:00" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                <input id="client" type="text" placeholder="שם לקוח" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                <input id="address" type="text" placeholder="כתובת / אתר" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                <select id="deliveryType" class="p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    <option>הובלת משאית</option>
-                    <option>הובלת מנוף</option>
-                    <option>משיכה עצמית</option>
-                    <option>איסוף בלות פסולת</option>
-                </select>
-                <select id="driver" class="p-3 bg-slate-50 border rounded-xl font-bold text-blue-900">
-                    <option value="עלי">עלי (משאית) 🚚</option>
-                    <option value="חכמת">חכמת (מנוף) 🏗️</option>
-                </select>
-                <button id="addBtn" class="bg-blue-600 hover:bg-blue-800 text-white font-black py-3 rounded-xl shadow-md transition-all">הוסף ללוח</button>
+    <aside class="w-[350px] bg-white border-l flex flex-col shrink-0 overflow-hidden shadow-lg">
+        <header class="p-4 bg-[#f0f2f5] border-b">
+            <h1 class="font-bold text-xl text-slate-800 italic">הזמנות ח. סבן</h1>
+        </header>
+        <div id="customer-list" class="flex-1 overflow-y-auto">
             </div>
-        </div>
+    </aside>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-4">
-                <div class="bg-blue-600 text-white p-3 rounded-t-2xl font-bold flex justify-between items-center shadow-md">
-                    <span>🚚 עלי</span>
-                    <span id="count-ali" class="bg-blue-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
+    <main class="flex-1 flex flex-col relative overflow-hidden h-full">
+        <header id="chat-header" class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <div id="header-avatar" class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold overflow-hidden text-sm">R</div>
+                <div>
+                    <span id="active-name" class="font-bold text-sm block leading-tight">בחר לקוח</span>
+                    <span id="active-phone" class="text-[10px] text-gray-500 font-mono italic">מערכת סנכרון JONI</span>
                 </div>
-                <div id="list-ali" class="space-y-3 bg-white p-4 rounded-b-2xl shadow-sm border border-slate-200 min-h-[150px]"></div>
+            </div>
+        </header>
+
+        <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-3">
             </div>
 
-            <div class="space-y-4">
-                <div class="bg-emerald-600 text-white p-3 rounded-t-2xl font-bold flex justify-between items-center shadow-md">
-                    <span>🏗️ חכמת</span>
-                    <span id="count-hachmat" class="bg-emerald-800 px-2 py-0.5 rounded text-xs">0 משימות</span>
-                </div>
-                <div id="list-hachmat" class="space-y-3 bg-white p-4 rounded-b-2xl shadow-sm border border-slate-200 min-h-[150px]"></div>
-            </div>
-        </div>
-
-        <button id="sendTotalBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-black text-xl py-5 rounded-2xl shadow-2xl flex items-center justify-center gap-3 transition-all transform active:scale-95 mt-10">
-            <i class="fab fa-whatsapp text-2xl"></i> שלח סידור סופי לקבוצה 🚀
-        </button>
+        <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3 shrink-0">
+            <input id="msg-input" type="text" placeholder="הקלד הודעה לסידור (דרך ה-AI)..." class="flex-1 p-2.5 rounded-lg border-none outline-none text-sm shadow-sm">
+            <button id="send-btn" class="bg-[#00a884] text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md">
+                <i class="fas fa-paper-plane text-sm"></i>
+            </button>
+        </footer>
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "whatsapp-8ffd1",
-            storageBucket: "whatsapp-8ffd1.firebasestorage.app",
-            messagingSenderId: "248003330797",
-            appId: "1:248003330797:web:db93f4c5b223bfa647c2e4"
+            projectId: "whatsapp-8ffd1"
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
 
-        let sidor = JSON.parse(localStorage.getItem('saban_sidor_db')) || [];
+        const RAMI_BIZ = "+972508860896";
+        const RAMI_PRIV = "+972508861080";
 
-        function render() {
-            const aliList = document.getElementById('list-ali');
-            const hachmatList = document.getElementById('list-hachmat');
-            aliList.innerHTML = '';
-            hachmatList.innerHTML = '';
-
-            let counts = { עלי: 0, חכמת: 0 };
-
-            sidor.sort((a,b) => a.time.localeCompare(b.time)).forEach((item, index) => {
-                const card = document.createElement('div');
-                card.className = "p-3 bg-slate-50 rounded-xl border-r-4 " + (item.driver === 'עלי' ? 'border-blue-500' : 'border-emerald-500') + " flex justify-between items-center shadow-sm";
-                card.innerHTML = `
-                    <div class="text-sm">
-                        <span class="font-black text-slate-800">${item.time}</span> | 
-                        <span class="text-slate-600">${item.client}</span><br>
-                        <span class="text-[10px] text-slate-400">${item.address}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="editItem(${index})" class="text-blue-400 hover:text-blue-600 p-1"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteItem(${index})" class="text-red-300 hover:text-red-600 p-1"><i class="fas fa-trash"></i></button>
-                    </div>
-                `;
-                if(item.driver === 'עלי') { aliList.appendChild(card); counts.עלי++; }
-                else { hachmatList.appendChild(card); counts.חכמת++; }
-            });
-
-            document.getElementById('count-ali').innerText = `${counts.עלי} משימות`;
-            document.getElementById('count-hachmat').innerText = `${counts.חכמת} משימות`;
-            localStorage.setItem('saban_sidor_db', JSON.stringify(sidor));
-        }
-
-        document.getElementById('addBtn').onclick = () => {
-            const client = document.getElementById('client').value;
-            if(!client) return alert("הכנס שם לקוח");
-            
-            sidor.push({
-                time: document.getElementById('time').value,
-                client: client,
-                address: document.getElementById('address').value,
-                delivery: document.getElementById('deliveryType').value,
-                driver: document.getElementById('driver').value
-            });
-            clearForm();
-            render();
-        };
-
-        window.deleteItem = (i) => { if(confirm("למחוק הזמנה?")) { sidor.splice(i, 1); render(); } };
-
-        window.editItem = (i) => {
-            const item = sidor[i];
-            document.getElementById('time').value = item.time;
-            document.getElementById('client').value = item.client;
-            document.getElementById('address').value = item.address;
-            document.getElementById('deliveryType').value = item.delivery;
-            document.getElementById('driver').value = item.driver;
-            sidor.splice(i, 1);
-            render();
-        };
-
-        function clearForm() {
-            document.getElementById('client').value = '';
-            document.getElementById('address').value = '';
-        }
-
-        document.getElementById('sendTotalBtn').onclick = async () => {
-            if(sidor.length === 0) return alert("הסידור ריק");
-            let report = `*📋 סידור סופי - ח. סבן 1994 בע"מ*\n\n`;
-            
-            ['עלי', 'חכמת'].forEach(d => {
-                const tasks = sidor.filter(o => o.driver === d);
-                if(tasks.length > 0) {
-                    report += `*${d === 'עלי' ? '🚚 עלי' : '🏗️ חכמת'}:*\n`;
-                    tasks.forEach(o => report += `• ${o.time}: ${o.client} (${o.address})\n`);
-                    report += `\n`;
-                }
-            });
-
+        // פונקציית עזר לתיקון תאריכים מה-CSV
+        function parseSabanDate(dStr, tStr) {
             try {
-                await push(ref(db, 'saban94/send'), { to: "972508860896", text: report });
-                alert("סידור נשלח לקבוצה! ✅");
-            } catch (e) { alert("שגיאה בשליחה"); }
+                const p = dStr.trim().split('.');
+                const iso = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}T${tStr.trim()}`;
+                const dt = new Date(iso);
+                return isNaN(dt.getTime()) ? null : dt;
+            } catch(e) { return null; }
+        }
+
+        // 1. יצירת כרטיס ראמי ב-Firestore
+        async function initOwnerCard() {
+            await setDoc(doc(db, "customers", RAMI_BIZ), {
+                name: "ראמי מסארוה (עסקי)",
+                photo: "https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/550105006_4278328025731724_3121613582132586623_n.jpg?ccb=11-4&oh=01_Q5Aa3wE_WLNZW6uVcUD0j31RWKTIoW3Q9fV9LQFOefrCt-G9Lw&oe=69B6C114&_nc_sid=5e03e0&_nc_cat=111",
+                isOwner: true
+            }, { merge: true });
+        }
+        initOwnerCard();
+
+        // 2. הזרקת היסטוריה מה-CSV לכרטיסים
+        document.getElementById('csv-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const lines = event.target.result.split('\n').slice(1);
+                for (let line of lines) {
+                    const row = line.split(',');
+                    if (row.length < 4) continue;
+                    const [date, time, sender, text] = row;
+                    const ts = parseSabanDate(date, time);
+                    if (!ts) continue;
+
+                    const phoneMatch = text.match(/\+972\d+/);
+                    const phone = phoneMatch ? phoneMatch[0] : (sender.includes("ראמי") ? RAMI_BIZ : "General");
+                    const clientName = text.match(/👤\s*([^📱\n]+)/)?.[1]?.trim() || (sender.includes("ראמי") ? "ראמי" : "לקוח");
+
+                    await setDoc(doc(db, "customers", phone), { name: clientName, lastUpdate: ts }, { merge: true });
+                    await addDoc(collection(db, "customers", phone, "chat_history"), {
+                        text: text.replace(/^"|"$/g, '').trim(),
+                        type: sender.includes("הזמנות ח. סבן") ? 'in' : 'out',
+                        timestamp: Timestamp.fromDate(ts)
+                    });
+                }
+                alert("ההיסטוריה הוזרקה בהצלחה לכרטיסים!");
+            };
+            reader.readAsText(file);
         };
 
-        render();
+        // 3. טעינת רשימת הלקוחות (Sidebar)
+        onSnapshot(collection(db, "customers"), (snap) => {
+            const list = document.getElementById('customer-list');
+            list.innerHTML = '';
+            snap.forEach(d => {
+                const c = d.data();
+                list.insertAdjacentHTML('beforeend', `
+                    <div onclick="window.loadChat('${d.id}', '${c.name || d.id}', '${c.photo || ''}')" 
+                         class="p-4 border-b hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition border-r-4 border-transparent hover:border-green-500">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-green-600 text-white flex items-center justify-center font-bold text-lg">
+                            ${c.photo ? `<img src="${c.photo}">` : (c.name ? c.name[0] : '?')}
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <div class="font-bold text-sm text-slate-800">${c.name || d.id}</div>
+                            <div class="text-[10px] text-gray-400 font-mono">${d.id}</div>
+                        </div>
+                    </div>`);
+            });
+        });
+
+        // 4. טעינת צ'אט והיסטוריה
+        window.loadChat = (phone, name, photo) => {
+            document.getElementById('active-name').innerText = name;
+            document.getElementById('active-phone').innerText = phone;
+            const avatar = document.getElementById('header-avatar');
+            avatar.innerHTML = photo ? `<img src="${photo}">` : name[0];
+
+            const q = query(collection(db, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
+            onSnapshot(q, (snap) => {
+                const canvas = document.getElementById('chat-canvas');
+                canvas.innerHTML = '';
+                snap.forEach(docSnap => {
+                    const m = docSnap.data();
+                    const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
+                    const timeStr = m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+                    canvas.insertAdjacentHTML('beforeend', `
+                        <div class="${style} p-3 mb-1 text-sm">
+                            ${m.text}
+                            <div class="text-[9px] text-gray-400 mt-1 text-left">${timeStr}</div>
+                        </div>`);
+                });
+                canvas.scrollTop = canvas.scrollHeight;
+            });
+        };
+
+        // 5. שליחה מאובטחת דרך המוח (API /api/gemini)
+        document.getElementById('send-btn').onclick = async () => {
+            const input = document.getElementById('msg-input');
+            const userMsg = input.value.trim();
+            if (!userMsg) return;
+
+            // קריאה למוח (Agent) שבנינו ב-Serverless Function
+            try {
+                const response = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: userMsg,
+                        senderPhone: RAMI_PRIV,
+                        context: "הזמנות חומרי בניין ח. סבן"
+                    })
+                });
+
+                const data = await response.json();
+                const aiReply = data.reply;
+
+                // עדכון ה-Realtime Database של JONI
+                await push(ref(rtdb, 'saban94/send'), {
+                    to: RAMI_BIZ,
+                    text: aiReply,
+                    from: RAMI_PRIV,
+                    timestamp: Date.now()
+                });
+
+                // תיעוד ב-Firestore
+                await addDoc(collection(db, "customers", RAMI_BIZ, "chat_history"), {
+                    text: `[Saban AI]: ${aiReply}`,
+                    type: 'out',
+                    timestamp: serverTimestamp()
+                });
+
+                input.value = '';
+            } catch (err) {
+                alert("שגיאה בחיבור למוח ה-AI. וודא שמשתני הסביבה תקינים.");
+            }
+        };
     </script>
 </body>
 </html>
