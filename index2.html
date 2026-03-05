@@ -3,37 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Saban Chat Engine</title>
+    <title>Saban AI - צ'אט בוט חכם</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .chat-bg { background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        .whatsapp-bg { background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #e5ddd5; }
+        .scroll-smooth { scroll-behavior: smooth; }
     </style>
 </head>
-<body class="bg-gray-200 font-sans h-screen flex flex-col">
+<body class="h-screen flex flex-col bg-gray-100">
 
-    <header class="bg-[#075e54] text-white p-4 flex items-center gap-3 shadow-md">
-        <div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xl font-bold">ס</div>
-        <div>
-            <h1 class="font-bold">מוקד הזמנות - ח. סבן</h1>
-            <p class="text-xs opacity-75">צ'אט-בוט פעיל ומאזין...</p>
+    <header class="bg-[#075e54] text-white p-4 shadow-lg flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-black font-black">S</div>
+            <div>
+                <h1 class="font-bold leading-tight">ח. סבן 1994 - מוח מרכזי</h1>
+                <p id="bot-status" class="text-[10px] opacity-80 italic italic">Gemini 3.1 Flash-Lite מאזין...</p>
+            </div>
+        </div>
+        <div class="flex gap-4 text-sm">
+            <div class="text-center"><span id="in-count" class="block font-bold">0</span><span class="text-[10px]">נכנסו</span></div>
+            <div class="text-center"><span id="out-count" class="block font-bold">0</span><span class="text-[10px]">נענו</span></div>
         </div>
     </header>
 
-    <main id="chat-canvas" class="flex-1 overflow-y-auto p-4 chat-bg flex flex-col gap-2">
+    <main id="chat-canvas" class="flex-1 overflow-y-auto p-4 whatsapp-bg flex flex-col gap-3 scroll-smooth">
         </main>
 
-    <footer class="bg-[#f0f0f0] p-3 flex gap-2 items-center">
-        <input id="msgInput" type="text" placeholder="הקלד הודעה ללקוח..." class="flex-1 p-2 rounded-full border-none outline-none px-4">
-        <button id="sendBtn" class="bg-[#00a884] text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md">
+    <footer class="p-3 bg-[#f0f0f0] flex items-center gap-2 border-t">
+        <input id="userInput" type="text" placeholder="הקלד הודעה ללקוח..." class="flex-1 p-2 rounded-full border-none outline-none px-4 shadow-inner">
+        <button id="manualSend" class="bg-[#00a884] text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform">
             <i class="fas fa-paper-plane"></i>
         </button>
     </footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push, set, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, push, set, serverTimestamp, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // הגדרות הפרויקט שלך
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
@@ -43,44 +51,98 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const chatCanvas = document.getElementById('chat-canvas');
+        const GEMINI_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs";
+        const MODEL = "gemini-3.1-flash-lite-preview"; // המודל היציב והחדש ביותר
 
-        // האזנה להודעות נכנסות ויוצאות (הצגת ההיסטוריה)
-        const chatRef = ref(db, 'saban94/chats/972508860896'); // דוגמה לפי מספר טלפון
-        onValue(chatRef, (snapshot) => {
-            chatCanvas.innerHTML = '';
+        const canvas = document.getElementById('chat-canvas');
+
+        // פונקציית המוח - Gemini 3.1
+        async function getAIResponse(userText) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`;
+            const prompt = {
+                contents: [{
+                    parts: [{
+                        text: `אתה נציג המכירות והלוגיסטיקה של חברת "ח. סבן 1994 בע"מ".
+                        הלקוחות פונים אליך בווטסאפ לביצוע הזמנות חומרי בניין (חול, בלות, סומסום) ותיאום מנופים.
+                        תשובותיך צריכות להיות בעברית מקצועית, אדיבה וקצרה. 
+                        אם הלקוח רוצה להזמין, בקש ממנו שם מלא וכתובת פריקה. 
+                        אם יש שאלה על מחיר, ציין שרמי יחזור אליו עם הצעה מדויקת.
+                        הודעת הלקוח: ${userText}`
+                    }]
+                }]
+            };
+
+            try {
+                const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
+                const json = await res.json();
+                return json.candidates[0].content.parts[0].text;
+            } catch (e) {
+                return "מצטער רמי, יש לי תקלה במוח. אולי המפתח לא תקין?";
+            }
+        }
+
+        // האזנה להודעות (הקנבס הדינמי)
+        const chatPath = ref(db, 'saban94/chats');
+        onValue(query(chatPath, limitToLast(20)), (snapshot) => {
+            canvas.innerHTML = '';
+            let inCount = 0, outCount = 0;
             const data = snapshot.val();
+            
             if (data) {
                 Object.values(data).forEach(msg => {
-                    renderMessage(msg.text, msg.type === 'in' ? 'left' : 'right');
+                    const side = msg.type === 'in' ? 'left' : 'right';
+                    appendMessage(msg.text, side);
+                    msg.type === 'in' ? inCount++ : outCount++;
                 });
-                chatCanvas.scrollTop = chatCanvas.scrollHeight;
+                document.getElementById('in-count').innerText = inCount;
+                document.getElementById('out-count').innerText = outCount;
+                canvas.scrollTop = canvas.scrollHeight;
             }
         });
 
-        function renderMessage(text, side) {
+        function appendMessage(text, side) {
             const div = document.createElement('div');
-            const align = side === 'left' ? 'self-start bg-white' : 'self-end bg-[#dcf8c6]';
-            div.className = `${align} p-2 rounded-lg shadow-sm max-w-[80%] text-sm mb-1`;
+            const style = side === 'left' ? 'bg-white self-start rounded-bl-none' : 'bg-[#dcf8c6] self-end rounded-br-none';
+            div.className = `${style} p-3 rounded-2xl shadow-sm max-w-[85%] text-sm relative mb-2`;
             div.innerText = text;
-            chatCanvas.appendChild(div);
+            canvas.appendChild(div);
         }
 
-        // ביצוע הזמנה/שליחה דרך הממשק
-        document.getElementById('sendBtn').onclick = async () => {
-            const text = document.getElementById('msgInput').value;
+        // האזנה להודעות נכנסות חדשות להפעלה אוטומטית של הבוט
+        onValue(ref(db, 'saban94/incoming'), async (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const lastId = Object.keys(data).pop();
+                const msg = data[lastId];
+
+                if (!msg.handled) {
+                    // שמירה בשיחה
+                    await push(ref(db, 'saban94/chats'), { text: msg.text, type: 'in', time: serverTimestamp() });
+                    
+                    // הפעלת ה-AI
+                    const response = await getAIResponse(msg.text);
+                    
+                    // שליחה החוצה דרך JONI
+                    await push(ref(db, 'saban94/send'), { to: msg.from, text: response });
+                    
+                    // שמירת התגובה בזיכרון השיחה
+                    await push(ref(db, 'saban94/chats'), { text: response, type: 'out', time: serverTimestamp() });
+
+                    // סימון כטופל
+                    await set(ref(db, `saban94/incoming/${lastId}/handled`), true);
+                }
+            }
+        });
+
+        // שליחה ידנית מהממשק
+        document.getElementById('manualSend').onclick = async () => {
+            const text = document.getElementById('userInput').value;
             if(!text) return;
-
-            const phone = "972508860896"; // המספר של הלקוח
-
-            // 1. שמירה בזיכרון (Chats)
-            await push(ref(db, `saban94/chats/${phone}`), { text, type: 'out', time: serverTimestamp() });
-
-            // 2. שליחה ל-JONI לביצוע בווטסאפ
-            await push(ref(db, 'saban94/send'), { to: phone, text: text });
-
-            document.getElementById('msgInput').value = '';
+            await push(ref(db, 'saban94/chats'), { text, type: 'out', time: serverTimestamp() });
+            await push(ref(db, 'saban94/send'), { to: "972508860896", text }); // שליחה לניסוי
+            document.getElementById('userInput').value = '';
         };
+
     </script>
 </body>
 </html>
