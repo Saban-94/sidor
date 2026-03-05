@@ -3,141 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban AI Studio - WhatsApp Mirror</title>
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="manifest.json">
+    <title>Saban AI - WhatsApp 100% Mirror</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
-        body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; }
-        .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        .tab-content { display: none; height: calc(100vh - 65px); }
-        .tab-content.active { display: flex; }
-        .active-nav { color: #4587de; border-bottom: 3px solid #4587de; }
+        body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; height: 100vh; overflow: hidden; }
+        .whatsapp-bg { 
+            background-color: #e5ddd5; 
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); 
+            background-blend-mode: overlay;
+        }
+        .bubble-in { background: #ffffff; border-radius: 8px 8px 8px 0; position: relative; }
+        .bubble-out { background: #dcf8c6; border-radius: 8px 8px 0 8px; position: relative; }
+        /* פס ציטוט (Reply) */
+        .reply-box { border-right: 4px solid #35cd96; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.75rem; }
     </style>
 </head>
-<body class="h-screen overflow-hidden flex flex-col">
+<body class="flex flex-row h-full">
 
-    <header class="bg-[#4587de] text-white p-4 shadow-md flex justify-between items-center z-50">
-        <h1 class="font-bold text-xl italic">H.SABAN AI STUDIO</h1>
-        <div id="connection-status" class="text-[10px] bg-green-500 px-2 py-1 rounded-full animate-pulse">JONI ONLINE</div>
-    </header>
+    <aside class="w-[60px] bg-[#eae6df] border-l flex flex-col items-center py-5 gap-6 text-[#54656f] hidden md:flex">
+        <i class="fas fa-comment-dots text-xl cursor-pointer" title="צ'אטים"></i>
+        <i class="fas fa-circle-notch text-xl cursor-pointer" title="סטטוס"></i>
+        <i class="fas fa-bullhorn text-xl cursor-pointer" title="ערוצים"></i>
+        <div class="mt-auto mb-4"><i class="fas fa-cog text-xl cursor-pointer"></i></div>
+    </aside>
 
-    <main class="flex-1 overflow-hidden relative">
-        
-        <div id="dispatch" class="tab-content active flex-col p-4 overflow-y-auto pb-24">
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="bg-white p-4 rounded-2xl shadow text-center border-b-4 border-orange-500">
-                    <img src="https://i.pravatar.cc/150?u=ali" class="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-orange-200">
-                    <span class="font-bold block">עלי</span>
-                    <small id="ali-count" class="text-gray-500">0 משימות</small>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow text-center border-b-4 border-blue-500">
-                    <img src="https://i.pravatar.cc/150?u=hakmat" class="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-blue-200">
-                    <span class="font-bold block">חכמת</span>
-                    <small id="hakmat-count" class="text-gray-500">0 משימות</small>
-                </div>
+    <aside class="w-full md:w-[380px] bg-white border-l flex flex-col h-full">
+        <header class="p-4 bg-[#f0f2f5] flex justify-between items-center">
+            <img src="https://i.pravatar.cc/100?u=saban" class="w-10 h-10 rounded-full border">
+            <div class="flex gap-5 text-[#54656f]">
+                <i class="fas fa-users"></i><i class="fas fa-plus"></i><i class="fas fa-ellipsis-v"></i>
             </div>
-            <div id="orders-list" class="space-y-3">
-                </div>
-        </div>
-
-        <div id="chat" class="tab-content flex-col overflow-hidden">
-            <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-4 flex flex-col gap-2">
-                </div>
-            <div class="p-3 bg-white border-t flex gap-2 pb-24">
-                <input id="msg-input" type="text" placeholder="הקלד הודעה ללקוח..." class="flex-1 p-3 bg-gray-100 rounded-full outline-none">
-                <button id="send-btn" class="bg-[#075e54] text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+        </header>
+        <div class="p-2 bg-white">
+            <div class="bg-[#f0f2f5] flex items-center px-3 py-1.5 rounded-lg">
+                <i class="fas fa-search text-gray-400 text-sm ml-3"></i>
+                <input type="text" placeholder="חיפוש או התחלת צ'אט חדש" class="bg-transparent text-sm outline-none w-full">
             </div>
         </div>
-    </main>
+        <div id="contacts-list" class="flex-1 overflow-y-auto">
+            </div>
+    </aside>
 
-    <nav class="fixed bottom-0 w-full bg-white border-t flex justify-around p-2 shadow-2xl z-[100]">
-        <button onclick="showTab('dispatch')" id="btn-dispatch" class="flex flex-col items-center active-nav transition-all">
-            <i class="fas fa-truck-loading text-xl"></i><span class="text-[10px]">סידור</span>
-        </button>
-        <button onclick="showTab('chat')" id="btn-chat" class="flex flex-col items-center text-gray-400 transition-all">
-            <i class="fab fa-whatsapp text-xl"></i><span class="text-[10px]">ווטסאפ</span>
-        </button>
-    </nav>
+    <section class="hidden md:flex flex-1 flex flex-col relative border-r border-gray-300">
+        <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="https://i.pravatar.cc/100?u=customer" class="w-10 h-10 rounded-full">
+                <div>
+                    <span class="font-bold text-sm block leading-none">לקוח ח. סבן</span>
+                    <small class="text-[10px] text-green-600">מחובר - סנכרון JONI פעיל</small>
+                </div>
+            </div>
+            <div class="text-[#54656f] flex gap-5"><i class="fas fa-search"></i><i class="fas fa-ellipsis-v"></i></div>
+        </header>
+
+        <div id="chat-canvas" class="flex-1 overflow-y-auto p-6 flex flex-col gap-2 whatsapp-bg">
+            </div>
+
+        <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3">
+            <i class="far fa-smile text-2xl text-[#54656f] cursor-pointer"></i>
+            <i class="fas fa-plus text-xl text-[#54656f] cursor-pointer"></i>
+            <input id="user-input" type="text" placeholder="הקלדת הודעה" class="flex-1 p-2.5 bg-white rounded-lg outline-none text-sm shadow-sm">
+            <button id="btn-send" class="text-[#54656f] text-xl px-2"><i class="fas fa-paper-plane"></i></button>
+        </footer>
+    </section>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-        import { getFirestore, doc, setDoc, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // קונפיגורציה מהמאגר
+        // --- קונפיגורציה ---
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "whatsapp-8ffd1"
         };
-        const GEMINI_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs"; 
+        const GEMINI_API_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs";
 
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
         const dbFS = getFirestore(app);
 
-        // --- לוגיקת סנכרון ווטסאפ (Real-time Mirroring) ---
-        onValue(ref(rtdb, 'saban94/incoming'), async (snapshot) => {
-            const data = snapshot.val();
+        // --- 1. הצינור (JONI Adapter) ---
+        onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
+            const data = snap.val();
             if (data) {
-                const lastId = Object.keys(data).pop();
-                const msg = data[lastId];
+                const id = Object.keys(data).pop();
+                const msg = data[id];
 
                 if (!msg.processed) {
-                    // 1. שמירה בזיכרון Firestore (היסטוריה חוזרת)
+                    // א. שמירה בזיכרון Firestore (היסטוריה חוזרת)
                     const historyRef = collection(dbFS, "customers", msg.from, "chat_history");
                     await addDoc(historyRef, { text: msg.text, type: 'in', time: serverTimestamp() });
 
-                    // 2. הפעלת המוח (Gemini 3.1)
-                    const aiResponse = await getAIResponse(msg.text);
+                    // ב. הפעלת המוח (Gemini AI)
+                    const response = await getGeminiResponse(msg.text);
 
-                    // 3. שליחה חזרה ל-JONI
-                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiResponse });
-                    await addDoc(historyRef, { text: aiResponse, type: 'out', time: serverTimestamp() });
+                    // ג. שליחה חזרה לווטסאפ דרך JONI
+                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: response });
+                    await addDoc(historyRef, { text: response, type: 'out', time: serverTimestamp() });
 
-                    // 4. סימון כטופל
-                    await set(ref(rtdb, `saban94/incoming/${lastId}/processed`), true);
+                    // ד. סימון כטופל
+                    await set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
                 }
             }
         });
 
-        async function getAIResponse(text) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                body: JSON.stringify({ contents: [{ parts: [{ text: `אתה נציג ח. סבן. ענה ללקוח: ${text}` }] }] })
-            });
+        // --- 2. המוח (Gemini Engine) ---
+        async function getGeminiResponse(prompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const body = {
+                contents: [{ parts: [{ text: `אתה נציג חברת ח.סבן חומרי בניין. תן שירות אדיב ומקצועי. הלקוח אמר: ${prompt}` }] }]
+            };
+            const res = await fetch(url, { method: 'POST', body: JSON.stringify(body) });
             const json = await res.json();
             return json.candidates[0].content.parts[0].text;
         }
 
-        // --- תצוגת היסטוריה בשידור חי ---
-        const q = query(collection(dbFS, "customers", "972508860896", "chat_history"), orderBy("time", "asc"));
-        onSnapshot(q, (snapshot) => {
+        // --- 3. הממשק (UI Live Sync) ---
+        const chatQ = query(collection(dbFS, "customers", "972508860896", "chat_history"), orderBy("time", "asc"));
+        onSnapshot(chatQ, (snapshot) => {
             const canvas = document.getElementById('chat-canvas');
             canvas.innerHTML = '';
             snapshot.forEach(doc => {
                 const m = doc.data();
-                const side = m.type === 'in' ? 'bg-white self-start' : 'bg-[#dcf8c6] self-end';
-                canvas.insertAdjacentHTML('beforeend', `<div class="${side} p-2 rounded-lg shadow text-sm max-w-[80%]">${m.text}</div>`);
+                const align = m.type === 'in' ? 'self-start' : 'self-end';
+                const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
+                canvas.insertAdjacentHTML('beforeend', `
+                    <div class="${align} ${style} p-2 shadow-sm max-w-[80%] text-sm mb-1">
+                        ${m.text}
+                        <div class="text-[9px] text-gray-500 text-left mt-1">12:00 ${m.type === 'out' ? '✓✓' : ''}</div>
+                    </div>
+                `);
             });
             canvas.scrollTop = canvas.scrollHeight;
         });
 
-        // --- ניהול טאבים ---
-        window.showTab = (id) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-nav'));
-            document.getElementById(id).classList.add('active');
-            document.getElementById('btn-' + id).classList.add('active-nav');
+        // שליחה ידנית מהממשק
+        document.getElementById('btn-send').onclick = async () => {
+            const input = document.getElementById('user-input');
+            if (!input.value) return;
+            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: input.value });
+            input.value = '';
         };
     </script>
 </body>
