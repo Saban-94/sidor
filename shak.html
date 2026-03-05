@@ -2,74 +2,32 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>SHAK MONITOR | מרכז בקרה ח. סבן</title>
+    <title>SHAK MONITOR v3.7 | ח. סבן בקרה</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
-        body { font-family: 'Assistant', sans-serif; background: #f8fafc; color: #1e293b; }
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .log-stream { background: #1e293b; color: #38bdf8; font-family: monospace; border-radius: 8px; height: 350px; overflow-y: auto; padding: 15px; font-size: 13px; }
-        .status-pulse { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-        .online { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-        .offline { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        body { font-family: 'Assistant', sans-serif; background: #f8fafc; padding: 20px; }
+        .log-box { background: #1e293b; color: #38bdf8; font-family: monospace; height: 300px; overflow-y: auto; padding: 15px; border-radius: 8px; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     </style>
 </head>
-<body class="p-6">
-
-    <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div class="flex items-center gap-4">
-            <div class="bg-green-600 text-white p-3 rounded-xl shadow-lg shadow-green-100">
-                <i class="fas fa-microchip text-xl"></i>
-            </div>
-            <div>
-                <h1 class="text-2xl font-bold text-slate-800">SHAK MONITOR Professional</h1>
-                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">נתיב: saban94 | מערכת בקרה לוגיסטית</p>
-            </div>
-        </div>
-        <div class="flex gap-4">
-            <div id="conn-badge" class="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full border border-slate-200 text-xs font-bold">
-                <span id="led-main" class="status-pulse offline"></span>
-                <span id="txt-status">מנתח חיבור...</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<body>
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6 text-slate-800 border-b pb-2">מערכת SHAK - ניטור צינור סבן</h1>
         
-        <div class="card p-6">
-            <h3 class="text-sm font-bold text-blue-600 mb-4 flex items-center gap-2">
-                <i class="fas fa-vial"></i> מזרק נתונים JONI
-            </h3>
-            <button onclick="sendHeartbeat()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-100">
-                הזרק הודעת דופק (Test)
-            </button>
-            <p class="text-[10px] text-slate-400 mt-3 italic">בודק אם JONI מושך נתונים מ-send/ ועונה בווטסאפ</p>
-        </div>
-
-        <div class="card p-6 border-r-4 border-r-blue-500">
-            <h3 class="text-sm font-bold text-slate-600 mb-2">אבחון סיבת כשל</h3>
-            <div id="diag-msg" class="text-xs font-semibold text-slate-500 italic">מריץ בדיקה תקופתית...</div>
-            <div class="mt-4 flex gap-2">
-                <div id="rule-check" class="text-[10px] bg-slate-100 px-2 py-1 rounded">Rules: ?</div>
-                <div id="url-check" class="text-[10px] bg-slate-100 px-2 py-1 rounded">URL: ?</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">סטטוס חיבור</h3>
+                <div id="conn-status" class="text-xl font-bold text-red-500">מנתק...</div>
+            </div>
+            <div class="card">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">פעולת בדיקה</h3>
+                <button onclick="testInjection()" class="w-full bg-blue-600 text-white py-2 rounded font-bold">הזרק הודעת בדיקה</button>
             </div>
         </div>
 
-        <div class="card p-6">
-            <h3 class="text-sm font-bold text-slate-600 mb-2">תעבורת הודעות (LIVE)</h3>
-            <div id="msg-total" class="text-4xl font-black text-green-600">0</div>
-            <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase">הודעות בצינור saban94</p>
-        </div>
-    </div>
-
-    <div class="card p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-widest italic">לוג מלשינון - ניטור עברי מלא</h3>
-            <button onclick="document.getElementById('stream').innerHTML = ''" class="text-[10px] text-slate-400 hover:text-red-500">נקה היסטוריה</button>
-        </div>
-        <div id="stream" class="log-stream">
-            <div class="text-slate-500 opacity-50">SHAK MONITOR v3.6 - המערכת מאזינה...</div>
+        <div class="card">
+            <h3 class="text-xs font-bold text-slate-700 mb-2 italic">לוג מלשינון בזמן אמת:</h3>
+            <div id="logs" class="log-box text-xs"></div>
         </div>
     </div>
 
@@ -87,79 +45,40 @@
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
 
-        function malshLog(msg, type = 'info') {
-            const colors = { info: '#38bdf8', err: '#ef4444', success: '#22c55e', warn: '#f59e0b' };
-            const stream = document.getElementById('stream');
-            const time = new Date().toLocaleTimeString();
-            stream.innerHTML = `<div><span style="color:gray">[${time}]</span> <span style="color:${colors[type]}">${msg}</span></div>` + stream.innerHTML;
-        }
-
-        // --- מנגנון אבחון סיבת כשל ---
-        async function runAutoDiag() {
-            malshLog("מלשינון: מתחיל אבחון אוטומטי לצינור...", "warn");
-            
-            // 1. בדיקת URL ואזור
-            if(firebaseConfig.databaseURL.includes("europe-west1")) {
-                document.getElementById('url-check').className = "text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded";
-                document.getElementById('url-check').innerText = "URL: Europe OK";
-            }
-
-            // 2. בדיקת Rules (חוקיות)
-            try {
-                const diagRef = ref(rtdb, 'saban94/diag_test');
-                await set(diagRef, { lastCheck: Date.now() });
-                document.getElementById('rule-check').className = "text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded";
-                document.getElementById('rule-check').innerText = "Rules: Open OK";
-                document.getElementById('diag-msg').innerText = "חיבור ירוק: ה-Rules פתוחים והכתובת תקינה.";
-                malshLog("אבחון: חוקי Firebase מאושרים (Open Access).", "success");
-            } catch (e) {
-                document.getElementById('rule-check').className = "text-[10px] bg-red-100 text-red-700 px-2 py-1 rounded";
-                document.getElementById('rule-check').innerText = "Rules: Locked";
-                document.getElementById('diag-msg').innerText = "כשל חוקיות: ה-Rules חוסמים כתיבה!";
-                malshLog("אבחון: שגיאת הרשאות! בדוק את ה-Rules ב-Console.", "err");
-            }
-        }
-
-        // --- הזרקת דופק ---
-        window.sendHeartbeat = async () => {
-            malshLog("מזריק הודעת דופק למספר העסקי (972508860896)...", "info");
-            try {
-                await push(ref(rtdb, 'saban94/send'), {
-                    to: "972508860896",
-                    text: "SHAK HEARTBEAT: הצינור תקין? " + new Date().toLocaleTimeString(),
-                    timestamp: Date.now()
-                });
-                malshLog("הזרקה הצליחה! בדוק אם מופיעה שורה ירוקה ב-JONI.", "success");
-            } catch (e) {
-                malshLog("כשל בהזרקה: " + e.message, "err");
-            }
+        const log = (msg, color = "#38bdf8") => {
+            const div = document.getElementById('logs');
+            div.innerHTML = `<div><span style="color:gray">[${new Date().toLocaleTimeString()}]</span> <span style="color:${color}">${msg}</span></div>` + div.innerHTML;
         };
 
-        // ניטור חיבור
-        onValue(ref(rtdb, '.info/connected'), (snap) => {
-            const led = document.getElementById('led-main');
-            const txt = document.getElementById('txt-status');
-            if(snap.val() === true) {
-                led.className = "status-pulse online";
-                txt.innerText = "מחובר ל-DATABASE";
-                malshLog("מלשינון: חיבור פיזי לשרת בוצע בהצלחה.", "success");
-                runAutoDiag();
+        // בדיקת חיבור והרשאות (Rules)
+        onValue(ref(rtdb, '.info/connected'), async (snap) => {
+            const status = document.getElementById('conn-status');
+            if(snap.val()) {
+                status.innerText = "מחובר ליציאה אירופאית";
+                status.className = "text-xl font-bold text-green-500";
+                log("חיבור ל-Firebase הצליח.", "#22c55e");
+                
+                // בדיקת Rules
+                try {
+                    await set(ref(rtdb, 'saban94/test'), Date.now());
+                    log("אבחון: חוקי ה-Database פתוחים (Rules OK).", "#22c55e");
+                } catch(e) {
+                    log("כשל חוקיות! ה-Rules חוסמים את הצינור.", "#ef4444");
+                }
             } else {
-                led.className = "status-pulse offline";
-                txt.innerText = "ניתוק בצינור הנתונים";
-                malshLog("מלשינון: אזהרה - ניתוק מהשרת!", "err");
+                status.innerText = "מנותק";
+                status.className = "text-xl font-bold text-red-500";
             }
         });
 
-        // מונה הודעות נכנסות
-        onValue(ref(rtdb, 'saban94/incoming'), (snap) => {
-            if(snap.exists()) {
-                const count = Object.keys(snap.val()).length;
-                document.getElementById('msg-total').innerText = count;
-                malshLog(`ניטור: זוהתה תנועה בצינור. סה"כ ${count} הודעות.`, "info");
-            }
-        });
-
+        window.testInjection = async () => {
+            log("מזריק הודעת בדיקה למספר העסקי...", "#eab308");
+            await push(ref(rtdb, 'saban94/send'), {
+                to: "972508860896",
+                text: "בדיקה מ-SHAK MONITOR: הצינור עובד!",
+                timestamp: Date.now()
+            });
+        };
     </script>
 </body>
 </html>
