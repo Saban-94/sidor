@@ -2,50 +2,38 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Saban AI - מערכת ניהול ומלשינון</title>
+    <title>Saban AI - WhatsApp Web Desktop</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Assistant', sans-serif; background: #f0f2f5; height: 100vh; display: flex; overflow: hidden; margin: 0; }
-        .sidebar { width: 350px; background: white; border-left: 1px solid #ddd; display: flex; flex-direction: column; z-index: 50; }
-        .chat-area { flex: 1; background: #e5ddd5 url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); display: flex; flex-direction: column; }
-        footer { background: #f0f2f5; padding: 10px; z-index: 1000; border-top: 1px solid #ddd; display: flex; gap: 10px; }
-        #msg-input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; outline: none; z-index: 1100; position: relative; }
-        /* עיצוב המלשינון */
-        #malshinon { position: fixed; left: 20px; bottom: 80px; width: 300px; height: 250px; background: rgba(0,0,0,0.9); color: #00ff00; padding: 15px; border-radius: 10px; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 2000; border: 2px solid #333; display: none; }
+        .sidebar { width: 350px; background: white; border-left: 1px solid #ddd; z-index: 50; display: flex; flex-direction: column; }
+        .chat-area { flex: 1; background: #e5ddd5 url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); display: flex; flex-direction: column; position: relative; }
+        #chat-canvas { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+        footer { background: #f0f2f5; padding: 15px; z-index: 1000; display: flex; gap: 10px; border-top: 1px solid #ddd; }
+        #msg-input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; outline: none; z-index: 1100; position: relative; pointer-events: auto !important; }
     </style>
 </head>
 <body>
-
-    <aside class="sidebar shadow-lg">
-        <header class="p-4 bg-[#f0f2f5] border-b flex justify-between items-center">
-            <span class="font-bold">ח. סבן AI</span>
-            <button onclick="toggleMalshinon()" class="text-red-600 border border-red-600 px-2 py-1 rounded text-xs hover:bg-red-50">הפעל מלשינון</button>
-        </header>
+    <aside class="sidebar">
+        <header class="p-4 bg-[#f0f2f5] border-b font-bold">ח. סבן AI - ווטסאפ עסקי</header>
         <div id="customer-list" class="flex-1 overflow-y-auto"></div>
     </aside>
 
     <main class="chat-area">
         <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center gap-3">
-            <div id="conn-status" class="w-3 h-3 bg-gray-400 rounded-full"></div>
-            <span id="active-name" class="font-bold">ממתין לבחירת שיחה...</span>
+            <div id="status-led" class="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span id="active-name" class="font-bold text-sm text-gray-700">בחר שיחה</span>
         </header>
-        <div id="chat-canvas" class="flex-1 overflow-y-auto p-5 flex flex-col gap-2"></div>
+        <div id="chat-canvas"></div>
         <footer>
             <input id="msg-input" type="text" placeholder="הקלד הודעה..." autocomplete="off">
-            <button id="send-btn" class="bg-green-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center"><i class="fas fa-paper-plane"></i></button>
+            <button id="send-btn" class="bg-green-600 text-white p-2 px-4 rounded-lg shadow-md">שלח</button>
         </footer>
     </main>
 
-    <div id="malshinon">
-        <div class="border-b border-green-800 pb-1 mb-2 font-bold italic">--- לוג מלשינון ח. סבן ---</div>
-        <div id="debug-logs"></div>
-    </div>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getDatabase, ref, onChildAdded, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onChildAdded, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
@@ -55,95 +43,41 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const rtdb = getDatabase(app);
 
-        const malshLog = (msg, color = "#00ff00") => {
-            const logDiv = document.getElementById('debug-logs');
-            const time = new Date().toLocaleTimeString();
-            logDiv.innerHTML = `<div><span style="color:gray">[${time}]</span> <span style="color:${color}">${msg}</span></div>` + logDiv.innerHTML;
-        };
-
-        // בדיקת חיבור ראשונית
-        malshLog("בדיקת חיבור ל-Firebase...", "yellow");
-
-        // האזנה לצינור saban94/incoming
-        onChildAdded(ref(rtdb, 'saban94/incoming'), async (snap) => {
-            const data = snap.val();
-            if(!data) return;
-            const phone = data.from.toString();
-            malshLog(`הודעה נכנסה מהמספר: ${phone}`, "cyan");
-
-            await setDoc(doc(db, "customers", phone), { lastUpdate: serverTimestamp() }, { merge: true });
-            await addDoc(collection(db, "customers", phone, "chat_history"), { text: data.text, type: 'in', timestamp: serverTimestamp() });
-
-            // הפעלת המוח (Autopilot)
-            if (data.time > Date.now() - 30000) {
-                malshLog("מעבד נתונים מול Gemini...", "yellow");
-                try {
-                    const res = await fetch('/api/gemini', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: data.text, senderPhone: phone })
-                    });
-                    const ai = await res.json();
-                    if(ai.reply) {
-                        malshLog(`המוח ענה (${ai.modelUsed}), שולח ל-JONI`, "lightgreen");
-                        await push(ref(rtdb, 'saban94/send'), { to: phone, text: ai.reply, timestamp: Date.now() });
-                    }
-                } catch (e) { malshLog("כשל בחיבור למוח!", "red"); }
-            }
+        // בדיקת חיבור יציב
+        onValue(ref(rtdb, '.info/connected'), (snap) => {
+            document.getElementById('status-led').className = snap.val() ? "w-3 h-3 bg-green-500 rounded-full" : "w-3 h-3 bg-red-500 rounded-full";
         });
 
-        // רשימת לקוחות ופונקציות ממשק
-        onSnapshot(query(collection(db, "customers"), orderBy("lastUpdate", "desc")), (snap) => {
-            const list = document.getElementById('customer-list');
-            list.innerHTML = '';
-            snap.forEach(d => {
-                const item = document.createElement('div');
-                item.className = "p-4 border-b hover:bg-gray-100 cursor-pointer font-bold";
-                item.innerText = d.id === '972508861080' ? 'ראמי (הבוס)' : d.id;
-                item.onclick = () => {
-                    document.getElementById('active-name').innerText = d.id;
-                    document.getElementById('msg-input').focus();
-                    loadChat(d.id);
-                };
-                list.appendChild(item);
-            });
-            document.getElementById('conn-status').className = "w-3 h-3 bg-green-500 rounded-full";
-            malshLog("הממשק מחובר ומאזין לצינור");
-        });
-
-        // שליחה ידנית ומקלדת (Enter)
+        // פונקציית שליחה (Enter & Button)
         async function doSend() {
             const input = document.getElementById('msg-input');
             const phone = document.getElementById('active-name').innerText;
-            if(!input.value.trim() || phone.includes("ממתין")) return;
-            malshLog(`שולח הודעה ידנית ל-${phone}...`, "yellow");
+            if(!input.value.trim() || phone === "בחר שיחה") return;
+            
             await push(ref(rtdb, 'saban94/send'), { to: phone, text: input.value, timestamp: Date.now() });
             input.value = '';
             input.focus();
         }
 
-        document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') doSend(); };
         document.getElementById('send-btn').onclick = doSend;
+        document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') doSend(); };
 
-        function loadChat(phone) {
-            onSnapshot(query(collection(db, "customers", phone, "chat_history"), orderBy("timestamp", "asc")), (snap) => {
-                const canvas = document.getElementById('chat-canvas');
-                canvas.innerHTML = '';
-                snap.forEach(docSnap => {
-                    const m = docSnap.data();
-                    const cls = m.type === 'in' ? 'bg-white self-start' : 'bg-green-100 self-end';
-                    canvas.insertAdjacentHTML('beforeend', `<div class="p-2 rounded shadow text-sm ${cls}">${m.text}</div>`);
-                });
-                canvas.scrollTop = canvas.scrollHeight;
-            });
-        }
+        // האזנה להודעות נכנסות (מדמה ווטסאפ)
+        onChildAdded(ref(rtdb, 'saban94/incoming'), (snap) => {
+            const data = snap.val();
+            const phone = data.from;
+            const list = document.getElementById('customer-list');
+            
+            if(!document.getElementById(`card-${phone}`)) {
+                list.insertAdjacentHTML('beforeend', `<div id="card-${phone}" onclick="window.loadChat('${phone}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer font-bold">${phone}</div>`);
+            }
+        });
 
-        window.toggleMalshinon = () => {
-            const m = document.getElementById('malshinon');
-            m.style.display = m.style.display === 'none' ? 'block' : 'none';
+        window.loadChat = (phone) => {
+            document.getElementById('active-name').innerText = phone;
+            document.getElementById('msg-input').focus();
         };
     </script>
 </body>
