@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban AI Studio - Enterprise</title>
+    <title>Saban AI Studio - Fixed</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="icon" href="data:,">
-    <link rel="manifest" href='data:application/json,{"name":"Saban AI Studio","short_name":"Saban AI","display":"standalone","start_url":"."}'>
+    <link rel="manifest" href='data:application/json,{"name":"Saban AI Studio","short_name":"Saban AI","display":"standalone","start_url":"/index.html"}'>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -30,31 +30,23 @@
     </aside>
 
     <aside class="w-[380px] bg-white border-l flex flex-col">
-        <header class="p-4 bg-[#f0f2f5] border-b font-bold text-lg">הזמנות לקוחות ח.סבן</header>
+        <header class="p-4 bg-[#f0f2f5] border-b font-bold text-lg">הזמנות ח. סבן</header>
         <div id="customer-list" class="flex-1 overflow-y-auto"></div>
     </aside>
 
     <main class="flex-1 relative">
         <div id="chat" class="tab-content active flex flex-col h-full">
             <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center gap-3">
-                <div id="active-avatar" class="w-10 h-10 bg-[#4587de] rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm">S</div>
-                <div>
-                    <span id="active-name" class="font-bold text-sm block">בחר לקוח מהרשימה</span>
-                    <small class="text-[10px] text-green-600">JONI Adapter: Online</small>
-                </div>
+                <div id="active-avatar" class="w-10 h-10 bg-[#4587de] rounded-full flex items-center justify-center text-white font-bold">S</div>
+                <span id="active-name" class="font-bold text-sm">בחר צ'אט מהרשימה</span>
             </header>
             <div id="chat-canvas" class="flex-1 whatsapp-bg overflow-y-auto p-6 flex flex-col gap-2"></div>
-            <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3">
-                <input id="reply-msg" type="text" placeholder="הקלדת הודעה" class="flex-1 p-2.5 bg-white rounded-lg outline-none text-sm shadow-sm">
-                <button id="btn-send" class="text-[#54656f] text-xl"><i class="fas fa-paper-plane"></i></button>
-            </footer>
         </div>
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
@@ -64,32 +56,42 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const rtdb = getDatabase(app);
         const dbFS = getFirestore(app);
-        let activePhone = "";
 
-        // תיקון פונקציית הזרקת ה-CSV
+        // פונקציית ניקוי תאריכים משופרת
+        function parseSabanDate(dateStr, timeStr) {
+            try {
+                const dParts = dateStr.trim().split('.');
+                if (dParts.length !== 3) return null;
+                
+                // מוסיף '0' אם חסר (למשל 4 הופך ל-04)
+                const day = dParts[0].padStart(2, '0');
+                const month = dParts[1].padStart(2, '0');
+                const year = dParts[2];
+                
+                const formattedDate = `${year}-${month}-${day}`;
+                const fullIso = `${formattedDate}T${timeStr.trim()}`;
+                const dateObj = new Date(fullIso);
+                
+                return isNaN(dateObj.getTime()) ? null : dateObj;
+            } catch (e) { return null; }
+        }
+
         document.getElementById('csv-upload').onchange = async (e) => {
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = async (event) => {
                 const lines = event.target.result.split('\n').slice(1);
+                let count = 0;
                 for (let line of lines) {
                     const parts = line.split(',');
                     if (parts.length < 4) continue;
                     
                     const [dateStr, timeStr, sender, text] = parts;
+                    const timestamp = parseSabanDate(dateStr, timeStr);
                     
-                    // המרת פורמט תאריך מ-3.12.2025 ל-2025-12-03
-                    const dateParts = dateStr.trim().split('.');
-                    if (dateParts.length !== 3) continue;
-                    const formattedDate = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
-                    
-                    const timestamp = new Date(`${formattedDate}T${timeStr.trim()}`);
-                    
-                    // בדיקת תקינות הזמן לפני השליחה ל-Firestore
-                    if (isNaN(timestamp.getTime())) {
-                        console.error("Invalid date found:", dateStr, timeStr);
+                    if (!timestamp) {
+                        console.warn("Skipping invalid date:", dateStr, timeStr);
                         continue;
                     }
 
@@ -103,31 +105,27 @@
                         timestamp: timestamp
                     });
                     await setDoc(doc(dbFS, "customers", phone), { name: phone, last_msg: text }, { merge: true });
+                    count++;
                 }
-                alert("ההיסטוריה הוזרקה בהצלחה!");
+                alert(`הזרקת ${count} הודעות בהצלחה!`);
             };
             reader.readAsText(file);
         };
 
-        // הצגת רשימת לקוחות והיסטוריה
+        // הצגת רשימת לקוחות
         onSnapshot(collection(dbFS, "customers"), (snap) => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
             snap.forEach(d => {
-                const id = d.id;
                 list.insertAdjacentHTML('beforeend', `
-                    <div onclick="window.loadChat('${id}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center gap-3">
-                        <div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center font-bold text-gray-600">C</div>
-                        <div class="flex-1 overflow-hidden">
-                            <div class="font-bold text-sm">${id}</div>
-                            <div class="text-xs text-gray-500 truncate">${d.data().last_msg || ''}</div>
-                        </div>
+                    <div onclick="window.loadChat('${d.id}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">C</div>
+                        <div class="text-sm font-bold">${d.id}</div>
                     </div>`);
             });
         });
 
         window.loadChat = (phone) => {
-            activePhone = phone;
             document.getElementById('active-name').innerText = phone;
             const q = query(collection(dbFS, "customers", phone, "chat_history"), orderBy("timestamp", "asc"));
             onSnapshot(q, (snap) => {
@@ -140,19 +138,6 @@
                 });
                 canvas.scrollTop = canvas.scrollHeight;
             });
-        };
-        
-        window.showTab = (id) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-            document.getElementById(id).style.display = 'flex';
-        };
-
-        document.getElementById('btn-send').onclick = async () => {
-            const input = document.getElementById('reply-msg');
-            if (activePhone && input.value) {
-                await push(ref(rtdb, 'saban94/send'), { to: activePhone, text: input.value });
-                input.value = '';
-            }
         };
     </script>
 </body>
