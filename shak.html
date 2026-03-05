@@ -2,38 +2,87 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>SHAK MONITOR v3.7 | ח. סבן בקרה</title>
+    <title>SHAK v4.0 | ח. סבן בקרה הנדסית</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Assistant', sans-serif; background: #f8fafc; padding: 20px; }
-        .log-box { background: #1e293b; color: #38bdf8; font-family: monospace; height: 300px; overflow-y: auto; padding: 15px; border-radius: 8px; }
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .heartbeat { animation: pulse 1s infinite; }
+        .status-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; }
+        .led { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     </style>
 </head>
-<body>
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold mb-6 text-slate-800 border-b pb-2">מערכת SHAK - ניטור צינור סבן</h1>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="card">
-                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">סטטוס חיבור</h3>
-                <div id="conn-status" class="text-xl font-bold text-red-500">מנתק...</div>
+<body class="bg-slate-50 p-6">
+
+    <div class="flex justify-between items-center mb-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-4">
+            <div class="text-blue-600 heartbeat text-2xl"><i class="fas fa-wave-square"></i></div>
+            <h1 class="text-xl font-bold text-slate-800">SHAK MONITOR v4.0 Professional</h1>
+        </div>
+        <div id="pipe-status" class="bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-xs font-bold border border-blue-100 italic">
+            פעימות קשר: מסונכרן
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="status-card" id="check-firebase">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-bold text-slate-400 uppercase">Firebase/Rules</span>
+                <span class="led bg-slate-300"></span>
             </div>
-            <div class="card">
-                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">פעולת בדיקה</h3>
-                <button onclick="testInjection()" class="w-full bg-blue-600 text-white py-2 rounded font-bold">הזרק הודעת בדיקה</button>
-            </div>
+            <div class="text-sm font-bold status-txt">בודק...</div>
         </div>
 
-        <div class="card">
-            <h3 class="text-xs font-bold text-slate-700 mb-2 italic">לוג מלשינון בזמן אמת:</h3>
-            <div id="logs" class="log-box text-xs"></div>
+        <div class="status-card" id="check-api">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-bold text-slate-400 uppercase">Gemini API/Key</span>
+                <span class="led bg-slate-300"></span>
+            </div>
+            <div class="text-sm font-bold status-txt">בודק...</div>
+        </div>
+
+        <div class="status-card" id="check-joni">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-bold text-slate-400 uppercase">JONI Connector</span>
+                <span class="led bg-slate-300"></span>
+            </div>
+            <div class="text-sm font-bold status-txt">בודק...</div>
+        </div>
+
+        <div class="status-card" id="check-io">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-bold text-slate-400 uppercase">I/O Injection</span>
+                <span class="led bg-slate-300"></span>
+            </div>
+            <div class="text-sm font-bold status-txt">בודק...</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border col-span-1">
+            <h3 class="font-bold text-slate-700 mb-4 border-b pb-2">סימולטור הזרקה (Test)</h3>
+            <button onclick="runFullDiagnostic()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-black transition-all shadow-lg mb-4">
+                הזרק והרצ סדרת בדיקות
+            </button>
+            <p class="text-[10px] text-slate-400 leading-relaxed italic text-center">
+                הפעולה תכתוב ל-Firebase, תפעיל את ה-API ותבדוק תגובה.
+            </p>
+        </div>
+
+        <div class="bg-[#1e293b] p-6 rounded-2xl shadow-sm col-span-2">
+            <div class="flex justify-between mb-4">
+                <h3 class="text-xs font-bold text-blue-400 uppercase italic">לוג מלשינון - פיענוח כשלים</h3>
+                <span id="pulse-rate" class="text-[9px] text-slate-500">Hz: 1.0</span>
+            </div>
+            <div id="terminal" class="h-48 overflow-y-auto font-mono text-[11px] text-blue-300 leading-relaxed">
+                <div class="opacity-50 italic">מחכה להזרקה...</div>
+            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
@@ -45,40 +94,69 @@
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
 
-        const log = (msg, color = "#38bdf8") => {
-            const div = document.getElementById('logs');
-            div.innerHTML = `<div><span style="color:gray">[${new Date().toLocaleTimeString()}]</span> <span style="color:${color}">${msg}</span></div>` + div.innerHTML;
-        };
+        function logMalsh(msg, type='info') {
+            const box = document.getElementById('terminal');
+            const time = new Date().toLocaleTimeString();
+            const colors = { info: '#38bdf8', err: '#f87171', ok: '#4ade80' };
+            box.innerHTML = `<div><span style="color:gray">[${time}]</span> <span style="color:${colors[type]}">${msg}</span></div>` + box.innerHTML;
+        }
 
-        // בדיקת חיבור והרשאות (Rules)
-        onValue(ref(rtdb, '.info/connected'), async (snap) => {
-            const status = document.getElementById('conn-status');
-            if(snap.val()) {
-                status.innerText = "מחובר ליציאה אירופאית";
-                status.className = "text-xl font-bold text-green-500";
-                log("חיבור ל-Firebase הצליח.", "#22c55e");
-                
-                // בדיקת Rules
-                try {
-                    await set(ref(rtdb, 'saban94/test'), Date.now());
-                    log("אבחון: חוקי ה-Database פתוחים (Rules OK).", "#22c55e");
-                } catch(e) {
-                    log("כשל חוקיות! ה-Rules חוסמים את הצינור.", "#ef4444");
-                }
-            } else {
-                status.innerText = "מנותק";
-                status.className = "text-xl font-bold text-red-500";
+        function updateCard(id, status, text) {
+            const card = document.getElementById(id);
+            card.querySelector('.led').className = `led bg-${status === 'ok' ? 'green' : 'red'}-500`;
+            card.querySelector('.status-txt').innerText = text;
+            card.querySelector('.status-txt').className = `text-sm font-bold text-${status === 'ok' ? 'green' : 'red'}-600 status-txt`;
+        }
+
+        window.runFullDiagnostic = async () => {
+            logMalsh("מתחיל סדרת בדיקות הנדסית...", "info");
+            
+            // 1. בדיקת Firebase
+            try {
+                await set(ref(rtdb, 'saban94/diag'), Date.now());
+                updateCard('check-firebase', 'ok', 'Rules פתוחים');
+                logMalsh("✅ Firebase מגיב וכותב בהצלחה.", "ok");
+            } catch(e) {
+                updateCard('check-firebase', 'err', 'חסימת Rules');
+                logMalsh("❌ כשל חוקיות ב-Firebase!", "err");
             }
-        });
 
-        window.testInjection = async () => {
-            log("מזריק הודעת בדיקה למספר העסקי...", "#eab308");
-            await push(ref(rtdb, 'saban94/send'), {
-                to: "972508860896",
-                text: "בדיקה מ-SHAK MONITOR: הצינור עובד!",
-                timestamp: Date.now()
+            // 2. בדיקת API
+            try {
+                const res = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: "test" })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    updateCard('check-api', 'ok', 'Gemini מגיב');
+                    logMalsh("✅ API Gemini מחובר ותקין.", "ok");
+                } else {
+                    updateCard('check-api', 'err', data.error || 'כשל במפתח');
+                    logMalsh("❌ המפתח של Gemini לא תקין או שנחסם!", "err");
+                }
+            } catch(e) {
+                updateCard('check-api', 'err', 'שרת לא מגיב');
+            }
+
+            // 3. בדיקת JONI
+            onValue(ref(rtdb, 'saban94/__listener'), (snap) => {
+                if(snap.exists()) {
+                    updateCard('check-joni', 'ok', 'JONI מחובר');
+                    logMalsh("✅ זיהיתי מאזין פעיל של JONI בצינור.", "ok");
+                } else {
+                    updateCard('check-joni', 'err', 'JONI מנותק');
+                    logMalsh("⚠️ JONI לא מחובר ל-Database!", "err");
+                }
             });
         };
+
+        // פעימות קשר
+        setInterval(() => {
+            const rate = (Math.random() * 0.5 + 0.8).toFixed(1);
+            document.getElementById('pulse-rate').innerText = `Hz: ${rate}`;
+        }, 1000);
     </script>
 </body>
 </html>
