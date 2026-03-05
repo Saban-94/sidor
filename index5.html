@@ -3,69 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Saban AI - WhatsApp 100% Mirror</title>
+    <title>Saban AI - Customer Orders Mirror</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap');
-        body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; height: 100vh; overflow: hidden; }
-        .whatsapp-bg { 
-            background-color: #e5ddd5; 
-            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); 
-            background-blend-mode: overlay;
-        }
-        .bubble-in { background: #ffffff; border-radius: 8px 8px 8px 0; position: relative; }
-        .bubble-out { background: #dcf8c6; border-radius: 8px 8px 0 8px; position: relative; }
-        /* פס ציטוט (Reply) */
-        .reply-box { border-right: 4px solid #35cd96; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.75rem; }
+        body { font-family: 'Rubik', sans-serif; background-color: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
+        .whatsapp-bg { background-color: #e5ddd5; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        .bubble-in { background: #ffffff; border-radius: 8px 8px 8px 0; align-self: flex-start; }
+        .bubble-out { background: #dcf8c6; border-radius: 8px 8px 0 8px; align-self: flex-end; }
+        .sidebar { width: 350px; background: white; border-left: 1px solid #ddd; display: flex; flex-direction: column; }
     </style>
 </head>
-<body class="flex flex-row h-full">
+<body>
 
-    <aside class="w-[60px] bg-[#eae6df] border-l flex flex-col items-center py-5 gap-6 text-[#54656f] hidden md:flex">
-        <i class="fas fa-comment-dots text-xl cursor-pointer" title="צ'אטים"></i>
-        <i class="fas fa-circle-notch text-xl cursor-pointer" title="סטטוס"></i>
-        <i class="fas fa-bullhorn text-xl cursor-pointer" title="ערוצים"></i>
-        <div class="mt-auto mb-4"><i class="fas fa-cog text-xl cursor-pointer"></i></div>
-    </aside>
-
-    <aside class="w-full md:w-[380px] bg-white border-l flex flex-col h-full">
-        <header class="p-4 bg-[#f0f2f5] flex justify-between items-center">
-            <img src="https://i.pravatar.cc/100?u=saban" class="w-10 h-10 rounded-full border">
-            <div class="flex gap-5 text-[#54656f]">
-                <i class="fas fa-users"></i><i class="fas fa-plus"></i><i class="fas fa-ellipsis-v"></i>
-            </div>
+    <aside class="sidebar">
+        <header class="p-4 bg-[#f0f2f5] flex justify-between items-center border-b">
+            <h2 class="font-bold text-slate-800">הזמנות לקוחות ח.סבן</h2>
+            <i class="fas fa-ellipsis-v text-gray-500"></i>
         </header>
-        <div class="p-2 bg-white">
-            <div class="bg-[#f0f2f5] flex items-center px-3 py-1.5 rounded-lg">
-                <i class="fas fa-search text-gray-400 text-sm ml-3"></i>
-                <input type="text" placeholder="חיפוש או התחלת צ'אט חדש" class="bg-transparent text-sm outline-none w-full">
-            </div>
-        </div>
-        <div id="contacts-list" class="flex-1 overflow-y-auto">
+        <div id="customer-list" class="flex-1 overflow-y-auto">
             </div>
     </aside>
 
-    <section class="hidden md:flex flex-1 flex flex-col relative border-r border-gray-300">
-        <header class="h-[60px] bg-[#f0f2f5] border-b p-3 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <img src="https://i.pravatar.cc/100?u=customer" class="w-10 h-10 rounded-full">
-                <div>
-                    <span class="font-bold text-sm block leading-none">לקוח ח. סבן</span>
-                    <small class="text-[10px] text-green-600">מחובר - סנכרון JONI פעיל</small>
-                </div>
+    <section class="flex-1 flex flex-col whatsapp-bg">
+        <header class="p-3 bg-[#f0f2f5] border-b flex items-center gap-3">
+            <div id="active-avatar" class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">S</div>
+            <div>
+                <span id="active-name" class="font-bold block text-sm text-slate-800 italic">בחר לקוח מהרשימה</span>
+                <small class="text-[10px] text-green-600">סנכרון JONI פעיל • 3s</small>
             </div>
-            <div class="text-[#54656f] flex gap-5"><i class="fas fa-search"></i><i class="fas fa-ellipsis-v"></i></div>
         </header>
 
-        <div id="chat-canvas" class="flex-1 overflow-y-auto p-6 flex flex-col gap-2 whatsapp-bg">
+        <div id="chat-canvas" class="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             </div>
 
-        <footer class="p-3 bg-[#f0f2f5] flex items-center gap-3">
-            <i class="far fa-smile text-2xl text-[#54656f] cursor-pointer"></i>
-            <i class="fas fa-plus text-xl text-[#54656f] cursor-pointer"></i>
-            <input id="user-input" type="text" placeholder="הקלדת הודעה" class="flex-1 p-2.5 bg-white rounded-lg outline-none text-sm shadow-sm">
-            <button id="btn-send" class="text-[#54656f] text-xl px-2"><i class="fas fa-paper-plane"></i></button>
+        <footer class="p-3 bg-[#f0f2f5] flex items-center gap-2">
+            <input id="reply-input" type="text" placeholder="הקלד הודעה..." class="flex-1 p-2.5 rounded-lg border-none outline-none text-sm">
+            <button id="send-btn" class="text-[#54656f] text-xl p-2"><i class="fas fa-paper-plane"></i></button>
         </footer>
     </section>
 
@@ -74,20 +49,23 @@
         import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
         import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // --- קונפיגורציה ---
+        // הגדרות Firebase מהמאגר שלך
         const firebaseConfig = {
             apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
             authDomain: "whatsapp-8ffd1.firebaseapp.com",
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "whatsapp-8ffd1"
         };
-        const GEMINI_API_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs";
+        const GEMINI_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs"; // מפתח Gemini
 
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
         const dbFS = getFirestore(app);
 
-        // --- 1. הצינור (JONI Adapter) ---
+        let activePhone = "";
+
+        // --- 1. הצינור (JONI Sync) ---
+        // האזנה להודעות נכנסות מ-JONI
         onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
             const data = snap.val();
             if (data) {
@@ -95,58 +73,71 @@
                 const msg = data[id];
 
                 if (!msg.processed) {
-                    // א. שמירה בזיכרון Firestore (היסטוריה חוזרת)
+                    // שמירה לקולקציית הלקוח ב-Firestore (היסטוריה חוזרת)
                     const historyRef = collection(dbFS, "customers", msg.from, "chat_history");
                     await addDoc(historyRef, { text: msg.text, type: 'in', time: serverTimestamp() });
 
-                    // ב. הפעלת המוח (Gemini AI)
-                    const response = await getGeminiResponse(msg.text);
+                    // הפעלת המוח (AI Response)
+                    const aiReply = await askGemini(msg.text);
 
-                    // ג. שליחה חזרה לווטסאפ דרך JONI
-                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: response });
-                    await addDoc(historyRef, { text: response, type: 'out', time: serverTimestamp() });
+                    // שליחה חזרה ל-JONI
+                    await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
+                    await addDoc(historyRef, { text: aiReply, type: 'out', time: serverTimestamp() });
 
-                    // ד. סימון כטופל
-                    await set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
+                    // סימון כטופל ב-RTDB
+                    set(ref(rtdb, `saban94/incoming/${id}/processed`), true);
                 }
             }
         });
 
-        // --- 2. המוח (Gemini Engine) ---
-        async function getGeminiResponse(prompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            const body = {
-                contents: [{ parts: [{ text: `אתה נציג חברת ח.סבן חומרי בניין. תן שירות אדיב ומקצועי. הלקוח אמר: ${prompt}` }] }]
-            };
-            const res = await fetch(url, { method: 'POST', body: JSON.stringify(body) });
+        // --- 2. המוח (Gemini 3.1 Logic) ---
+        async function askGemini(text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify({ contents: [{ parts: [{ text: `אתה נציג ח. סבן. ענה ללקוח: ${text}` }] }] })
+            });
             const json = await res.json();
             return json.candidates[0].content.parts[0].text;
         }
 
-        // --- 3. הממשק (UI Live Sync) ---
-        const chatQ = query(collection(dbFS, "customers", "972508860896", "chat_history"), orderBy("time", "asc"));
-        onSnapshot(chatQ, (snapshot) => {
-            const canvas = document.getElementById('chat-canvas');
-            canvas.innerHTML = '';
-            snapshot.forEach(doc => {
-                const m = doc.data();
-                const align = m.type === 'in' ? 'self-start' : 'self-end';
-                const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
-                canvas.insertAdjacentHTML('beforeend', `
-                    <div class="${align} ${style} p-2 shadow-sm max-w-[80%] text-sm mb-1">
-                        ${m.text}
-                        <div class="text-[9px] text-gray-500 text-left mt-1">12:00 ${m.type === 'out' ? '✓✓' : ''}</div>
+        // --- 3. הזרקה לממשק (UI Injection) ---
+        window.loadChat = (phone) => {
+            activePhone = phone;
+            document.getElementById('active-name').innerText = "לקוח: " + phone;
+            
+            const q = query(collection(dbFS, "customers", phone, "chat_history"), orderBy("time", "asc"));
+            onSnapshot(q, (snap) => {
+                const canvas = document.getElementById('chat-canvas');
+                canvas.innerHTML = '';
+                snap.forEach(doc => {
+                    const m = doc.data();
+                    const style = m.type === 'in' ? 'bubble-in' : 'bubble-out';
+                    canvas.insertAdjacentHTML('beforeend', `<div class="${style} p-2 shadow-sm max-w-[80%] text-sm mb-1">${m.text}</div>`);
+                });
+                canvas.scrollTop = canvas.scrollHeight;
+            });
+        };
+
+        // הזרקת רשימת הלקוחות לסיידבר
+        onSnapshot(collection(dbFS, "customers"), (snap) => {
+            const list = document.getElementById('customer-list');
+            list.innerHTML = '';
+            snap.forEach(doc => {
+                const c = doc.id;
+                list.insertAdjacentHTML('beforeend', `
+                    <div onclick="loadChat('${c}')" class="p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center font-bold">C</div>
+                        <span class="text-sm font-bold text-slate-700">${c}</span>
                     </div>
                 `);
             });
-            canvas.scrollTop = canvas.scrollHeight;
         });
 
-        // שליחה ידנית מהממשק
-        document.getElementById('btn-send').onclick = async () => {
-            const input = document.getElementById('user-input');
-            if (!input.value) return;
-            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: input.value });
+        document.getElementById('send-btn').onclick = async () => {
+            const input = document.getElementById('reply-input');
+            if (!activePhone || !input.value) return;
+            await push(ref(rtdb, 'saban94/send'), { to: activePhone, text: input.value });
             input.value = '';
         };
     </script>
