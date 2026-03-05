@@ -6,27 +6,39 @@ export default async function handler(req, res) {
 
     if (!apiKey) return res.status(500).json({ error: 'Missing API Key' });
 
-    // הגדרת זהות הטייס האוטומטי עבור ראמי מסארוה
-    const systemPrompt = `אתה העוזר האישי של ראמי מסארוה (972508861080) מחברת ח. סבן חומרי בניין. 
-    ענה במקצועיות ובאדיבות. אם הפונה הוא ראמי, פנה אליו כ'ראמי הבוס'. 
-    הודעה נכנסת מהלקוח: ${message}`;
+    // רשימת מודלים לפי סדר עדיפות - מעודכן למרץ 2026
+    const modelPriority = [
+        "gemini-3.1-flash-lite-preview", // החדש ביותר (מרץ 2026)
+        "gemini-3.1-pro-preview",       // הכי חכם (פברואר 2026)
+        "gemini-3-flash-preview",       // יציב ומהיר
+        "gemini-1.5-flash"              // גיבוי אחרון
+    ];
 
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
-        });
+    const systemPrompt = `אתה העוזר של חברת ח. סבן חומרי בניין. הבוס הוא ראמי (972508861080). 
+    ענה במקצועיות. הודעה מהלקוח: ${message}`;
 
-        const data = await response.json();
-        if (response.ok && data.candidates) {
-            return res.status(200).json({ 
-                reply: data.candidates[0].content.parts[0].text,
-                status: "success"
+    // לוגיקה מדלגת: מנסה כל מודל עד שמצליח
+    for (const model of modelPriority) {
+        try {
+            console.log(`🤖 מנסה מודל: ${model}`);
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
             });
+
+            const data = await response.json();
+            if (response.ok && data.candidates) {
+                return res.status(200).json({ 
+                    reply: data.candidates[0].content.parts[0].text,
+                    status: "success",
+                    activeModel: model 
+                });
+            }
+        } catch (err) {
+            console.error(`❌ מודל ${model} נכשל, עובר לבא בתור...`);
         }
-        throw new Error(data.error?.message || "Gemini Error");
-    } catch (err) {
-        return res.status(500).json({ error: err.message, status: "failed" });
     }
+
+    return res.status(500).json({ error: "כל המודלים נכשלו בשרת גוגל", status: "failed" });
 }
