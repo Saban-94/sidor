@@ -116,16 +116,29 @@
 
         // --- שאיבת הודעות מ-JONI (Realtime Database) ---
         // המאזין שמושך את ההודעה מ-JONI ומציג באפליקציה
-onValue(ref(rtdb, 'saban94/incoming'), (snapshot) => {
+// מאזין להודעות שמגיעות מ-JONI
+onValue(ref(rtdb, 'saban94/incoming'), async (snapshot) => {
     const data = snapshot.val();
     if (data) {
         const id = Object.keys(data).pop();
         const msg = data[id];
-        
-        // הצגת ההודעה בקנבס הדינמי
-        renderMessage(msg.text, 'left'); 
-        
-        console.log("הודעה נשאבה בהצלחה מ-JONI!");
+
+        // אם ההודעה טרם טופלה על ידי ה-AI
+        if (!msg.ai_processed) {
+            // שליפה מהמוח של Gemini
+            const aiReply = await askGemini(msg.text);
+
+            // שליחת התשובה ל-JONI שישלח ללקוח
+            await push(ref(rtdb, 'saban94/send'), {
+                to: msg.from || "972508860896", // מספר הלקוח
+                text: aiReply
+            });
+
+            // סימון ב-Database שהודעה זו טופלה
+            await set(ref(rtdb, `saban94/incoming/${id}/ai_processed`), true);
+            
+            console.log("Gemini ענה: " + aiReply);
+        }
     }
 });
 
