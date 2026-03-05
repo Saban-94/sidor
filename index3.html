@@ -15,7 +15,7 @@
 </head>
 <body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
 
-    <nav class="bg-white shadow-sm flex justify-around p-3 border-b">
+    <nav class="bg-white shadow-sm flex justify-around p-3 border-b z-50">
         <button onclick="showTab('report')" class="flex items-center gap-2 font-bold text-blue-900"><i class="fas fa-clipboard-list"></i> טופס דוח בוקר</button>
         <button onclick="showTab('chat')" class="flex items-center gap-2 font-bold text-green-700"><i class="fab fa-whatsapp"></i> מוקד ווטסאפ (AI)</button>
     </nav>
@@ -48,7 +48,7 @@
                     <option value="חכמת">חכמת (נהג מנוף) 🏗️</option>
                 </select>
             </div>
-            <button onclick="sendMorningReport()" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">שלח דוח לנהג ולקבוצה 🚀</button>
+            <button id="sendReportBtn" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-colors">שלח דוח לנהג ולקבוצה 🚀</button>
         </div>
     </div>
 
@@ -57,8 +57,8 @@
         <main class="flex-1 flex flex-col whatsapp-bg">
             <div id="chat-canvas" class="flex-1 p-6 overflow-y-auto flex flex-col space-y-3"></div>
             <div class="p-4 bg-gray-100 flex gap-2 border-t">
-                <input id="manual-msg" type="text" placeholder="תשובה ידנית..." class="flex-1 p-2 rounded-lg outline-none">
-                <button onclick="manualReply()" class="bg-[#075e54] text-white px-4 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+                <input id="manual-msg" type="text" placeholder="תשובה ידנית..." class="flex-1 p-2 rounded-lg outline-none border">
+                <button id="manualReplyBtn" class="bg-[#075e54] text-white px-4 rounded-lg hover:bg-[#054c44] transition-colors"><i class="fas fa-paper-plane"></i></button>
             </div>
         </main>
     </div>
@@ -75,7 +75,9 @@
             databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "whatsapp-8ffd1"
         };
-        const GEMINI_KEY = "AIzaSyCRI9-rhAdY1ER2WdDxvt-T10pqrIhxDMs"
+        
+        // מפתח Gemini 3.1 Flash-Lite
+        const GEMINI_KEY = "הכנס_כאן_את_המפתח_שלך"; 
         
         const app = initializeApp(firebaseConfig);
         const rtdb = getDatabase(app);
@@ -84,48 +86,79 @@
         // --- פונקציית המוח (Gemini 3.1) ---
         async function askGemini(text) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_KEY}`;
-            const prompt = { contents: [{ parts: [{ text: `אתה נציג ח. סבן 1994. ענה ללקוח: ${text}` }] }] };
-            const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
-            const data = await res.json();
-            return data.candidates[0].content.parts[0].text;
+            const prompt = { 
+                contents: [{ 
+                    parts: [{ text: `אתה נציג חברת "ח. סבן 1994 בע"מ". ענה ללקוח בווטסאפ בצורה מקצועית וקצרה. הודעת הלקוח: ${text}` }] 
+                }] 
+            };
+            try {
+                const res = await fetch(url, { method: 'POST', body: JSON.stringify(prompt) });
+                const data = await res.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (e) {
+                console.error("Gemini Error:", e);
+                return "מצטער, חל עיכוב קטן במענה. רמי יחזור אליך בהקדם.";
+            }
         }
 
         // --- ניהול דוח בוקר ---
         window.sendMorningReport = async () => {
             const client = document.getElementById('rep-client').value;
             const driver = document.getElementById('rep-driver').value;
-            const report = `*📋 דוח בוקר ח. סבן*\n👤 לקוח: ${client}\n🚚 נהג: ${driver}\n🏗️ סוג: ${document.getElementById('rep-delivery').value}`;
+            const delivery = document.getElementById('rep-delivery').value;
+            
+            if(!client) return alert("נא להזין שם לקוח");
+
+            const report = `*📋 דוח בוקר ח. סבן*\n👤 לקוח: ${client}\n🚚 נהג: ${driver}\n🏗️ סוג: ${delivery}`;
             
             await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: report });
-            alert("הדוח נשלח!");
+            alert("הדוח נשלח בהצלחה!");
         };
 
-        // --- לוגיקת צ'אט בוט אוטומטי ---
+        // --- מענה ידני ---
+        window.manualReply = async () => {
+            const text = document.getElementById('manual-msg').value;
+            if(!text) return;
+            
+            await push(ref(rtdb, 'saban94/send'), { to: "972508860896", text: text });
+            document.getElementById('manual-msg').value = '';
+        };
+
+        // --- לוגיקת צ'אט בוט אוטומטי וזיכרון Firestore ---
         onValue(ref(rtdb, 'saban94/incoming'), async (snap) => {
             const data = snap.val();
             if (data) {
                 const id = Object.keys(data).pop();
                 const msg = data[id];
+                
                 if (!msg.ai_done) {
                     const aiReply = await askGemini(msg.text);
+                    
+                    // שליחה לווטסאפ
                     await push(ref(rtdb, 'saban94/send'), { to: msg.from, text: aiReply });
                     
-                    // שמירה בזיכרון Firestore
-                    const hist = collection(dbFS, "customers", msg.from, "chat_history");
-                    await addDoc(hist, { text: msg.text, type: 'in', time: serverTimestamp() });
-                    await addDoc(hist, { text: aiReply, type: 'out', time: serverTimestamp() });
+                    // שמירה בזיכרון Firestore (קולקציית לקוחות)
+                    const histRef = collection(dbFS, "customers", msg.from, "chat_history");
+                    await addDoc(histRef, { text: msg.text, type: 'in', time: serverTimestamp() });
+                    await addDoc(histRef, { text: aiReply, type: 'out', time: serverTimestamp() });
                     
+                    // עדכון סטטוס ב-RTDB
                     set(ref(rtdb, `saban94/incoming/${id}/ai_done`), true);
                 }
             }
         });
 
+        // ניהול לשוניות
         window.showTab = (id) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.getElementById(id).classList.add('active');
         };
 
+        // חיבור אירועים לכפתורים (תיקון ה-ReferenceError)
+        document.getElementById('sendReportBtn').addEventListener('click', window.sendMorningReport);
+        document.getElementById('manualReplyBtn').addEventListener('click', window.manualReply);
         document.getElementById('rep-date').valueAsDate = new Date();
+
     </script>
 </body>
 </html>
