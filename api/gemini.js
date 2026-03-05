@@ -1,48 +1,38 @@
-// /api/gemini.js - המוח של Saban AI Studio
+// api/gemini.js
 export default async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
-    }
+    // מאפשר גישה מכל מקום (CORS)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // שליפת המפתח ממשתני הסביבה (Environment Variables)
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    const { message, senderPhone, context } = req.body;
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    if (!GEMINI_API_KEY) {
-        return res.status(500).json({ error: 'Gemini API Key is missing in environment variables' });
-    }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
-    // הגדרת ה"אישיות" של המוח (System Instruction)
-    const prompt = {
-        contents: [{
-            parts: [{
-                text: `אתה העוזר הלוגיסטי החכם של חברת "ח. סבן חומרי בניין". 
-                הלקוח או המנהל (ראמי) שלח הודעה: "${message}".
-                התפקיד שלך:
-                1. אם זו הזמנת חומרים (חול, מנוף, מלט), נסח אותה בצורה מסודרת לסידור העבודה.
-                2. אם ההודעה מגיעה מראמי (+972508861080), התייחס אליו כבוס ותן תשובה תפעולית.
-                3. שמור על טון מקצועי, קצר וענייני.
-                הקשר קודם: ${context || 'אין היסטוריה קודמת'}`
-            }]
-        }]
-    };
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'Missing API Key' });
 
     try {
+        const { message } = req.body;
+        
+        // שימוש במודל שראינו שעובד לך בבדיקה
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(prompt)
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: `אתה עוזר לוגיסטי בחברת ח.סבן. נתח והשב על: ${message}` }] }]
+            })
         });
 
         const data = await response.json();
-        const aiResponse = data.candidates[0].content.parts[0].text;
+        if (data.error) throw new Error(data.error.message);
 
-        // החזרת התשובה לממשק
-        return res.status(200).json({ reply: aiResponse });
+        const reply = data.candidates[0].content.parts[0].text;
+        return res.status(200).json({ reply });
 
     } catch (error) {
-        return res.status(500).json({ error: 'Failed to connect to Gemini', details: error.message });
+        console.error('Brain Error:', error.message);
+        return res.status(500).json({ error: error.message });
     }
 }
