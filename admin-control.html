@@ -3,95 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H.SABAN | Control & Monitor v5.0</title>
+    <title>H.SABAN | Control Center v5.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* הגדרות צבעים למניעת דריסה */
-        :root { --main-bg: #020617; --card-bg: #0f172a; --text-primary: #f8fafc; --accent: #3b82f6; }
-        .light { --main-bg: #f1f5f9; --card-bg: #ffffff; --text-primary: #0f172a; --accent: #2563eb; }
+        /* הגדרת משתנים למניעת דריסה ותיקון מצב בהיר */
+        :root {
+            --bg-main: #020617;
+            --bg-card: #0f172a;
+            --text-main: #f8fafc;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+        .light {
+            --bg-main: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
 
-        body { background-color: var(--main-bg); color: var(--text-primary); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); font-family: 'Assistant', sans-serif; height: 100vh; overflow: hidden; }
-        .saban-card { background-color: var(--card-bg); border: 1px solid rgba(255,255,255,0.05); border-radius: 24px; transition: all 0.3s ease; }
-        .light .saban-card { border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        
-        /* תיקון לחיצות */
-        .clickable { cursor: pointer !important; pointer-events: auto !important; z-index: 100; position: relative; }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 8px; }
-        .pulse-green { background: #22c55e; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+        body { 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            transition: all 0.3s ease; 
+            font-family: 'Assistant', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .saban-glass {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+        }
+
+        /* תיקון לחיצות - Z-Index עליון לכל האלמנטים האינטראקטיביים */
+        .interactive {
+            position: relative;
+            z-index: 100 !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+        }
+
+        #chat-monitor::-webkit-scrollbar { width: 4px; }
+        #chat-monitor::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
     </style>
 </head>
 <body class="flex flex-col lg:flex-row">
 
-    <aside class="w-full lg:w-80 p-6 flex flex-col gap-6 border-l border-white/5 lg:border-l-0 lg:border-r">
+    <aside class="w-full lg:w-80 p-6 flex flex-col gap-6 border-l border-white/5 saban-glass">
         <div class="flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-black">S</div>
-                <h1 class="text-xl font-black tracking-tight">H.SABAN <span class="text-blue-500 italic">AI</span></h1>
-            </div>
-            <button id="theme-btn" class="clickable w-10 h-10 saban-card flex items-center justify-center hover:scale-110">
+            <h1 class="font-black text-xl tracking-tighter">SABAN <span class="text-blue-500">PRO</span></h1>
+            <button id="theme-switcher" class="interactive p-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20">
                 <i id="theme-icon" class="fas fa-sun text-yellow-400"></i>
             </button>
         </div>
 
-        <div class="grid grid-cols-1 gap-3">
-            <div class="saban-card p-4">
-                <span class="text-[10px] font-bold opacity-50 uppercase">סטטוס JONI</span>
-                <div class="flex items-center mt-1"><span class="status-dot pulse-green"></span> <b class="text-sm">Online</b></div>
+        <div class="space-y-4">
+            <div class="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                <span class="text-[10px] font-bold opacity-50">צריכת AI (Gemini 3.1)</span>
+                <div class="text-2xl font-black mt-1" id="usage-count">0 / 1000</div>
+                <div class="w-full bg-gray-700 h-1.5 mt-2 rounded-full overflow-hidden">
+                    <div id="usage-bar" class="bg-blue-500 h-full transition-all duration-700" style="width: 0%"></div>
+                </div>
             </div>
-            <div class="saban-card p-4">
-                <span class="text-[10px] font-bold opacity-50 uppercase">צריכת Gemini היום</span>
-                <div class="text-xl font-black mt-1" id="ai-count">0 / 1000</div>
-                <div class="w-full bg-white/10 h-1 mt-2 rounded-full overflow-hidden">
-                    <div id="ai-bar" class="bg-blue-500 h-full transition-all duration-1000" style="width: 0%"></div>
+
+            <div class="p-4 rounded-2xl saban-glass border-r-4 border-red-500">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold">אוטומציה (AI)</span>
+                    <label class="interactive inline-flex items-center">
+                        <input type="checkbox" id="ai-master-switch" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:-translate-x-5"></div>
+                    </label>
                 </div>
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto space-y-3" id="agent-list">
-            <h3 class="text-xs font-bold opacity-40 uppercase mb-2">נציגים פעילים</h3>
+        <div id="active-users" class="flex-1 overflow-y-auto space-y-2">
+            <h3 class="text-[10px] font-bold opacity-40 uppercase mb-2">נציגים מחוברים</h3>
             </div>
-
-        <div class="saban-card p-5 border-t-4 border-red-500">
-            <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-sm">אוטומציה מלאה</span>
-                <label class="clickable relative inline-flex items-center">
-                    <input type="checkbox" id="master-ai-toggle" checked class="sr-only peer">
-                    <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                </label>
-            </div>
-            <button id="emergency-stop" class="clickable w-full bg-red-600/20 text-red-500 py-3 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all">
-                <i class="fas fa-exclamation-triangle ml-2"></i> עצירת חירום
-            </button>
-        </div>
     </aside>
 
-    <main class="flex-1 flex flex-col p-4 lg:p-6 gap-6">
-        <div class="flex-1 saban-card overflow-hidden flex flex-col shadow-2xl">
-            <header class="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+    <main class="flex-1 flex flex-col p-4 lg:p-6 overflow-hidden">
+        <div class="flex-1 saban-glass rounded-[2.5rem] flex flex-col shadow-2xl overflow-hidden">
+            <header class="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
                 <div class="flex items-center gap-3">
-                    <i class="fas fa-comments text-blue-500"></i>
-                    <h2 class="font-bold text-sm">מרכז הודעות: <span id="current-chat-name" class="text-blue-400">כללי</span></h2>
-                </div>
-                <div class="flex gap-2">
-                    <button class="clickable p-2 bg-white/5 rounded-lg text-xs"><i class="fas fa-history ml-1"></i> לוגים</button>
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <h2 class="font-bold">מוניטור צ'אט-סידור</h2>
                 </div>
             </header>
-            
-            <div id="chat-monitor" class="flex-1 p-6 overflow-y-auto space-y-4 bg-black/10">
+
+            <div id="chat-monitor" class="flex-1 p-6 overflow-y-auto space-y-4 bg-black/5">
                 </div>
 
-            <footer class="p-4 border-t border-white/5 flex gap-3">
-                <input type="text" id="admin-msg" placeholder="הקלד תשובה ידנית ללקוח/נציג..." 
-                       class="clickable flex-1 bg-white/5 border border-white/10 rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="send-admin" class="clickable bg-blue-600 px-8 rounded-2xl font-black text-sm hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-600/20">
-                    שלח <i class="fas fa-paper-plane mr-2"></i>
+            <footer class="p-4 bg-white/5 border-t border-white/5 flex gap-3">
+                <input type="text" id="admin-input" placeholder="מענה ידני (CRM)..." 
+                       class="interactive flex-1 bg-black/20 border border-white/10 rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="admin-btn-send" class="interactive bg-blue-600 px-8 rounded-2xl font-black hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
+                    שלח
                 </button>
             </footer>
         </div>
     </main>
 
-    <script type="module" src="admin-core.js"></script>
+    <script type="module" src="admin-logic.js"></script>
 </body>
 </html>
