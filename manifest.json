@@ -1,15 +1,15 @@
 {
-  "name": "Saban AI Studio",
-  "short_name": "ח. סבן",
-  "start_url": ".",
+  "name": "ח. סבן - סידור איציק",
+  "short_name": "איציק סידור",
+  "start_url": "/itzik-sidor.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4587de",
+  "background_color": "#020617",
+  "theme_color": "#33ccff",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/1063/1063307.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/138846705_247951546693089_6505800604178808158_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3wGXVV3pgMd3z7McTCHzCw4KlUI_PC40S4aMmH6BmUb3pQ&oe=69B7D890&_nc_sid=5e03e0&_nc_cat=105",
+      "sizes": "192x192",
+      "type": "image/jpg"
     }
   ]
 }
