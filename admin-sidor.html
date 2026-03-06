@@ -3,84 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ח. סבן | חדר בקרה וסידור עבודה</title>
+    <title>ח. סבן | חדר בקרה וסידור</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .dark { --bg: #020617; --card: #0f172a; --text: #f8fafc; }
-        .light { --bg: #f1f5f9; --card: #ffffff; --text: #0f172a; }
-        body { background-color: var(--bg); color: var(--text); transition: 0.3s; font-family: 'Assistant', sans-serif; }
-        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
-        .status-online { color: #22c55e; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        :root { --bg: #020617; --card: #0f172a; --text: #f8fafc; }
+        .light { --bg: #f8fafc; --card: #ffffff; --text: #020617; }
+        body { background-color: var(--bg); color: var(--text); transition: background 0.3s ease; height: 100vh; display: flex; overflow: hidden; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); z-index: 50; }
+        .light .glass { background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0,0,0,0.1); }
+        button, input { z-index: 100 !important; position: relative; cursor: pointer; }
     </style>
 </head>
-<body class="h-screen flex flex-col lg:flex-row overflow-hidden">
+<body id="admin-body">
 
-    <aside class="w-full lg:w-80 glass p-6 flex flex-col gap-6 z-50">
+    <aside class="w-80 glass p-6 flex flex-col gap-6">
         <div class="flex justify-between items-center">
-            <h1 class="font-black text-xl tracking-tighter">ח. סבן CONTROL</h1>
-            <button onclick="toggleTheme()" class="p-2 rounded-lg bg-white/5 hover:bg-white/10">
-                <i id="theme-icon" class="fas fa-moon"></i>
+            <h1 class="font-black text-xl">SABAN CONTROL</h1>
+            <button id="theme-toggle" class="p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/40 transition-all">
+                <i id="theme-icon" class="fas fa-sun text-yellow-400"></i>
             </button>
         </div>
-
+        
         <div class="space-y-4">
-            <div class="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20">
-                <span class="text-[10px] uppercase font-bold opacity-60">נציגים מחוברים</span>
-                <div class="text-2xl font-black" id="active-agents">0</div>
+            <div class="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                <p class="text-[10px] font-bold opacity-60">שאילתות AI</p>
+                <div id="ai-usage" class="text-2xl font-black">0 / 1000</div>
             </div>
-            <div class="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
-                <span class="text-[10px] uppercase font-bold opacity-60">שאילתות AI היום</span>
-                <div class="text-2xl font-black" id="ai-usage">0 / 1000</div>
+            
+            <div class="p-4 rounded-2xl border-t-4 border-red-500 glass">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-bold">מצב AI</span>
+                    <input type="checkbox" id="ai-switch" checked class="w-10 h-5 cursor-pointer">
+                </div>
             </div>
-        </div>
-
-        <div class="mt-auto p-4 glass rounded-2xl border-t-4 border-red-500">
-            <h3 class="font-bold text-sm mb-2">מצב אוטומציה</h3>
-            <div class="flex items-center justify-between">
-                <span class="text-xs">AI פעיל (Gemini 3.1)</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="ai-toggle" checked class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                </label>
-            </div>
-            <p class="text-[9px] mt-2 opacity-50 italic">כיבוי ה-AI יעביר את המערכת למצב CRM ידני.</p>
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col p-4 lg:p-8 gap-6 overflow-y-auto">
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 h-full">
-            
-            <div class="flex flex-col glass rounded-[2rem] overflow-hidden shadow-2xl">
-                <header class="p-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                    <span class="font-bold text-sm">💬 ניהול צאט-סידור (Firebase)</span>
-                    <select id="chat-filter" class="bg-transparent text-xs border border-white/10 rounded px-2 py-1 outline-none">
-                        <option value="all">כל הנציגים</option>
-                        <option value="itzik">איציק זהבי</option>
-                        <option value="clients">לקוחות חיצוניים</option>
-                    </select>
-                </header>
-                <div id="master-chat-box" class="flex-1 p-6 space-y-4 overflow-y-auto bg-[#0b141a]/50">
-                    </div>
-                <div class="p-4 border-t border-white/5 flex gap-2">
-                    <input type="text" id="manual-reply" placeholder="התערבות ידנית של רמי..." 
-                           class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-blue-500">
-                    <button id="send-manual" class="bg-blue-600 px-6 rounded-xl font-bold text-sm hover:bg-blue-500 transition-all">שלח</button>
-                </div>
+    <main class="flex-1 flex flex-col p-6 gap-4">
+        <div id="master-chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 rounded-[2rem] bg-black/20">
             </div>
-
-            <div class="hidden xl:flex flex-col glass rounded-[2rem] border-2 border-dashed border-white/10 opacity-80">
-                <header class="p-4 text-center">
-                    <span class="text-[10px] font-black uppercase tracking-widest opacity-40 italic">Client Simulator (Preview)</span>
-                </header>
-                <div class="flex-1 flex items-center justify-center">
-                    <div class="w-[300px] h-[550px] border-8 border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative bg-[#020617]">
-                        <iframe src="itzik-sidor.html" class="w-full h-full border-none"></iframe>
-                    </div>
-                </div>
-            </div>
-
+        
+        <div class="flex gap-2 p-2 glass rounded-2xl">
+            <input type="text" id="admin-input" placeholder="מענה ידני של רמי..." 
+                   class="flex-1 bg-transparent p-3 outline-none border-none text-sm">
+            <button id="admin-send" class="bg-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-500 transition-all">
+                שלח
+            </button>
         </div>
     </main>
 
