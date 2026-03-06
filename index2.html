@@ -164,7 +164,7 @@
             });
 
             try {
-                await push(ref(db, 'saban94/send'), { to: "972508860896", text: report });
+                await push(ref(db, 'saban94/pipeline'), { to: "972508860896", text: report });
                 alert("סידור נשלח לקבוצה! ✅");
             } catch (e) { alert("שגיאה בשליחה"); }
         };
