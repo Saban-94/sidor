@@ -3,46 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ח. סבן 1994 - מפרט מוצר</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>פרטי מוצר - ח. סבן</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Assistant', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .loading-shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
 </head>
-<body class="bg-slate-50 font-sans p-4">
-    <div class="max-w-md mx-auto bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-100">
-        <div id="productImg" class="h-64 bg-slate-200 bg-center bg-cover"></div>
-        <div class="p-8">
-            <div class="flex justify-between items-start mb-4">
-                <h1 id="title" class="text-3xl font-black text-slate-900">טוען...</h1>
-                <span id="price" class="text-2xl font-black text-emerald-600">₪--</span>
-            </div>
-            <p id="desc" class="text-slate-500 leading-relaxed mb-8">אנא המתן בזמן שאנו שולפים את המפרט הטכני מהמחסן...</p>
-            
-            <div class="grid grid-cols-2 gap-4 mb-8">
-                <div class="bg-blue-50 p-4 rounded-2xl text-center">
-                    <span class="block text-[10px] font-bold text-blue-400 uppercase">זמן ייבוש</span>
-                    <b id="dryTime" class="text-blue-700">--</b>
-                </div>
-                <div class="bg-emerald-50 p-4 rounded-2xl text-center">
-                    <span class="block text-[10px] font-bold text-emerald-400 uppercase">כיסוי</span>
-                    <b id="coverage" class="text-emerald-700">--</b>
-                </div>
-            </div>
+<body class="bg-slate-100 min-h-screen">
 
-            <a href="https://wa.me/972508860896?text=אני_רוצה_להזמין" 
-               class="block w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-center shadow-xl active:scale-95 transition-all">
-                בצע הזמנה עכשיו 🚀
+    <div id="loader" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p class="font-bold text-slate-500 italic">בודק מלאי בח. סבן...</p>
+        </div>
+    </div>
+
+    <main class="max-w-md mx-auto min-h-screen relative pb-24">
+        <div id="product-img" class="h-80 bg-slate-300 bg-center bg-cover shadow-inner relative">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+            <button onclick="window.history.back()" class="absolute top-6 right-6 p-2 bg-white/20 backdrop-blur-md rounded-full text-white">
+                <i data-lucide="chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="relative -mt-10 px-4">
+            <div class="glass rounded-[40px] p-8 shadow-2xl border border-white">
+                
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <span id="brand" class="text-[10px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 italic">מותג מוביל</span>
+                        <h1 id="product-name" class="text-3xl font-black text-slate-900 mt-2 leading-tight">טוען שם מוצר...</h1>
+                    </div>
+                    <div class="text-left">
+                        <div id="price" class="text-3xl font-black text-emerald-600">₪--</div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">כולל מע"מ</span>
+                    </div>
+                </div>
+
+                <p id="description" class="text-slate-500 text-sm leading-relaxed mb-8 border-r-2 border-slate-100 pr-4 italic">
+                    מפרט טכני נשלף כעת ממסד הנתונים של המחסן...
+                </p>
+
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-col items-center text-center">
+                        <i data-lucide="timer" class="text-blue-500 mb-2" size="20"></i>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase">זמן ייבוש</span>
+                        <b id="dry-time" class="text-slate-700 text-sm">--</b>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-col items-center text-center">
+                        <i data-lucide="ruler" class="text-emerald-500 mb-2" size="20"></i>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase">כושר כיסוי</span>
+                        <b id="coverage" class="text-slate-700 text-sm">--</b>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 border border-yellow-100 p-4 rounded-3xl flex items-center gap-4 mb-8">
+                    <div class="p-2 bg-yellow-500 rounded-xl text-white">
+                        <i data-lucide="truck" size="18"></i>
+                    </div>
+                    <div class="text-[11px] font-bold text-yellow-800 leading-tight">
+                        הובלה זמינה לסניפי הוד השרון <br> ובפריסה ארצית.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-0 left-0 right-0 p-4 glass border-t border-slate-100 z-40 max-w-md mx-auto">
+        <div class="flex gap-3">
+            <button onclick="shareProduct()" class="p-4 bg-slate-100 rounded-2xl text-slate-600">
+                <i data-lucide="share-2"></i>
+            </button>
+            <a id="whatsapp-btn" href="#" class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all">
+                <span>הזמן עכשיו</span>
+                <i data-lucide="shopping-cart" size="20"></i>
             </a>
         </div>
     </div>
 
     <script>
-        // לוגיקה לשליפת נתונים מהלינק
-        const params = new URLSearchParams(window.location.search);
-        document.getElementById('title').innerText = params.get('name') || 'מוצר כללי';
-        document.getElementById('price').innerText = '₪' + (params.get('price') || '0');
-        document.getElementById('desc').innerText = params.get('desc') || 'מפרט טכני מלא מחכה לך כאן.';
-        document.getElementById('dryTime').innerText = params.get('dry') || '24 שעות';
-        document.getElementById('coverage').innerText = params.get('cov') || '4.5 ק"ג';
-        document.getElementById('productImg').style.backgroundImage = `url('${params.get('img') || 'https://via.placeholder.com/400'}')`;
+        // פרטי התחברות ל-Supabase - רמי תעדכן כאן את המפתחות שלך!
+        const SB_URL = 'YOUR_SUPABASE_PROJECT_URL';
+        const SB_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+        async function initProduct() {
+            lucide.createIcons();
+            const params = new URLSearchParams(window.location.search);
+            const productId = params.get('id');
+
+            if (!productId) {
+                alert("לא נבחר מוצר");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${SB_URL}/rest/v1/inventory?id=eq.${productId}&select=*`, {
+                    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+                });
+                const data = await res.json();
+                const p = data[0];
+
+                if (p) {
+                    document.getElementById('product-name').innerText = p.product_name;
+                    document.getElementById('price').innerText = `₪${p.price}`;
+                    document.getElementById('description').innerText = p.description || 'אין תיאור זמין';
+                    document.getElementById('dry-time').innerText = p.dry_time || 'לפי הוראות יצרן';
+                    document.getElementById('coverage').innerText = p.coverage || 'לפי שטח פנים';
+                    document.getElementById('product-img').style.backgroundImage = `url('${p.image_url || 'https://via.placeholder.com/400'}')`;
+                    document.getElementById('brand').innerText = p.brand || 'ח. סבן 1994';
+                    
+                    // עדכון כפתור וואטסאפ
+                    const waMsg = encodeURIComponent(`שלום ח. סבן, אני מעוניין להזמין ${p.product_name} (מק"ט: ${p.id})`);
+                    document.getElementById('whatsapp-btn').href = `https://wa.me/972508860896?text=${waMsg}`;
+                }
+            } catch (err) {
+                console.error("שגיאה בשליפת נתונים:", err);
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+            }
+        }
+
+        function shareProduct() {
+            if (navigator.share) {
+                navigator.share({
+                    title: document.getElementById('product-name').innerText,
+                    url: window.location.href
+                });
+            }
+        }
+
+        initProduct();
     </script>
 </body>
 </html>
