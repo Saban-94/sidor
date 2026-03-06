@@ -1,60 +1,123 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>איציק זהבי - ניהול סידור סניף החרש</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>איציק זהבי | ח. סבן - סידור</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.x/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.x/firebase-database-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
     <style>
-        .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); }
-        .itzik-avatar { border: 3px solid #33ccff; box-shadow: 0 0 15px rgba(51, 204, 255, 0.5); }
+        :root { --accent: #33ccff; }
+        body { transition: background 0.3s, color 0.3s; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .dark .glass { background: rgba(15, 23, 42, 0.8); }
+        .itzik-gradient { background: linear-gradient(135deg, #33ccff 0%, #0066ff 100%); }
+        
+        /* סגנון זיקית - התאמה למחשב vs נייד */
+        @media (min-width: 1024px) {
+            .chat-container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; padding: 20px; }
+            .history-sidebar { display: block !important; }
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 
-    <header class="glass p-4 border-b border-slate-800 flex justify-between items-center sticky top-0 z-50">
-        <div class="flex items-center gap-3">
-            <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/138846705_247951546693089_6505800604178808158_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3wGXVV3pgMd3z7McTCHzCw4KlUI_PC40S4aMmH6BmUb3pQ&oe=69B7D890&_nc_sid=5e03e0&_nc_cat=105" 
-                 alt="איציק זהבי" class="w-12 h-12 rounded-full itzik-avatar">
+    <header class="glass sticky top-0 z-50 p-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <img id="profile-img" src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/138846705_247951546693089_6505800604178808158_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3wGXVV3pgMd3z7McTCHzCw4KlUI_PC40S4aMmH6BmUb3pQ&oe=69B7D890&_nc_sid=5e03e0&_nc_cat=105" 
+                     class="w-12 h-12 rounded-full border-2 border-blue-400 shadow-blue-500/50 shadow-md">
+                <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+            </div>
             <div>
-                <h1 class="font-black text-lg text-blue-400">איציק זהבי</h1>
-                <p class="text-[10px] text-slate-400 uppercase tracking-widest">מנהל סניף החרש 10</p>
+                <h1 class="font-black text-lg tracking-tight">איציק זהבי</h1>
+                <p id="device-status" class="text-[10px] opacity-60">מזהה מכשיר...</p>
             </div>
         </div>
-        <div class="flex gap-2">
-            <div class="bg-blue-500/10 text-blue-400 text-[10px] px-2 py-1 rounded-md border border-blue-500/20">מחובר לרמי</div>
+        
+        <div class="flex items-center gap-3">
+            <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:scale-110 transition-transform">
+                <i id="theme-icon" class="fas fa-moon"></i>
+            </button>
+            <button class="lg:hidden w-10 h-10 rounded-xl glass flex items-center justify-center">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
     </header>
 
-    <main id="chat-container" class="flex-1 p-4 space-y-4 overflow-y-auto pb-32">
-        <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 text-sm italic text-slate-400">
-            <i class="fas fa-history ml-2"></i> טוען היסטוריית העברות אחרונה...
-        </div>
+    <main class="chat-container max-w-7xl mx-auto h-[calc(100vh-160px)]">
+        <aside class="history-sidebar hidden lg:flex flex-col glass rounded-3xl p-4 overflow-y-auto">
+            <h3 class="font-bold text-sm mb-4 opacity-50 uppercase tracking-widest">היסטוריית פניות איציק</h3>
+            <div id="firebase-history" class="space-y-3">
+                </div>
+        </aside>
+
+        <section class="flex flex-col h-full glass rounded-3xl overflow-hidden relative">
+            <div id="chat-messages" class="flex-1 p-6 overflow-y-auto space-y-4">
+                <div class="flex justify-start">
+                    <div class="bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none max-w-[80%] shadow-lg">
+                        היי איציק, אני מזהה שאתה מחובר מה-<b><span id="device-name"></span></b>. איך מתקדמים עם הסידור של רמי היום?
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-transparent border-t border-white/10">
+                <div class="flex gap-2">
+                    <input type="text" id="userInput" onkeydown="handleKey(event)"
+                           placeholder="כתוב הודעה או הקלט..."
+                           class="flex-1 bg-white/10 border border-white/20 rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="sendBtn" class="itzik-gradient w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 active:scale-90 transition-all">
+                        <i class="fas fa-paper-plane text-white text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <footer class="glass border-t border-slate-800 p-4 fixed bottom-0 w-full">
-        <div class="max-w-4xl mx-auto space-y-3">
-            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                <button onclick="quickAction('העברה דחופה מהתלמוד')" class="bg-slate-800 text-[11px] px-3 py-2 rounded-full border border-slate-700 whitespace-nowrap">📦 העברה דחופה</button>
-                <button onclick="quickAction('הזמנה חדשה ללקוח')" class="bg-slate-800 text-[11px] px-3 py-2 rounded-full border border-slate-700 whitespace-nowrap">🏗️ הובלה ללקוח</button>
-                <button onclick="quickAction('איפה עלי המשאית?')" class="bg-slate-800 text-[11px] px-3 py-2 rounded-full border border-slate-700 whitespace-nowrap">🚚 איפה עלי?</button>
-            </div>
-            <div class="relative">
-                <input type="text" id="userInput" placeholder="איציק, מה לשלוח לרמי?" 
-                       class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 pr-12 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <button class="absolute left-3 top-1/2 -translate-y-1/2 bg-blue-600 p-2 rounded-xl">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </div>
-        </div>
-    </footer>
-
     <script>
-        function quickAction(text) {
-            document.getElementById('userInput').value = text;
+        // לוגיקת נושא (Light/Dark)
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                icon.className = 'fas fa-sun';
+            } else {
+                html.classList.add('dark');
+                icon.className = 'fas fa-moon';
+            }
         }
-        // כאן יבוא הקוד לחיבור ל-API של ה-Sidor ב-GitHub
+
+        // זיהוי מכשיר ואירועים (זיקית)
+        function detectDevice() {
+            const ua = navigator.userAgent;
+            const deviceName = /mobile/i.test(ua) ? "סלולרי (PWA)" : "מחשב שולחני (Desktop)";
+            document.getElementById('device-status').innerText = `מחובר מ: ${deviceName}`;
+            document.getElementById('device-name').innerText = deviceName;
+            
+            // רישום אירוע כניסה ל-Firebase
+            console.log("אירוע כניסה הוקלט: itzik_history");
+        }
+
+        // ניהול אירועי מקלדת ועכבר
+        function handleKey(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // אירוע מגע/לחיצה
+        document.getElementById('sendBtn').addEventListener('touchstart', (e) => {
+            console.log("אירוע מגע זוהה - איציק בשטח");
+        });
+
+        window.onload = detectDevice;
     </script>
 </body>
 </html>
