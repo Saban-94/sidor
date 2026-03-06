@@ -2,74 +2,58 @@
 <html lang="he" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>איציק זהבי - מוח לוגיסטי ח. סבן</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>איציק זהבי | מוח לוגיסטי ח. סבן</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .whatsapp-bg { background-color: #0b141a; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; }
-        .ai-brain-canvas { background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); position: relative; overflow: hidden; height: 150px; border-radius: 24px; }
-        .pulse-ring { position: absolute; border: 2px solid #33ccff; border-radius: 50%; animation: pulse 3s infinite; opacity: 0; }
-        @keyframes pulse { 0% { transform: scale(0.5); opacity: 0; } 50% { opacity: 0.5; } 100% { transform: scale(1.5); opacity: 0; } }
-        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .itzik-status { border: 2px solid #25d366; }
+        .ai-brain { background: radial-gradient(circle, #1e293b 0%, #020617 100%); height: 120px; border-radius: 20px; position: relative; overflow: hidden; }
+        .pulse { position: absolute; border: 2px solid #33ccff; border-radius: 50%; animation: pulse-anim 3s infinite; opacity: 0; }
+        @keyframes pulse-anim { 0% { transform: scale(0.5); opacity: 0; } 50% { opacity: 0.3; } 100% { transform: scale(1.5); opacity: 0; } }
     </style>
 </head>
-<body class="bg-[#020617] text-white overflow-hidden h-screen flex flex-col">
+<body class="bg-[#020617] text-white h-screen flex flex-col font-sans">
 
-    <div class="p-4">
-        <div class="ai-brain-canvas flex flex-col items-center justify-center shadow-[0_0_30px_rgba(51,204,255,0.2)]">
-            <div class="pulse-ring" style="width: 100px; height: 100px;"></div>
-            <div class="pulse-ring" style="width: 150px; height: 150px; animation-delay: 1s;"></div>
-            <h2 class="text-blue-400 font-black text-xl tracking-tighter z-10">AI - ח.סבן הארגון</h2>
-            <p class="text-[10px] text-blue-300/60 uppercase font-bold z-10">למידה וניהול לוגיסטי בזמן אמת</p>
-            <div id="ai-status-node" class="mt-2 text-[11px] bg-blue-500/20 px-3 py-1 rounded-full text-blue-400 border border-blue-500/30 animate-pulse">
-                🧠 המוח מסנכרן נתונים מ-Firebase...
-            </div>
+    <div class="p-3">
+        <div class="ai-brain flex flex-col items-center justify-center border border-blue-500/30 shadow-[0_0_20px_rgba(51,204,255,0.1)]">
+            <div class="pulse w-24 h-24"></div>
+            <h2 class="text-blue-400 font-black tracking-tighter z-10">AI - ח.סבן הארגון</h2>
+            <div id="status" class="text-[10px] text-blue-300/60 mt-1 animate-pulse z-10">🧠 מסנכרן היסטוריה מ-Firebase...</div>
         </div>
     </div>
 
-    <header class="bg-[#202c33] p-4 flex justify-between items-center shadow-md">
+    <header class="bg-[#202c33] p-3 flex justify-between items-center border-b border-white/5">
         <div class="flex items-center gap-3">
             <img src="https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/138846705_247951546693089_6505800604178808158_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3wGXVV3pgMd3z7McTCHzCw4KlUI_PC40S4aMmH6BmUb3pQ&oe=69B7D890&_nc_sid=5e03e0&_nc_cat=105" 
-                 class="w-11 h-11 rounded-full itzik-status shadow-lg">
+                 class="w-10 h-10 rounded-full border-2 border-[#25d366]">
             <div>
-                <h1 class="font-bold text-md text-white">איציק זהבי (מנהל החרש)</h1>
-                <p class="text-[10px] text-[#25d366] font-bold">● מחובר לסידור של רמי</p>
+                <h1 class="text-sm font-bold">איציק זהבי (החרש 10)</h1>
+                <p id="device-info" class="text-[9px] text-[#25d366]">מזהה מכשיר...</p>
             </div>
         </div>
-        <div class="flex gap-4 text-slate-400">
-            <i class="fas fa-search"></i>
+        <div class="flex gap-4 text-slate-400 text-sm">
+            <i class="fas fa-moon cursor-pointer" onclick="toggleTheme()"></i>
             <i class="fas fa-ellipsis-v"></i>
         </div>
     </header>
 
-    <main class="flex-1 whatsapp-bg overflow-y-auto p-4 space-y-4">
-        <div class="flex justify-center"><span class="bg-[#111b21] text-[10px] px-3 py-1 rounded-lg text-slate-400 uppercase">היום</span></div>
-        
-        <div class="bg-[#202c33] p-4 rounded-2xl rounded-tr-none max-w-[85%] shadow-md border-r-4 border-blue-500">
-            <p class="text-[12px] leading-relaxed">היי איציק, המוח הארגוני זוכר את הפנייה האחרונה שלך. האם נרצה להמשיך את <b>העברה #882</b> או לפתוח הובלה חדשה?</p>
-            <span class="text-[9px] opacity-50 block text-left mt-1">11:52</span>
-        </div>
-    </main>
+    <main id="chat-box" class="flex-1 whatsapp-bg overflow-y-auto p-4 space-y-3 text-sm">
+        </main>
 
-    <div class="px-4 pb-2 flex gap-2">
-        <button class="flex-1 bg-blue-600 hover:bg-blue-500 p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm shadow-lg active:scale-95 transition-all">
-            📦 העברה בין סניפים
-        </button>
-        <button class="flex-1 bg-emerald-600 hover:bg-emerald-500 p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm shadow-lg active:scale-95 transition-all">
-            🏗️ הובלה ללקוח
-        </button>
+    <div class="p-3 flex gap-2">
+        <button onclick="sendQuick('העברה בין סניפים')" class="flex-1 bg-blue-600 py-3 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all">📦 העברה</button>
+        <button onclick="sendQuick('הובלה ללקוח')" class="flex-1 bg-emerald-600 py-3 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all">🏗️ הובלה</button>
     </div>
 
-    <footer class="bg-[#202c33] p-3 flex items-center gap-3">
-        <i class="far fa-smile text-slate-400 text-xl"></i>
-        <i class="fas fa-paperclip text-slate-400 text-xl"></i>
-        <input type="text" placeholder="הקלד הודעה לסידור..." class="flex-1 bg-[#2a3942] rounded-xl p-3 text-sm outline-none focus:ring-1 focus:ring-blue-500">
-        <div class="bg-[#00a884] w-11 h-11 rounded-full flex items-center justify-center shadow-lg">
-            <i class="fas fa-microphone text-white"></i>
-        </div>
+    <footer class="bg-[#202c33] p-3 flex items-center gap-2">
+        <input type="text" id="msg-input" placeholder="הקלד הודעה לסידור..." 
+               class="flex-1 bg-[#2a3942] rounded-xl p-3 text-sm outline-none border border-white/5">
+        <button onclick="handleSend()" class="bg-[#00a884] w-10 h-10 rounded-full flex items-center justify-center shadow-md">
+            <i class="fas fa-paper-plane text-white text-sm"></i>
+        </button>
     </footer>
 
+    <script src="app.js"></script>
 </body>
 </html>
