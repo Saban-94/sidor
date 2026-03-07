@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SABAN | תיקוף הזמנה חכם</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .item-row { transition: all 0.3s ease; }
+        .item-ambiguous { border-right: 4px solid #ef4444; background: #fef2f2; }
+        .item-validated { border-right: 4px solid #22c55e; background: #f0fdf4; }
+        .shimmer { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col font-['Assistant']">
+
+    <header class="bg-slate-900 text-white p-4 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <h1 class="font-black italic">SABAN LOGISTICS</h1>
+            <div id="load-indicator" class="text-[10px] bg-blue-500 px-2 py-1 rounded-full uppercase">חישוב משקל חיה...</div>
+        </div>
+    </header>
+
+    <main id="chat-window" class="flex-1 p-4 space-y-4 overflow-y-auto pb-32">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 max-w-[85%]">
+            <p class="text-sm font-bold text-slate-700">שלום רמי, אני מעבד את רשימת המוצרים. אנא אשר את הפריטים המסומנים באדום:</p>
+        </div>
+
+        <div class="item-row item-ambiguous p-4 rounded-xl shadow-sm space-y-3">
+            <div class="flex justify-between items-start">
+                <span class="font-bold text-red-600">⚠️ מוצר לא מזוהה: "מלט"</span>
+                <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">נדרשת בחירה</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="validateItem(this, 'מלט אפור 25 קג')" class="bg-white border border-slate-200 p-2 rounded-lg text-xs hover:bg-slate-50 transition">מלט אפור 25 ק"ג</button>
+                <button onclick="validateItem(this, 'מלט לבן 25 קג')" class="bg-white border border-slate-200 p-2 rounded-lg text-xs hover:bg-slate-50 transition">מלט לבן 25 ק"ג</button>
+            </div>
+        </div>
+
+        <div class="item-row item-validated p-4 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+                <div class="text-sm font-black text-slate-800">סומסום - שק גדול</div>
+                <div class="text-[10px] text-slate-500">מק"ט: 11511 | כמות: 2</div>
+            </div>
+            <i class="fas fa-check-circle text-green-500"></i>
+        </div>
+    </main>
+
+    <footer class="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t">
+        <div class="max-w-md mx-auto space-y-3">
+            <div class="flex justify-between text-sm font-bold px-2">
+                <span>משקל כולל: <span id="total-weight">0</span> ק"ג</span>
+                <span>סה"כ פריטים: <span id="total-items">0</span></span>
+            </div>
+            <button onclick="sendToPipeline()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all">
+                אשר ושגר לסידור העבודה 🚀
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        function validateItem(btn, selectedName) {
+            const row = btn.closest('.item-row');
+            row.classList.remove('item-ambiguous');
+            row.classList.add('item-validated');
+            row.innerHTML = `
+                <div class="flex justify-between items-center w-full">
+                    <div>
+                        <div class="text-sm font-black text-slate-800">${selectedName}</div>
+                        <div class="text-[10px] text-slate-500">עודכן ע"י רמי | מק"ט סונכרן</div>
+                    </div>
+                    <i class="fas fa-check-circle text-green-500"></i>
+                </div>
+            `;
+            updateTotals();
+        }
+
+        function updateTotals() {
+            // לוגיקת חישוב משקל פשוטה להדגמה
+            document.getElementById('total-weight').innerText = "1,250";
+            document.getElementById('total-items').innerText = document.querySelectorAll('.item-validated').length;
+        }
+
+        function sendToPipeline() {
+            alert("הזמנה מאושרת הוזרקה ל-Pipeline של JONI!");
+        }
+    </script>
+</body>
+</html>
