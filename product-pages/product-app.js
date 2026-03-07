@@ -1,3 +1,22 @@
+// product-app.js - חיבור למאגר ח. סבן
+const SB_URL = 'https://sqslrnbduxtxsvwqryxq.supabase.co'; 
+const SB_KEY = 'YOUR_SUPABASE_ANON_KEY'; // שים כאן את ה-anon/public key שלך
+
+async function fetchProductData(productId) {
+    try {
+        const res = await fetch(`${SB_URL}/rest/v1/inventory?sku=eq.${productId}&select=*`, {
+            headers: { 
+                'apikey': SB_KEY, 
+                'Authorization': `Bearer ${SB_KEY}` 
+            }
+        });
+        const data = await res.json();
+        return data[0];
+    } catch (err) {
+        console.error("שגיאה במשיכת נתונים מהמלאי:", err);
+        return null;
+    }
+}
 (function() {
     const product = {
         id: "termokir_603",
