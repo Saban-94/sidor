@@ -13,11 +13,17 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
 
     // בריכת מודלים מעודכנת (2026) - סדר עדיפויות לפי מהירות ועלות
-    const modelPool = [
-        "gemini-3.1-flash-lite-preview", // המהיר והחסכוני ביותר
-        "gemini-3.1-flash-preview",      // חזק יותר
-        "gemini-2.0-flash-exp"          // גיבוי יציב
-    ];
+// שימוש במודל ה-Lite החדש כברירת מחדל לייעוץ מהיר
+const model = "gemini-3.1-flash-lite-preview"; 
+
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        // צמצום התשובה למינימום טכני לחיסכון במכסה
+        generationConfig: { temperature: 0.1, maxOutputTokens: 500 } 
+    })
+});
 
     try {
         // 1. שליפת DNA של היועץ מהטבלה החדשה
