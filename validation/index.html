@@ -61,6 +61,33 @@
     </footer>
 
     <script>
+       
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+const firebaseConfig = { /* הקונפיגורציה שלך מ-Vercel */ };
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// שליפת ה-Phone מה-URL (למשל ?phone=97250...)
+const urlParams = new URLSearchParams(window.location.search);
+const userPhone = urlParams.get('phone');
+
+if (userPhone) {
+    const orderRef = ref(db, `saban94/pipeline/${userPhone.replace('+', '')}`);
+    onValue(orderRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.text) {
+            renderValidationRows(data.text); // פונקציה שתפרק את הטקסט לשורות
+        }
+    });
+}
+
+function renderValidationRows(text) {
+    const chatWindow = document.getElementById('chat-window');
+    // לוגיקה שתזהה מוצרים ותייצר שורות אדומות/ירוקות
+    console.log("מעבד רשימה:", text);
+}
         function validateItem(btn, selectedName) {
             const row = btn.closest('.item-row');
             row.classList.remove('item-ambiguous');
