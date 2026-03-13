@@ -1,27 +1,34 @@
 // /pages/api/send-message.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-const JONI_URL = "https://occupational-nonchromatically-jamal.ngrok-free.app/send";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+
   const { phone, text } = req.body;
 
+  // הכתובת המעודכנת מה-ngrok שלך
+  const JONI_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev/send";
+
   try {
-    // הכתובת המקומית של JONI (וודא שהתוכנה רצה במחשב על פורט 5633 או הפורט שמופיע לך)
-    const response = await fetch('http://localhost:5633/send', {
+    const response = await fetch(JONI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true' // עוקף את דף האזהרה של ngrok
+      },
       body: JSON.stringify({
-        number: phone, // מספר היעד
-        message: text  // תוכן ההודעה
+        number: phone.replace(/\D/g, ''), // מבטיח מספר נקי בלבד
+        message: text
       }),
     });
 
-    if (!response.ok) throw new Error('JONI returned an error');
+    if (!response.ok) {
+      const errorData = await response.text();
+      return res.status(response.status).json({ error: 'JONI Error', details: errorData });
+    }
 
     return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Send Error:', error);
-    return res.status(500).json({ error: 'Failed to send via JONI' });
+  } catch (error: any) {
+    return res.status(502).json({ error: 'Connection failed', details: error.message });
   }
 }
