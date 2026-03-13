@@ -1,37 +1,35 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { adminDb } from '../../../lib/firebaseAdmin'; // תוודא שהנתיב לקובץ הקודם נכון
+import admin from 'firebase-admin';
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+    databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/"
+  });
+}
+
+const adminDb = admin.database();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  if (!adminDb) {
-    return res.status(503).json({ error: 'Database not initialized' });
-  }
-
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  
   const { phone, message } = req.body;
-
-  if (!phone || !message) {
-    return res.status(400).json({ error: 'Missing phone or message' });
-  }
+  const formattedPhone = phone.includes('@') ? phone : `${phone.replace(/\D/g, '')}@c.us`;
 
   try {
-    // עיבוד המספר לפורמט ש-JONI אוהב (9725XXXX@c.us)
-    const formattedPhone = phone.includes('@') ? phone : `${phone.replace(/\D/g, '')}@c.us`;
-
-    // כתיבה לנתיב הצינור שציינת
     const joniRef = adminDb.ref('saban94/commands');
-    const newMessage = await joniRef.push({
+    await joniRef.push({
       number: formattedPhone,
       text: message,
       timestamp: Date.now(),
-      status: 'pending' // JONI יזהה את זה וישלח
+      status: 'pending'
     });
-
-    return res.status(200).json({ success: true, id: newMessage.key });
-  } catch (error: any) {
-    console.error("API Error:", error.message);
-    return res.status(500).json({ error: 'Failed to send to pipe' });
+    return res.status(200).json({ success: true });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
 }
