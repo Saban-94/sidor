@@ -18,7 +18,9 @@
     "next-pwa": "^5.6.0",
     "lucide-react": "latest",
     "clsx": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "tailwindcss": "latest",
+    "@tailwindcss/postcss": "latest"
   },
   "devDependencies": {
     "typescript": "latest",
@@ -26,7 +28,6 @@
     "@types/node": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
-    "postcss": "latest",
-    "tailwindcss": "latest"
+    "postcss": "latest"
   }
 }
