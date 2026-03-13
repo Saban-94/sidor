@@ -1,15 +1,20 @@
 {
-  "name": "ח. סבן - סידור איציק",
-  "short_name": "איציק סידור",
-  "start_url": "/itzik-sidor.html",
+  "name": "Saban Office Manager",
+  "short_name": "Saban-Sidor",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#33ccff",
+  "background_color": "#ffffff",
+  "theme_color": "#25D366",
   "icons": [
     {
-      "src": "https://media-mrs2-2.cdn.whatsapp.net/v/t61.24694-24/138846705_247951546693089_6505800604178808158_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3wGXVV3pgMd3z7McTCHzCw4KlUI_PC40S4aMmH6BmUb3pQ&oe=69B7D890&_nc_sid=5e03e0&_nc_cat=105",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/jpg"
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }
