@@ -1,5 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
+import { supabase } from "./realtime/supabase";
 // 1. הגדרת משתנים עם Fallback למניעת קריסת Build
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://sqslrnbduxtxsvwqryxq.supabase.co';
 
