@@ -1,4 +1,6 @@
-import { supabase } from "./realtime/supabase";
+// /lib/realtime/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
 // 1. הגדרת משתנים עם Fallback למניעת קריסת Build
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://sqslrnbduxtxsvwqryxq.supabase.co';
 
@@ -6,7 +8,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://sqslrnbduxt
 const supabaseKey = 
   process.env.SUPABASE_SERVICE_ROLE_KEY || 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-  'placeholder-key-missing';
+  '';
 
 /**
  * יצירת הלקוח של Supabase.
@@ -28,5 +30,5 @@ export const isSupabaseReady = () => {
   return hasUrl && hasKey;
 };
 
-// ייצוא המפתחות לשימוש בקבצים אחרים (כמו ב-Product App)
+// ייצוא המפתחות לשימוש בקבצים אחרים
 export const supabaseConfig = { url: supabaseUrl, key: supabaseKey };
