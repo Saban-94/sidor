@@ -1,5 +1,6 @@
 // /components/chat/MessageBubble.tsx
-import { Message } from "@/types";
+import { Message } from "../../types";
+
 
 interface MessageBubbleProps {
   message: Message;
