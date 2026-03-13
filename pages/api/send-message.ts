@@ -6,24 +6,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { phone, text } = req.body;
 
-  // וודא שהמספר בפורמט בינלאומי ללא פלוס (למשל 972501234567)
-  const cleanPhone = phone.replace(/\D/g, '');
-
   try {
-    // שליחה לצינור של JONI - הכתובת היא ה-IP/URL שמופיע לך בתוכנה במחשב
-    const response = await fetch('http://localhost:5633/send', { // וודא פורט מול JONI
+    // הכתובת המקומית של JONI (וודא שהתוכנה רצה במחשב על פורט 5633 או הפורט שמופיע לך)
+    const response = await fetch('http://localhost:5633/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        number: cleanPhone,
-        message: text
+        number: phone, // מספר היעד
+        message: text  // תוכן ההודעה
       }),
     });
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    if (!response.ok) throw new Error('JONI returned an error');
+
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Send Error:', error);
-    return res.status(500).json({ error: 'Failed to connect to JONI pipeline' });
+    return res.status(500).json({ error: 'Failed to send via JONI' });
   }
 }
