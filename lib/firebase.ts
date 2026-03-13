@@ -4,7 +4,24 @@ import admin from 'firebase-admin';
  * Saban-OS: Firebase Admin Connection Module
  * אחראי על חיבור מאובטח ל-Realtime Database עבור הצינור של JONI
  */
+// /lib/firebase.ts
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getDatabase } from "firebase/database"; // ייבוא ה-Realtime DB
 
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: "...",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+};
+
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const db = getDatabase(app); // חיבור ל-RTDB
+
+export { app, db };
 if (!admin.apps.length) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
