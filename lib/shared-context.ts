@@ -1,4 +1,6 @@
+// /lib/shared-context.ts
 import { supabase } from "./realtime/supabase";
+
 export async function getSabanContext(agentType: 'executor' | 'consultant') {
   try {
     // שליפת חוקים ומלאי קריטי בפעימה אחת
@@ -12,6 +14,7 @@ export async function getSabanContext(agentType: 'executor' | 'consultant') {
       lowStockAlerts: inventory.data || []
     };
   } catch (e) {
+    console.error("Context fetch error:", e);
     return { dna: "", lowStockAlerts: [] };
   }
 }
