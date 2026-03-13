@@ -2,33 +2,71 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+  // חסימת שיטות שהן לא POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const { phone, text } = req.body;
 
+  // בדיקת תקינות בסיסית של הקלט
+  if (!phone || !text) {
+    return res.status(400).json({ error: 'Phone and text are required' });
+  }
+
   // הכתובת המעודכנת מה-ngrok שלך
-  const JONI_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev/send";
+  const NGROK_BASE_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev";
+  const JONI_ENDPOINT = `${NGROK_BASE_URL}/send`;
+
+  // ניקוי מספר הטלפון (משאיר רק ספרות)
+  const cleanPhone = phone.toString().replace(/\D/g, '');
 
   try {
-    const response = await fetch(JONI_URL, {
+    // הגדרת טיימאאוט כדי שהשרת לא ייתקע אם ngrok לא מגיב
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(JONI_ENDPOINT, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true' // עוקף את דף האזהרה של ngrok
+        // חיוני: מדלג על דף האזהרה של ngrok שחוסם בקשות API בתוכנית החינמית
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'SabanOS-Bot'
       },
       body: JSON.stringify({
-        number: phone.replace(/\D/g, ''), // מבטיח מספר נקי בלבד
+        number: cleanPhone,
         message: text
       }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
+    // בדיקה אם JONI החזיר שגיאה (למשל מספר לא תקין או ניתוק מוואטסאפ)
     if (!response.ok) {
-      const errorData = await response.text();
-      return res.status(response.status).json({ error: 'JONI Error', details: errorData });
+      const errorText = await response.text();
+      console.error('JONI Response Error:', errorText);
+      return res.status(response.status).json({ 
+        error: 'JONI connection failed', 
+        details: errorText 
+      });
     }
 
-    return res.status(200).json({ success: true });
+    // הצלחה
+    return res.status(200).json({ success: true, target: cleanPhone });
+
   } catch (error: any) {
-    return res.status(502).json({ error: 'Connection failed', details: error.message });
+    console.error('API Route Error:', error);
+
+    // טיפול ספציפי במקרה של ניתוק המנהרה (Tunnel Offline)
+    if (error.name === 'AbortError') {
+      return res.status(504).json({ error: 'Request Timeout - JONI/ngrok is too slow' });
+    }
+
+    return res.status(502).json({ 
+      error: 'Gateway Error - Is ngrok running?', 
+      details: error.message 
+    });
   }
 }
