@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // הכתובת המעודכנת מה-ngrok שלך
-  const NGROK_BASE_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev";
+  const JONI_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev/send";
   const JONI_ENDPOINT = `${NGROK_BASE_URL}/send`;
 
   // ניקוי מספר הטלפון (משאיר רק ספרות)
