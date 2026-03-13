@@ -1,5 +1,4 @@
-import { supabase } from "./supabase";
-
+import { supabase } from "./realtime/supabase";
 export async function getSabanContext(agentType: 'executor' | 'consultant') {
   try {
     // שליפת חוקים ומלאי קריטי בפעימה אחת
