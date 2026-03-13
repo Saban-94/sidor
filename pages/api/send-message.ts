@@ -15,8 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // הכתובת המעודכנת מה-ngrok שלך
-  const JONI_URL = "https://occupational-nonchromatically-jamal.ngrok-free.dev/send";
-  const JONI_ENDPOINT = `${NGROK_BASE_URL}/send`;
+  const JONI_ENDPOINT = "https://occupational-nonchromatically-jamal.ngrok-free.dev/send";
 
   // ניקוי מספר הטלפון (משאיר רק ספרות)
   const cleanPhone = phone.toString().replace(/\D/g, '');
@@ -30,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        // חיוני: מדלג על דף האזהרה של ngrok שחוסם בקשות API בתוכנית החינמית
         'ngrok-skip-browser-warning': 'true',
         'User-Agent': 'SabanOS-Bot'
       },
@@ -43,23 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     clearTimeout(timeoutId);
 
-    // בדיקה אם JONI החזיר שגיאה (למשל מספר לא תקין או ניתוק מוואטסאפ)
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('JONI Response Error:', errorText);
       return res.status(response.status).json({ 
         error: 'JONI connection failed', 
         details: errorText 
       });
     }
 
-    // הצלחה
-    return res.status(200).json({ success: true, target: cleanPhone });
+    return res.status(200).json({ success: true });
 
   } catch (error: any) {
-    console.error('API Route Error:', error);
-
-    // טיפול ספציפי במקרה של ניתוק המנהרה (Tunnel Offline)
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'Request Timeout - JONI/ngrok is too slow' });
     }
