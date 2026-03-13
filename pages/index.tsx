@@ -21,17 +21,18 @@ export default function Dashboard() {
       const data = snapshot.val();
       if (!data) return;
 
-      const newMessage: Message = {
-        id: snapshot.key || Math.random().toString(),
-        body: data.body || data.text || "", 
-        fromMe: data.fromMe || false,
-        timestamp: data.timestamp || Date.now(),
-        senderId: data.from || "client",
-        chatId: "chat-sidor",
-        kind: 'text',
-        status: 'delivered',
-        createdAt: new Date(data.timestamp || Date.now()).toISOString()
-      };
+const newMessage: Message = {
+  id: snapshot.key || Math.random().toString(),
+  body: data.body || data.text || "", 
+  content: data.body || data.text || "", // השדה שהיה חסר והכשיל את ה-Build
+  fromMe: data.fromMe || false,
+  timestamp: data.timestamp || Date.now(),
+  senderId: data.from || "client",
+  chatId: "chat-sidor",
+  kind: 'text',
+  status: 'delivered',
+  createdAt: new Date(data.timestamp || Date.now()).toISOString()
+};
 
       setMessages((prev) => {
         if (prev.find(m => m.id === newMessage.id)) return prev;
