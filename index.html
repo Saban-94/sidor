@@ -1,113 +1,75 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>Saban AI - ממשק עסקי לחיץ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Assistant', sans-serif; background: #f0f2f5; height: 100vh; display: flex; overflow: hidden; margin: 0; }
-        .sidebar { width: 350px; background: white; border-left: 1px solid #ddd; z-index: 10; display: flex; flex-direction: column; }
-        .chat-main { flex: 1; background: #e5ddd5; display: flex; flex-direction: column; position: relative; z-index: 5; }
-        
-        /* תיקון לחיצה - וידוא שאין שכבה חוסמת */
-        footer { 
-            background: #f0f2f5; 
-            padding: 15px; 
-            display: flex; 
-            align-items: center; 
-            gap: 10px; 
-            z-index: 1000 !important; /* שכבה עליונה ביותר */
-            border-top: 1px solid #ddd;
-        }
-        #msg-input { 
-            flex: 1; 
-            padding: 12px; 
-            border-radius: 8px; 
-            border: 1px solid #ccc; 
-            outline: none; 
-            background: white !important;
-            cursor: text !important;
-            pointer-events: auto !important;
-            z-index: 1100 !important;
-        }
-        #send-btn { 
-            cursor: pointer !important; 
-            z-index: 1100 !important;
-            background: #22c55e;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <aside class="sidebar shadow-lg">
-        <header class="p-4 bg-slate-100 border-b font-bold italic text-slate-700">ח. סבן - ניהול סידור</header>
-        <div id="customer-list" class="flex-1 overflow-y-auto"></div>
-    </aside>
+import { useEffect, useState } from 'react';
+import { ref, onChildAdded, query, limitToLast } from "firebase/database";
+import { db } from "../lib/firebaseClient"; // ה-SDK הרגיל של פיירבייס
 
-    <main class="chat-main">
-        <header class="h-[60px] bg-white border-b p-3 flex items-center justify-between shadow-sm z-20">
-            <span id="active-name" class="font-bold text-gray-700">972508860896 (עסקי)</span>
-            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-        </header>
+export default function SabanOS() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [phone, setPhone] = useState('');
+  const [text, setText] = useState('');
 
-        <div id="chat-canvas" class="flex-1 overflow-y-auto p-5 flex flex-col gap-2"></div>
+  // האזנה להודעות נכנסות מ-chat-sidor
+  useEffect(() => {
+    const chatRef = query(ref(db, 'chat-sidor'), limitToLast(20));
+    
+    const unsubscribe = onChildAdded(chatRef, (snapshot) => {
+      const data = snapshot.val();
+      setMessages((prev) => [...prev, { id: snapshot.key, ...data }].slice(-20));
+    });
 
-        <footer>
-            <input id="msg-input" type="text" placeholder="הקלד כאן ולחץ Enter..." autocomplete="off">
-            <button id="send-btn">שלח</button>
-        </footer>
-    </main>
+    return () => unsubscribe();
+  }, []);
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  const sendMessage = async () => {
+    const res = await fetch('/api/whatsapp/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, message: text }),
+    });
+    
+    if (res.ok) {
+      setText('');
+      alert("נשלח לצינור!");
+    }
+  };
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAg1mkCCOs1A7inc4HfPmTND2t26zbgf9A",
-            authDomain: "whatsapp-8ffd1.firebaseapp.com",
-            projectId: "whatsapp-8ffd1",
-            databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app"
-        };
+  return (
+    <div className="flex flex-col h-screen bg-gray-100 p-4 font-sans" dir="rtl">
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold text-green-700">Saban-OS Control Center</h1>
+        <p className="text-sm text-gray-600">ניהול וואטסאפ וצינור JONI</p>
+      </header>
 
-        const app = initializeApp(firebaseConfig);
-        const rtdb = getDatabase(app);
+      {/* תצוגת הודעות */}
+      <div className="flex-1 overflow-y-auto bg-white rounded-lg p-4 shadow-inner mb-4">
+        {messages.map((m) => (
+          <div key={m.id} className={`mb-2 p-2 rounded-lg ${m.fromMe ? 'bg-green-100 text-left' : 'bg-blue-100 text-right'}`}>
+            <span className="block text-xs font-bold">{m.pushName || m.from}</span>
+            <p>{m.body || m.text}</p>
+          </div>
+        ))}
+      </div>
 
-        async function doSend() {
-            const input = document.getElementById('msg-input');
-            const text = input.value.trim();
-            if(!text) return;
-
-            // שליחה לצינור saban94 (נתיב JONI)
-            await push(ref(rtdb, 'saban94/send'), {
-                to: "972508861080", // שולח אליך לפרטי לבדיקה
-                text: text,
-                timestamp: Date.now()
-            });
-
-            input.value = '';
-            input.focus();
-        }
-
-        // מאזין למקלדת ולכפתור
-        document.getElementById('msg-input').addEventListener('keydown', (e) => {
-            if(e.key === 'Enter') doSend();
-        });
-        document.getElementById('send-btn').onclick = doSend;
-
-        // טעינת היסטוריה פשוטה
-        onValue(ref(rtdb, 'saban94/incoming'), (snap) => {
-            const canvas = document.getElementById('chat-canvas');
-            canvas.innerHTML = '';
-            if(snap.exists()) {
-                Object.values(snap.val()).forEach(m => {
-                    canvas.insertAdjacentHTML('beforeend', `<div class="bg-white p-2 rounded shadow-sm self-start max-w-[80%]">${m.text}</div>`);
-                });
-            }
-            canvas.scrollTop = canvas.scrollHeight;
-        });
-    </script>
-</body>
-</html>
+      {/* פאנל שליחה */}
+      <div className="bg-white p-4 rounded-lg shadow-md">
+        <input 
+          className="w-full border p-2 rounded mb-2" 
+          placeholder="מספר טלפון (972...)" 
+          value={phone} 
+          onChange={(e) => setPhone(e.target.value)} 
+        />
+        <textarea 
+          className="w-full border p-2 rounded mb-2" 
+          placeholder="הודעה..." 
+          value={text} 
+          onChange={(e) => setText(e.target.value)} 
+        />
+        <button 
+          onClick={sendMessage}
+          className="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition"
+        >
+          שלח הודעה
+        </button>
+      </div>
+    </div>
+  );
+}
