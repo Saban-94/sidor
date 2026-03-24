@@ -1,7 +1,16 @@
-/* /styles/globals.css */
-@import "tailwindcss";
-
-/* אם יש לך הגדרות מיוחדות, הן נכנסות כאן בתוך theme */
-@theme {
-  --color-brand: #00a884;
-}
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        brand: '#00a884',
+      }
+    },
+  },
+  plugins: [],
+};
