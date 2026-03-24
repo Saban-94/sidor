@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 
-// הגדרת המפתחות
+// הגדרת המפתחות מתוך משתני הסביבה
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const geminiKey = process.env.GEMINI_API_KEY || '';
@@ -30,18 +30,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (error) throw error;
 
-    // 2. מכינים את הקונטקסט למוח
+    // 2. מכינים את הקונטקסט למוח (ה-Prompt המשודרג והאנושי)
     const prompt = `
-    אתה "מוח הסידור" של חברת חומרי הבניין "ח. סבן". המטרה שלך היא לעזור לראמי (המנהל) לנהל את משאיות המנוף והנהגים.
-    הנה נתוני סידור העבודה לתאריך ${dateStr}:
-    ${JSON.stringify(schedule, null, 2)}
+    אתה "מוח הסידור" של חברת חומרי הבניין "ח. סבן". ראמי (המנהל) מדבר איתך עכשיו.
+    
+    נתוני סידור העבודה ליום המבוקש (${dateStr}):
+    ${schedule && schedule.length > 0 ? JSON.stringify(schedule, null, 2) : 'אין כרגע הזמנות משובצות בטבלה.'}
 
-    כללים למענה:
-    1. ענה בעברית, קצר, מקצועי וישיר. בלי הקדמות.
-    2. חפש בנתונים לאיזה נהג (חכמת/עלי) משובצת ההזמנה, באיזו שעה, והאם זה מנוף/פסולת.
-    3. אם אין נתונים רלוונטיים, אמור שאין הזמנות משובצות התואמות לשאלה.
+    כללים חשובים למענה:
+    1. אם ראמי רק כותב מילות ברכה (כמו "שלום", "היי", "בוקר טוב", "מה קורה"), ענה לו בטבעיות כמו אח: "שלום ראמי! איך אפשר לעזור עם סידור העבודה?". **אל תדבר על הזמנות או תגיד שאין הזמנות אלא אם הוא שאל ספציפית.**
+    2. אם הוא שואל על הלו"ז, על הנהגים (חכמת/עלי), או על הזמנה ספציפית - נתח את הנתונים וענה לו קצר, ישיר ולעניין.
+    3. תמיד ענה בעברית טבעית וזורמת.
 
-    השאלה של המנהל: "${question}"
+    ההודעה של ראמי: "${question}"
     `;
 
     // 3. ירייה ל-Gemini
