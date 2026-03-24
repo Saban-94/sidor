@@ -3,6 +3,7 @@
 @import "tailwindcss";
 
 @theme {
+   --color-brand: #00a884;
   --color-whatsapp-green: #00a884;
   --color-whatsapp-bg: #f0f2f5;
   --color-chat-bg: #e5ddd5;
