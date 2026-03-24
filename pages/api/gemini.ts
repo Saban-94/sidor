@@ -19,8 +19,8 @@ const dbFS = getFirestore(app);
 
 // 3. פונקציית שחקן חיזוק - מנוע חיפוש גוגל מותאם
 async function getGoogleCseInfo(query: string) {
-    const cx = "1340c66f5e73a4076"; // המזהה שלך
-    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+    const cx = process.env.NEXT_PUBLIC_GOOGLE_CSE_ID || "1340c66f5e73a4076"; 
+    const apiKey = process.env.Search_API_KEY || process.env.GOOGLE_SEARCH_API_KEY;
     if (!apiKey) return null;
 
     try {
@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const { message, context } = req.body; // context = ההנחיות של הלקוח מה-CRM (למשל תחסין)
+    const { message, context } = req.body; // context = ההנחיות של הלקוח מה-CRM
 
     if (!message) return res.status(400).json({ error: "Missing message" });
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
@@ -56,11 +56,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ];
 
     try {
-        // 4. שליפה מקבילית סופר-מהירה: DNA, מלאי, וזיכרון מוקשמון (Cache) מפיירבייס
+        // 4. שליפה מקבילית: DNA, מלאי, וזיכרון מוקשמון (Cache) מפיירבייס
         const [rulesRes, invRes, cacheSnap] = await Promise.all([
             supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true),
             supabase.from('inventory').select('*').textSearch('product_name', message, { config: 'hebrew' }).limit(1),
-            getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) // הגנה מקריסה אם הקולקשן ריק
+            getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) // הגנה מקריסה
         ]);
 
         const rules = rulesRes.data;
@@ -75,13 +75,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // 5. הפעלת שחקן חיזוק (גוגל) רק אם אין במלאי הפנימי
-        let googleSearchInfo = null;
+        // תיקון טייפסקריפט: הגדרה מפורשת שזה לא רק null אלא יכול להיות כל סוג (any)
+        let googleSearchInfo: any = null;
         if (!inv || inv.length === 0) {
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט האולטימטיבי (משלב CRM, Supabase וגוגל)
-        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
+        // 6. הרכבת הפרומפט האולטימטיבי
+        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח. סבן.";
         const productInfo = inv?.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}` : "";
         
@@ -98,10 +99,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש,הצג תמונת מוצר או סרטון הדרכה תחפש מהרשת  חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
         [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות]
         .🚀חתימה: ראמי זמין וגם אם לו דאג לי יקבל את ההזמנה רק תאשר לי שיגור 
-        שאלה: ${message}
+        שאלה:
+        ${message}
         `;
         
-        let lastError = null;
+        // תיקון טייפסקריפט נוסף למניעת שגיאות בלולאה
+        let lastError: any = null;
         let finalReply = "";
         let activeModel = "";
 
@@ -122,7 +125,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
                     finalReply = data.candidates[0].content.parts[0].text;
                     activeModel = modelName;
-                    break; // קיבלנו תשובה! שוברים את הלולאה
+                    break; 
                 }
             } catch (e: any) {
                 lastError = e.message;
@@ -150,7 +153,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 console.error("שגיאה בשמירת זיכרון מוצר:", err);
             }
 
-            // ניקוי תגית השמירה לפני שהטקסט חוזר לווצאפ
             finalReply = finalReply.replace(/\[SAVE_PRODUCT:.*?\]/g, '').trim();
         }
 
