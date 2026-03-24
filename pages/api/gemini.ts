@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
-// 3. פונקציית שחקן חיזוק - מנוע חיפוש גוגל מותאם
+// 3. פונקציית שחקן חיזוק - מנוע חיפוש גוגל מותאם (מחזיר גם תמונות)
 async function getGoogleCseInfo(query: string) {
     const cx = process.env.NEXT_PUBLIC_GOOGLE_CSE_ID || "1340c66f5e73a4076"; 
     const apiKey = process.env.Search_API_KEY || process.env.GOOGLE_SEARCH_API_KEY;
@@ -32,7 +32,7 @@ async function getGoogleCseInfo(query: string) {
             return {
                 snippet: data.items[0].snippet,
                 link: data.items[0].link,
-                image: data.items[0].pagemap?.cse_image?.[0]?.src || null
+                image: data.items[0].pagemap?.cse_image?.[0]?.src || null // חילוץ תמונה מגוגל
             };
         }
         return null;
@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const { message, context } = req.body; // context = ההנחיות של הלקוח מה-CRM
+    const { message, context } = req.body; 
 
     if (!message) return res.status(400).json({ error: "Missing message" });
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
@@ -56,35 +56,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ];
 
     try {
-        // 4. שליפה מקבילית: DNA, מלאי, וזיכרון מוקשמון (Cache) מפיירבייס
+        // 4. שליפה מקבילית: DNA, רשימת מלאי (עד 5 מוצרים במקום 1), וזיכרון מוקשמון מפיירבייס
         const [rulesRes, invRes, cacheSnap] = await Promise.all([
             supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true),
-            supabase.from('inventory').select('*').textSearch('product_name', message, { config: 'hebrew' }).limit(1),
-            getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) // הגנה מקריסה
+            supabase.from('inventory').select('*').textSearch('product_name', message, { config: 'hebrew' }).limit(5), // <-- שונה ל-5 כדי להביא רשימה
+            getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) 
         ]);
 
         const rules = rulesRes.data;
         const inv = invRes.data;
         const cacheDocs = cacheSnap.docs.map(d => d.data());
 
-        // הרכבת מידע טכני מהקאש (חסכון בחיפושים)
+        // הרכבת מידע טכני מהקאש 
         let knowledgeBaseText = "";
         if (cacheDocs.length > 0) {
             knowledgeBaseText = "\nמידע טכני מהמאגר שלנו (השתמש בזה כדי לחסוך חיפוש):\n" + 
-                                cacheDocs.map(p => `- ${p.productName}: ${p.description}`).join("\n");
+                                cacheDocs.map(p => `- ${p.productName}: ${p.description} (תמונה אם יש: ${p.image_url || 'אין'})`).join("\n");
         }
 
-        // 5. הפעלת שחקן חיזוק (גוגל) רק אם אין במלאי הפנימי
-        // תיקון טייפסקריפט: הגדרה מפורשת שזה לא רק null אלא יכול להיות כל סוג (any)
+        // 5. הפעלת שחקן חיזוק (גוגל) רק אם אין במלאי הפנימי בכלל
         let googleSearchInfo: any = null;
         if (!inv || inv.length === 0) {
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט האולטימטיבי
-        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח. סבן.";
+        // 6. הרכבת הפרומפט האולטימטיבי (כולל הוראות לתמונות ורשימות)
+        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
         const productInfo = inv?.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
-        const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}` : "";
+        const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה מגוגל: ${googleSearchInfo.image || 'אין'}` : "";
         
         const prompt = `
         הנחיות התנהגות מול הלקוח הנוכחי (CRM):
@@ -93,22 +92,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         הנחיות יועץ (DNA מ-Supabase): ${consultantDNA}
         ${knowledgeBaseText}
         
-        נתוני מלאי בזמן אמת: ${productInfo}
+        רשימת מוצרים מהמלאי בזמן אמת: ${productInfo}
         ${googleContext}
+        תקצר משפט פתיחה ואל תתחנף תהיה פיקודי למבציע הזמנה למשתמש שהוזכר או מוגדר כלקוח או הזכיר הזמנה
+        חוקי הצגת מוצרים ותמונות (חובה לציית):
+        1. אם יש כמה מוצרים רלוונטיים, הצג אותם כרשימה מסודרת, קצרה וקולעת (שם, מחיר אם יש, ותיאור טכני קצר).
+        2. תמונות: אם בנתונים של המוצר (מהמלאי או מגוגל) יש קישור לתמונה (URL), חובה לצרף את הקישור לשורה נפרדת מתחת לתיאור המוצר. אל תשתמש בסימון Markdown של תמונות, פשוט תדביק את הקישור כמו שהוא כדי שווצאפ יפתח אותו (לדוגמה: לינק לתמונה: https://...).
         
-        חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש,הצג תמונת מוצר או סרטון הדרכה תחפש מהרשת  חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
-        [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות]
-        .🚀חתימה: ראמי זמין וגם אם לו דאג לי יקבל את ההזמנה רק תאשר לי שיגור 
-        שאלה:
-        ${message}
+        חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש, חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
+        [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות | קישור_לתמונה_אם_יש]
+        🚀חתימה: ראמי זמין וגם אם לו דאג לי יקבל את ההזמנה רק תאשר לי שיגור
+        
+        שאלה: ${message}
         `;
         
-        // תיקון טייפסקריפט נוסף למניעת שגיאות בלולאה
         let lastError: any = null;
         let finalReply = "";
         let activeModel = "";
 
-        // 7. לולאת מודלים - מנסה אחד אחרי השני עד להצלחה
+        // 7. לולאת מודלים
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -135,20 +137,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (!finalReply) throw new Error("All models failed: " + lastError);
 
-        // 8. מנגנון תפיסת מוצרים חדשים ושמירתם למאגר (Caching)
-        const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)\]/);
+        // 8. מנגנון תפיסת מוצרים חדשים ושמירתם למאגר (כולל חילוץ תמונה אם הגיעה מגוגל)
+        const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
         if (saveMatch) {
             const newProductName = saveMatch[1].trim();
             const newProductDesc = saveMatch[2].trim();
+            const newProductImage = saveMatch[3] ? saveMatch[3].trim() : null;
             
             try {
                 await addDoc(collection(dbFS, "knowledge_base"), {
                     productName: newProductName,
                     description: newProductDesc,
+                    image_url: newProductImage !== 'אין' ? newProductImage : null,
                     addedAt: serverTimestamp(),
                     source: "google_search_cache"
                 });
-                console.log(`✅ המוח למד ושמר מוצר חדש: ${newProductName}`);
+                console.log(`✅ המוח למד ושמר מוצר חדש (עם תמונה): ${newProductName}`);
             } catch (err) {
                 console.error("שגיאה בשמירת זיכרון מוצר:", err);
             }
