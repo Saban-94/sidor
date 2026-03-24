@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // 6. הרכבת הפרומפט האולטימטיבי (משלב CRM, Supabase וגוגל)
-        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח. סבן.";
+        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
         const productInfo = inv?.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}` : "";
         
@@ -95,9 +95,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         נתוני מלאי בזמן אמת: ${productInfo}
         ${googleContext}
         
-        חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש, חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
+        חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש,הצג תמונת מוצר או סרטון הדרכה תחפש מהרשת  חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
         [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות]
-        
+        .🚀חתימה: ראמי זמין וגם אם לו דאג לי יקבל את ההזמנה רק תאשר לי שיגור 
         שאלה: ${message}
         `;
         
