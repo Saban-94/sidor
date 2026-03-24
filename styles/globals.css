@@ -1,20 +1,17 @@
 /* /styles/globals.css */
 
-/* ייבוא חבילת Tailwind v4 */
 @import "tailwindcss";
 
-/* הגדרות נושא (Theme) - כאן אפשר להוסיף צבעים של ח. סבן */
 @theme {
   --color-whatsapp-green: #00a884;
   --color-whatsapp-bg: #f0f2f5;
   --color-chat-bg: #e5ddd5;
 }
 
-/* הגדרות בסיס */
 @layer base {
   html, body {
     @apply h-full m-0 p-0 overflow-hidden;
-    direction: rtl; /* יישור לימין עבור עברית */
+    direction: rtl;
     background-color: var(--color-whatsapp-bg);
   }
 
@@ -23,14 +20,12 @@
   }
 }
 
-/* התאמות ספציפיות לרקע של וואטסאפ כפי שרואים בתמונה */
 .chat-container {
   background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
   background-blend-mode: overlay;
   background-color: rgba(229, 221, 213, 0.9);
 }
 
-/* ביטול Outline מעצבן בתיבות טקסט */
 input:focus, button:focus {
   outline: none;
 }
