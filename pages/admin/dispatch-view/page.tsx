@@ -1,9 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback } from 'react';
 import { getSupabase } from "../../../lib/supabase";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
 import { 
   Truck, Clock, MapPin, Warehouse, MessageSquare, 
   Bot, X, Send, Calendar, Activity, Info 
@@ -68,7 +65,9 @@ export default function DispatchDashboard() {
             <Calendar size={16} /> סידור עבודה למחר: {new Date(Date.now() + 86400000).toLocaleDateString('he-IL')}
           </p>
         </div>
-        <Badge className="bg-green-500 text-white px-4 py-1 rounded-full animate-pulse">מחובר LIVE</Badge>
+        <span className="bg-green-500 text-white px-4 py-1 rounded-full animate-pulse text-xs font-bold shadow-sm">
+          מחובר LIVE
+        </span>
       </header>
 
       {/* עמודות נהגים */}
@@ -94,9 +93,9 @@ export default function DispatchDashboard() {
               {orders.filter(o => o.driver_name === driver.name).length > 0 ? (
                 orders.filter(o => o.driver_name === driver.name).map((order) => (
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} key={order.id}>
-                    <Card className="border-none shadow-md hover:shadow-xl transition-all rounded-2xl overflow-hidden group">
+                    <div className="bg-white border-none shadow-md hover:shadow-xl transition-all rounded-2xl overflow-hidden group">
                       <div className={`h-1.5 w-full ${driver.name === 'חכמת' ? 'bg-blue-600' : 'bg-orange-500'}`} />
-                      <CardContent className="p-5">
+                      <div className="p-5">
                         <div className="flex justify-between items-start mb-3">
                           <h3 className="text-lg font-black text-slate-800 leading-none">{order.customer_name}</h3>
                           <div className="bg-slate-100 px-3 py-1 rounded-lg font-mono font-bold text-blue-700">
@@ -115,12 +114,12 @@ export default function DispatchDashboard() {
 
                         {/* תגיות סוג הובלה */}
                         <div className="flex flex-wrap gap-1.5">
-                          {order.is_crane_delivery && <Badge className="bg-blue-50 text-blue-700 border-none">מנוף</Badge>}
-                          {order.is_truck_delivery && <Badge className="bg-slate-100 text-slate-700 border-none">משאית</Badge>}
-                          {order.is_waste_collection && <Badge className="bg-orange-50 text-orange-700 border-none">פסולת</Badge>}
+                          {order.is_crane_delivery && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">מנוף</span>}
+                          {order.is_truck_delivery && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">משאית</span>}
+                          {order.is_waste_collection && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700">פסולת</span>}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   </motion.div>
                 ))
               ) : (
