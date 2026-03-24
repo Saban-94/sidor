@@ -3,10 +3,6 @@
 @tailwind utilities;
 @import "tailwindcss";
 
-
-/* כאן אפשר להוסיף CSS מותאם אישית */
-/* כאן אפשר להוסיף CSS מותאם אישית */
-
 /* הגדרות נושא (Theme) - כאן אפשר להוסיף צבעים של ח. סבן */
 @theme {
    --color-brand: #00a884;
