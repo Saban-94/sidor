@@ -1,7 +1,8 @@
-/* /styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* ייבוא חבילת Tailwind v4 */
-@import "tailwindcss";
+/* כאן אפשר להוסיף CSS מותאם אישית */
 
 /* הגדרות נושא (Theme) - כאן אפשר להוסיף צבעים של ח. סבן */
 @theme {
