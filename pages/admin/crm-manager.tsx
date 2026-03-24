@@ -7,11 +7,11 @@ import {
 } from 'firebase/firestore';
 import { Users, Save, FileUp, BrainCircuit, Search, CheckCircle2, AlertCircle } from 'lucide-react';
 
-// אתחול Firebase בטוח
+// אתחול Firebase בטוח - מונע את קריסת הבילד של Vercel כשחסרים משתני סביבה
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "demo-key",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
 };
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
@@ -32,6 +32,9 @@ export default function CrmManager() {
 
   // 1. טעינת הלקוחות מ-Firestore
   useEffect(() => {
+    // הגנה מקריסה צד לקוח אם לא הוזן Project ID
+    if (firebaseConfig.projectId === "demo-project") return;
+    
     const q = query(collection(dbFS, "customers"));
     const unsubscribe = onSnapshot(q, (snap) => {
       const custData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -83,27 +86,23 @@ export default function CrmManager() {
         const text = event.target?.result as string;
         const lines = text.split('\n');
         
-        // שימוש ב-Batch כדי לכתוב מאות הודעות במכה אחת בלי לתקוע את השרת
         const batch = writeBatch(dbFS);
         let count = 0;
 
         for (let line of lines) {
           if (!line.trim()) continue;
           
-          // חילוץ בסיסי של הודעות ווצאפ (מתאים למבנה: "תאריך, שעה - שולח: הודעה")
-          // אפשר לשפר את ה-Regex לפי פורמט הייצוא המדויק שאתה מקבל
           const isIncoming = !line.includes("ראמי") && !line.includes("ח. סבן");
           
           const msgRef = doc(collection(dbFS, "customers", selectedCustomer.id, "chat_history"));
           batch.set(msgRef, {
-            text: line.replace(/^.*?-\s*.*?:/, '').trim(), // מנקה את התאריך והשם ומשאיר רק תוכן
+            text: line.replace(/^.*?-\s*.*?:/, '').trim(),
             type: isIncoming ? 'in' : 'out',
             source: 'whatsapp_import',
-            timestamp: serverTimestamp() // אפשר לחלץ תאריך אמיתי פה, כרגע נשמר כרצף
+            timestamp: serverTimestamp() 
           });
           
           count++;
-          // Firestore מגביל ל-500 כתיבות ב-Batch. נבצע מנה של 400 ליתר ביטחון
           if (count >= 400) break; 
         }
 
@@ -167,6 +166,13 @@ export default function CrmManager() {
 
       {/* אזור העבודה - עריכה ואימון */}
       <main className="flex-1 overflow-y-auto p-8 bg-slate-50">
+        {firebaseConfig.projectId === "demo-project" && (
+          <div className="bg-red-100 text-red-800 p-4 rounded-xl mb-6 font-bold flex items-center gap-3">
+            <AlertCircle size={24} />
+            <span>שים לב! חסרים משתני סביבה ב-Vercel. המערכת רצה במצב "Demo" ולא תשמור נתונים.</span>
+          </div>
+        )}
+
         {!selectedCustomer ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50 space-y-4">
             <BrainCircuit size={64} />
@@ -212,7 +218,7 @@ export default function CrmManager() {
                     onChange={e => setEditRelation(e.target.value)}
                     rows={5}
                     className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-emerald-500 text-sm leading-relaxed"
-                    placeholder='לדוגמה: קבלן שלד קבוע. דבר אליו בכבוד ("אהלן שרון"), תן לו תמיד מחירי קבלן, ואל תשגע אותו עם הסברים מיותרים.'
+                    placeholder='לדוגמה: קבלן שלד קבוע. דבר אליו בכבוד ("אהלן שרון")...'
                   />
                   <p className="text-[10px] text-slate-400 mt-2 font-bold">* הטקסט הזה יוזרק ל-Gemini בכל שיחה עם הלקוח.</p>
                 </div>
