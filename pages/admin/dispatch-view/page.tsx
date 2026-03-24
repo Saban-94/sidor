@@ -1,9 +1,9 @@
 "use client";
 import React, { useEffect, useState, useCallback } from 'react';
-import { getSupabase } from "@/lib/supabase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { getSupabase } from "../../../lib/supabase";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../../components/ui/button";
 import { 
   Truck, Clock, MapPin, Warehouse, MessageSquare, 
   Bot, X, Send, Calendar, Activity, Info 
