@@ -5,45 +5,58 @@ import {
   getFirestore, collection, query, onSnapshot, doc, 
   setDoc, writeBatch, serverTimestamp 
 } from 'firebase/firestore';
-import { Users, Save, FileUp, BrainCircuit, Search, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Users, Save, FileUp, BrainCircuit, Search, CheckCircle2, AlertCircle, Database } from 'lucide-react';
 
-// אתחול Firebase בטוח - מונע את קריסת הבילד של Vercel כשחסרים משתני סביבה
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "demo-key",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://demo-project.firebaseio.com",
 };
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const dbFS = getFirestore(app);
+
+let app;
+let dbFS: any = null;
+
+try {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  dbFS = getFirestore(app);
+} catch (error) {
+  console.error("🔥 Firebase Init Error:", error);
+}
 
 export default function CrmManager() {
+  const [isMounted, setIsMounted] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   
-  // טפסים
   const [editName, setEditName] = useState('');
   const [editRelation, setEditRelation] = useState('');
   
-  // סטטוסים
   const [isSaving, setIsSaving] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{type: 'idle'|'loading'|'success'|'error', text: string}>({type: 'idle', text: ''});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. טעינת הלקוחות מ-Firestore
   useEffect(() => {
-    // הגנה מקריסה צד לקוח אם לא הוזן Project ID
-    if (firebaseConfig.projectId === "demo-project") return;
-    
-    const q = query(collection(dbFS, "customers"));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const custData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setCustomers(custData);
-    });
-    return () => unsubscribe();
+    setIsMounted(true);
   }, []);
 
-  // 2. בחירת לקוח וטעינת הנתונים שלו לטופס
+  useEffect(() => {
+    if (!isMounted || !dbFS || firebaseConfig.projectId === "demo-project") return;
+    
+    try {
+      const q = query(collection(dbFS, "customers"));
+      const unsubscribe = onSnapshot(q, (snap) => {
+        const custData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setCustomers(custData);
+      });
+      return () => unsubscribe();
+    } catch (err) {
+      console.error("שגיאה בשליפת לקוחות:", err);
+    }
+  }, [isMounted]);
+
   const handleSelectCustomer = (c: any) => {
     setSelectedCustomer(c);
     setEditName(c.name || '');
@@ -51,9 +64,8 @@ export default function CrmManager() {
     setUploadStatus({type: 'idle', text: ''});
   };
 
-  // 3. שמירת הפרופיל והנחיות ה-AI
   const handleSaveProfile = async () => {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer || !dbFS) return;
     setIsSaving(true);
     try {
       const docRef = doc(dbFS, "customers", selectedCustomer.id);
@@ -73,10 +85,64 @@ export default function CrmManager() {
     }
   };
 
-  // 4. מזרקת היסטוריה (WhatsApp TXT/CSV Parsing)
+  // ייבוא מרוכז של אנשי קשר מ-CSV של JONI
+  const handleBulkImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !dbFS) return;
+
+    setUploadStatus({type: 'loading', text: 'מייבא אנשי קשר למאגר...'});
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n');
+        
+        const batch = writeBatch(dbFS);
+        let count = 0;
+
+        // מתחילים מ-1 כדי לדלג על שורת הכותרות
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          const cols = line.split(',');
+          if (cols.length < 4) continue;
+
+          // מבנה הקובץ: מספר נייד (0), שם (1), שם מלא (2), שם קבוצה (3)
+          const phone = cols[0].replace(/\D/g, ''); // ניקוי המספר
+          const fullName = cols[2].trim() || cols[1].trim() || 'לקוח ללא שם';
+          const groupName = cols[3].trim();
+          
+          if (!phone) continue;
+
+          const docRef = doc(dbFS, "customers", phone);
+          batch.set(docRef, {
+            name: fullName,
+            relation: groupName ? `שייך לקבוצה: ${groupName}` : 'לקוח כללי',
+            importedFromJoni: true,
+            lastUpdated: serverTimestamp()
+          }, { merge: true }); // merge: true שומר על היסטוריה קיימת אם יש
+          
+          count++;
+          if (count >= 400) break; // מגבלת Batch של פיירבייס (עד 500)
+        }
+
+        await batch.commit();
+        setUploadStatus({type: 'success', text: `ייבוא הושלם! ${count} לקוחות נוצרו/עודכנו בהצלחה.`});
+        setTimeout(() => setUploadStatus({type: 'idle', text: ''}), 5000);
+        if (bulkInputRef.current) bulkInputRef.current.value = '';
+      } catch (error) {
+        console.error(error);
+        setUploadStatus({type: 'error', text: 'שגיאה בקריאת הקובץ. ודא שזה CSV תקין.'});
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedCustomer) return;
+    if (!file || !selectedCustomer || !dbFS) return;
 
     setUploadStatus({type: 'loading', text: 'קורא ומזריק היסטוריה...'});
     const reader = new FileReader();
@@ -93,8 +159,8 @@ export default function CrmManager() {
           if (!line.trim()) continue;
           
           const isIncoming = !line.includes("ראמי") && !line.includes("ח. סבן");
-          
           const msgRef = doc(collection(dbFS, "customers", selectedCustomer.id, "chat_history"));
+          
           batch.set(msgRef, {
             text: line.replace(/^.*?-\s*.*?:/, '').trim(),
             type: isIncoming ? 'in' : 'out',
@@ -121,11 +187,12 @@ export default function CrmManager() {
     c.id.includes(search) || (c.name && c.name.includes(search))
   );
 
+  if (!isMounted) return <div className="h-screen bg-slate-50 flex items-center justify-center font-bold">טוען ממשק...</div>;
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans" dir="rtl">
       <Head><title>CRM & AI Training | ח. סבן</title></Head>
 
-      {/* תפריט צד - רשימת לקוחות */}
       <aside className="w-80 bg-white border-l shadow-2xl flex flex-col shrink-0 z-10">
         <header className="p-6 bg-slate-900 text-white border-b-4 border-emerald-500">
           <h1 className="text-xl font-black italic">SABAN STUDIO</h1>
@@ -146,6 +213,9 @@ export default function CrmManager() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {filteredCustomers.length === 0 && firebaseConfig.projectId !== "demo-project" && (
+            <div className="text-center p-4 text-slate-400 text-sm font-bold">לא נמצאו לקוחות במאגר</div>
+          )}
           {filteredCustomers.map(c => (
             <div 
               key={c.id} 
@@ -164,24 +234,58 @@ export default function CrmManager() {
         </div>
       </aside>
 
-      {/* אזור העבודה - עריכה ואימון */}
       <main className="flex-1 overflow-y-auto p-8 bg-slate-50">
         {firebaseConfig.projectId === "demo-project" && (
-          <div className="bg-red-100 text-red-800 p-4 rounded-xl mb-6 font-bold flex items-center gap-3">
-            <AlertCircle size={24} />
-            <span>שים לב! חסרים משתני סביבה ב-Vercel. המערכת רצה במצב "Demo" ולא תשמור נתונים.</span>
+          <div className="bg-red-100 text-red-800 p-4 rounded-xl mb-6 font-bold flex items-center gap-3 shadow-sm border border-red-200">
+            <AlertCircle size={24} className="animate-pulse" />
+            <span>חסרים משתני סביבה. המערכת רצה במצב "Demo" ולא תשמור נתונים. הכנס למערכת Vercel והוסף את מפתחות ה-Firebase.</span>
+          </div>
+        )}
+
+        {/* התראות סטטוס כלליות (כמו הצלחת ייבוא) */}
+        {!selectedCustomer && uploadStatus.type !== 'idle' && (
+          <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 text-sm font-bold ${
+            uploadStatus.type === 'loading' ? 'bg-blue-50 text-blue-700' :
+            uploadStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700' :
+            'bg-red-50 text-red-700'
+          }`}>
+            {uploadStatus.type === 'loading' && <BrainCircuit className="animate-pulse" size={18} />}
+            {uploadStatus.type === 'success' && <CheckCircle2 size={18} />}
+            {uploadStatus.type === 'error' && <AlertCircle size={18} />}
+            {uploadStatus.text}
           </div>
         )}
 
         {!selectedCustomer ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50 space-y-4">
-            <BrainCircuit size={64} />
-            <h2 className="text-xl font-bold">בחר לקוח כדי להתחיל באימון המוח</h2>
+          <div className="h-full flex flex-col items-center justify-center space-y-12">
+            <div className="text-slate-400 opacity-50 flex flex-col items-center space-y-4">
+              <BrainCircuit size={64} />
+              <h2 className="text-xl font-bold">בחר לקוח מהרשימה כדי לאמן את המוח</h2>
+            </div>
+
+            {/* קוביית ייבוא אנשי קשר גלובלית */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 max-w-md w-full text-center space-y-4">
+              <Database size={40} className="mx-auto text-blue-500" />
+              <h3 className="font-black text-xl text-slate-800">ייבוא אנשי קשר (CSV)</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                העלה את קובץ ה-CSV של JONI כדי לייצר פרופיל אישי לכל לקוח במערכת בלחיצת כפתור.
+              </p>
+              <label className="bg-blue-50 text-blue-700 border border-blue-200 px-6 py-4 rounded-xl font-black cursor-pointer hover:bg-blue-100 transition-colors inline-block w-full mt-4">
+                בחר קובץ CSV והתחל ייבוא
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  className="hidden" 
+                  ref={bulkInputRef}
+                  onChange={handleBulkImportCSV} 
+                  disabled={firebaseConfig.projectId === "demo-project" || uploadStatus.type === 'loading'}
+                />
+              </label>
+            </div>
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             
-            {/* כותרת עליונה */}
             <div className="flex items-center gap-4 border-b border-slate-200 pb-6">
               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center shadow-inner border border-emerald-200">
                 <Users size={32} />
@@ -193,7 +297,7 @@ export default function CrmManager() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* אזור אימון AI (פרופיל) */}
+              {/* פרופיל AI */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
                 <div className="flex items-center gap-2 text-emerald-600 font-black mb-4">
                   <BrainCircuit size={20} />
@@ -207,7 +311,6 @@ export default function CrmManager() {
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-emerald-500 font-bold text-slate-800"
-                    placeholder="לדוגמה: שרון הקבלן"
                   />
                 </div>
 
@@ -218,14 +321,12 @@ export default function CrmManager() {
                     onChange={e => setEditRelation(e.target.value)}
                     rows={5}
                     className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-emerald-500 text-sm leading-relaxed"
-                    placeholder='לדוגמה: קבלן שלד קבוע. דבר אליו בכבוד ("אהלן שרון")...'
                   />
-                  <p className="text-[10px] text-slate-400 mt-2 font-bold">* הטקסט הזה יוזרק ל-Gemini בכל שיחה עם הלקוח.</p>
                 </div>
 
                 <button 
                   onClick={handleSaveProfile}
-                  disabled={isSaving}
+                  disabled={isSaving || firebaseConfig.projectId === "demo-project"}
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50"
                 >
                   <Save size={18} />
@@ -233,7 +334,7 @@ export default function CrmManager() {
                 </button>
               </div>
 
-              {/* אזור הזרקת היסטוריה */}
+              {/* הזרקת היסטוריה ספציפית ללקוח */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-blue-600 font-black mb-4">
@@ -241,23 +342,23 @@ export default function CrmManager() {
                     <h2>הזרקת היסטוריה (WhatsApp)</h2>
                   </div>
                   <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                    יצא את צ'אט הווצאפ עם הלקוח כקובץ TXT. העלה אותו כאן, והמערכת תזריק את השיחות ל-Firestore כדי ללמד את ה-AI את היסטוריית העבודה שלכם.
+                    יצא את צ'אט הווצאפ הספציפי עם הלקוח כקובץ TXT, העלה לכאן, והמערכת תזריק את השיחות לזיכרון ה-AI.
                   </p>
 
                   <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors group">
                     <FileUp size={32} className="text-slate-400 group-hover:text-blue-500 mb-3 transition-colors" />
-                    <span className="text-sm font-bold text-slate-600 group-hover:text-blue-600">לחץ לבחירת קובץ (.txt / .csv)</span>
+                    <span className="text-sm font-bold text-slate-600 group-hover:text-blue-600">לחץ לבחירת היסטוריה (.txt)</span>
                     <input 
                       type="file" 
-                      accept=".txt,.csv"
+                      accept=".txt"
                       ref={fileInputRef}
                       onChange={handleFileUpload}
+                      disabled={firebaseConfig.projectId === "demo-project"}
                       className="hidden" 
                     />
                   </label>
                 </div>
 
-                {/* התראות סטטוס */}
                 {uploadStatus.type !== 'idle' && (
                   <div className={`mt-4 p-4 rounded-xl flex items-center gap-3 text-sm font-bold ${
                     uploadStatus.type === 'loading' ? 'bg-blue-50 text-blue-700' :
@@ -272,7 +373,6 @@ export default function CrmManager() {
                 )}
               </div>
             </div>
-            
           </div>
         )}
       </main>
