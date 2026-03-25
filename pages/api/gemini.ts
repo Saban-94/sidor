@@ -50,6 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!supabaseUrl || !supabaseKey) return res.status(200).json({ reply: "⚠️ ראמי, חסרים מפתחות של Supabase ב-Vercel! לא יכול לשלוף מלאי." });
 
     const modelPool = [
+        "gemini-3.1-flash-lite-preview",
         "gemini-1.5-flash",         
         "gemini-1.5-flash-latest",  
         "gemini-pro"                
