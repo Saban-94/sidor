@@ -49,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
 
     const modelPool = [
-        "gemini-3.1-flash-lite-preview",    
+        "gemini-2.0-flash",       
         "gemini-1.5-flash",       
         "gemini-1.5-pro"          
     ];
