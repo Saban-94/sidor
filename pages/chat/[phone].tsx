@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import Link from 'next/link';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, onSnapshot, collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Send, Bot, User, ArrowRight } from 'lucide-react';
+import { Send, Bot, User, Calculator, ArrowLeft, PackageSearch } from 'lucide-react';
 
-// אתחול Firebase (נשען על משתני הסביבה הקיימים שלך)
+// אתחול Firebase
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -16,7 +17,7 @@ const dbFS = getFirestore(app);
 
 export default function MagicChat() {
   const router = useRouter();
-  const { phone } = router.query; // שולף את המספר מהלינק
+  const { phone } = router.query;
 
   const [profile, setProfile] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -24,7 +25,7 @@ export default function MagicChat() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. טעינת פרופיל איש הקשר מ-Firestore (מזהה מי הוא ואיך ראמי מכיר אותו)
+  // טעינת פרופיל איש הקשר
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -34,14 +35,13 @@ export default function MagicChat() {
       if (docSnap.exists()) {
         setProfile({ id: docSnap.id, ...docSnap.data() });
       } else {
-        // אם אין לו פרופיל עדיין, נייצר לו פרופיל זמני בזיכרון
         setProfile({ id: cleanPhone, name: "אורח", relation: "לקוח כללי", isNew: true });
       }
     });
     return () => unsubscribe();
   }, [phone]);
 
-  // 2. טעינת היסטוריית השיחות עם המוח
+  // טעינת היסטוריית השיחות עם המוח
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -57,7 +57,7 @@ export default function MagicChat() {
     return () => unsubscribe();
   }, [phone]);
 
-  // 3. שליחת הודעה מאיש הקשר למוח ה-AI
+  // שליחת הודעה + קבלת תשובה ומוצרים מצורפים
   const handleSend = async () => {
     if (!inputText.trim() || !profile || isLoading) return;
     const userMsg = inputText.trim();
@@ -65,23 +65,21 @@ export default function MagicChat() {
     setIsLoading(true);
 
     try {
-      // א. שמירת הודעת הלקוח ב-Firestore כדי שראמי יראה ב-CRM
+      // 1. שמירת הודעת הלקוח
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: userMsg,
-        type: 'in', // נכנס מהלקוח
+        type: 'in',
         timestamp: serverTimestamp()
       });
 
-      // ב. הגדרת ההקשר (Context) למוח - הזרקת הפרופיל
+      // 2. פקודת ההזרקה למוח (מוסיפים לו הוראה שיגיד שהוא צירף כרטיס אם מצא מוצר)
       const aiContext = `
-        אתה העוזר הלוגיסטי והאישי של ראמי מחברת "ח. סבן".
-        המשתמש שאתה מדבר איתו עכשיו הוא: ${profile.name || "לקוח"}.
-        הקשר לראמי: ${profile.relation || "לקוח כללי"}.
-        התאם את השפה שלך אליו (אם הוא חבר - דבר פתוח, אם קבלן - תהיה חד ועסקי).
-        ענה קצר ולעניין.
+        אתה העוזר הלוגיסטי של ראמי מ"ח. סבן".
+        הלקוח מולך: ${profile.name || "לקוח"}. קשר: ${profile.relation || "כללי"}.
+        **חוק חשוב:** אם הלקוח שואל על מוצר ספציפי (כמו פלסטומר 603) והמערכת מצאה אותו במלאי, אל תכתוב לו מפרטים ארוכים. תכתוב תשובה קצרה וציין: "צירפתי לך כאן למטה את כרטיס המוצר המלא עם מחשבון כמויות."
       `;
 
-      // ג. קריאה ל-Gemini דרך ה-API שלך
+      // 3. קריאה ל-API
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,11 +92,15 @@ export default function MagicChat() {
       
       const data = await response.json();
       const aiReply = data.reply || "הייתה לי שגיאה קטנה במוח, אפשר לנסות שוב?";
+      
+      // ה"קסם": שולפים את המוצרים שה-API מצא (inv מ-Supabase)
+      const attachedProducts = data.products && data.products.length > 0 ? data.products : [];
 
-      // ד. שמירת תגובת ה-AI ב-Firestore
+      // 4. שמירת התשובה ב-Firestore יחד עם המידע על המוצרים!
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: aiReply,
-        type: 'out', // יוצא מהמערכת
+        type: 'out',
+        attachedProducts: attachedProducts, // שומרים את האובייקטים של המוצרים
         timestamp: serverTimestamp()
       });
 
@@ -118,7 +120,6 @@ export default function MagicChat() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
       </Head>
 
-      {/* הדר העליון (מותאם למובייל) */}
       <header className="h-[70px] bg-slate-900 text-white p-4 flex items-center justify-between shadow-md shrink-0 rounded-b-3xl z-10">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -134,7 +135,6 @@ export default function MagicChat() {
         </div>
       </header>
 
-      {/* אזור השיחה */}
       <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         {messages.length === 0 && (
           <div className="m-auto text-center space-y-3 opacity-50">
@@ -147,11 +147,52 @@ export default function MagicChat() {
         )}
 
         {messages.map((m) => (
-          <div key={m.id} className={`max-w-[85%] p-4 text-sm shadow-sm ${m.type === 'in' ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none self-end' : 'bg-white text-slate-800 rounded-2xl rounded-tl-none self-start border border-slate-100'}`}>
-            <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
-            <div className={`text-[10px] mt-2 text-left ${m.type === 'in' ? 'text-slate-400' : 'text-slate-400'}`}>
-              {m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+          <div key={m.id} className={`flex flex-col max-w-[85%] ${m.type === 'in' ? 'self-end' : 'self-start'}`}>
+            
+            {/* בועת טקסט רגילה */}
+            <div className={`p-4 text-sm shadow-sm ${m.type === 'in' ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none' : 'bg-white text-slate-800 rounded-2xl rounded-tl-none border border-slate-100'}`}>
+              <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
+              <div className={`text-[10px] mt-2 text-left ${m.type === 'in' ? 'text-slate-400' : 'text-slate-400'}`}>
+                {m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+              </div>
             </div>
+
+            {/* 🔥 כרטיס מוצר UI - מופיע רק אם ה-API שלח מוצרים */}
+            {m.attachedProducts && m.attachedProducts.length > 0 && (
+              <div className="mt-2 flex flex-col gap-2">
+                {m.attachedProducts.map((product: any, idx: number) => (
+                  <Link href={`/product/${product.sku}`} key={idx}>
+                    <div className="bg-white border border-emerald-100 rounded-2xl p-3 shadow-md hover:shadow-lg transition-all flex gap-3 cursor-pointer group w-[280px]">
+                      {/* תמונה מוקטנת */}
+                      <div className="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt={product.product_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <PackageSearch size={24} className="text-slate-300" />
+                        )}
+                      </div>
+                      
+                      {/* פרטים */}
+                      <div className="flex flex-col justify-between flex-1 overflow-hidden">
+                        <div>
+                          <h3 className="font-black text-sm text-slate-800 leading-tight truncate">{product.product_name}</h3>
+                          <p className="text-[10px] text-slate-500 font-mono mt-1">מק"ט: {product.sku}</p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-emerald-600 font-black text-sm">{product.price ? `₪${product.price}` : ''}</span>
+                          <span className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                            <Calculator size={12} />
+                            מחשבון
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+            
           </div>
         ))}
 
@@ -166,7 +207,6 @@ export default function MagicChat() {
         )}
       </main>
 
-      {/* אזור ההקלדה */}
       <footer className="p-4 bg-white border-t border-slate-100 shrink-0 pb-8 md:pb-4">
         <div className="flex items-center gap-2 max-w-2xl mx-auto">
           <input 
@@ -175,7 +215,7 @@ export default function MagicChat() {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             disabled={isLoading}
-            placeholder="כתוב הודעה לעוזר..."
+            placeholder="שאל על חומר, כמות או מחיר..."
             className="flex-1 bg-slate-50 p-4 rounded-2xl border-none outline-none text-sm shadow-inner focus:ring-2 focus:ring-emerald-500/20 transition-all disabled:opacity-50"
           />
           <button 
