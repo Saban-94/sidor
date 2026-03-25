@@ -50,23 +50,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!supabaseUrl || !supabaseKey) return res.status(200).json({ reply: "⚠️ ראמי, חסרים מפתחות של Supabase ב-Vercel! לא יכול לשלוף מלאי." });
 
     const modelPool = [
-        "gemini-3.1-flash-lite-preview",
         "gemini-1.5-flash",         
         "gemini-1.5-flash-latest",  
         "gemini-pro"                
     ];
 
     try {
-        // 🔥 משיכת מילות הסינון בלייב מהגדרות המערכת ב-Firebase (עם גיבוי לדיפולט)
+        // 🔥 הוספת מילות אריזה/כמויות לסינון כדי שהחיפוש במלאי יהיה מדויק ונטו על שם המוצר
         const systemConfigSnap = await getDoc(doc(dbFS, "system", "search_config")).catch(() => null);
         const dbStopWords = systemConfigSnap?.exists() ? systemConfigSnap.data().stopWords : null;
         
-        const stopWords = dbStopWords || ['רוצה', 'להזמין', 'לקנות', 'יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
+        const defaultStopWords = [
+            'רוצה', 'להזמין', 'לקנות', 'יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט',
+            'שק', 'שקי', 'שקים', 'משטח', 'משטחי', 'משטחים', 'דלי', 'דליים', 'פח', 'פחים', 'חבילה', 'חבילות', 'יחידות', 'יח'
+        ];
+        const stopWords = dbStopWords || defaultStopWords;
         
         const cleanSearchTerm = message
             .replace(/[^\w\sא-ת]/gi, ' ') 
             .split(/\s+/)
-            .filter((w: string) => !stopWords.includes(w) && w.length > 1)
+            .filter((w: string) => !stopWords.includes(w) && w.length > 1) // מנפה מספרים כמו "3" ומילות סינון
             .join(' ')
             .trim();
 
@@ -74,7 +77,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let rules: any[] = [];
         
         if (cleanSearchTerm.length > 0) {
-            
             const fetchRules = async () => {
                 try { 
                     const res = await supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true); 
@@ -113,6 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
         
+        // 🔥 עדכון ה-DNA למניעת לולאת חפירות
         const prompt = `
         הזהות שלך: אתה ראמי, מנהל התפעול והלוגיסטיקה בחברת ח. סבן חומרי בניין. 
         הלקוח פונה אליך! לעולם אל תפנה ללקוח בשם "ראמי".
@@ -129,8 +132,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ${googleContext}
         
         --- חוקי ברזל חמורים (חובה לציית) ---
-        1. תקצר משפט פתיחה, אל תתחנף, תענה ישירות ולעניין.
-        2. התמודדות עם חוסרים (קריטי): אם המוצר לא נמצא ב"רשימת מוצרים מהמלאי בזמן אמת", אסור לך להמציא תירוצים רובוטיים או להגיד סתם "אין". ענה כמו ראמי התותח: "אהלן אחי, [שם המוצר שחיפש] לא נמצא לי כרגע במלאי. אני כבר בודק לך מול הספקים אלטרנטיבה או מתי נכנס ומעדכן אותך." (תתאים את הטון ללקוח).
+        1. תקצר משפט פתיחה, אל תתחנף, תענה ישירות ולעניין. **אל תגיד 'שלום', 'אהלן' או 'מה נשמע' אם הלקוח מבקש מוצר כחלק מרצף שיחה. פשוט תן לו את הנתון.**
+        2. התמודדות עם חוסרים (קריטי): אם המוצר לא נמצא ב"רשימת מוצרים מהמלאי בזמן אמת", אסור לך להמציא תירוצים. ענה: "אהלן אחי, [שם המוצר שחיפש] לא נמצא לי כרגע במלאי. אני בודק לך מול הספקים אלטרנטיבה ומעדכן."
         3. אם מצאת מוצר במלאי, אל תכתוב מפרט ארוך בגוף ההודעה. תן משפט קצר שמסכם את המחיר/כמות וסיים עם: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
         4. אם נעזרת בגוגל למוצר חדש, חובה להוסיף בסוף התשובה (בשורה נפרדת): [SAVE_PRODUCT: שם_המוצר | תקציר_טכני | קישור_לתמונה]
         
@@ -143,7 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let finalReply = "";
         let activeModel = "";
 
-        // לולאת גיבוי חכמה
+        // לולאת גיבוי
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
