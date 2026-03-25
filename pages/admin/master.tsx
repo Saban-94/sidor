@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { 
   Send, Crown, Map, Truck, ClipboardList, 
   Settings, Sun, Moon, Activity, PackageSearch,
-  MessageSquare, Route, CalendarPlus, Calculator
+  MessageSquare, Route, CalendarPlus, Calculator,
+  Tags, X, Plus
 } from 'lucide-react';
 
-// 1. אתחול Firebase לשמירת היסטוריית פקודות המאסטר
+// 1. אתחול Firebase לשמירת היסטוריית פקודות והגדרות מערכת
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -26,12 +27,43 @@ export default function MasterBrainPWA() {
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // סטייטים לניהול דינאמי של מילות הסינון (Stop Words)
+  const [stopWords, setStopWords] = useState<string[]>([]);
+  const [newStopWord, setNewStopWord] = useState('');
+
   // גלילה אוטומטית
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isThinking]);
 
-  // פקודות קסם (Quick Actions) מעודכנות
+  // האזנה בלייב למילות הסינון ב-Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(doc(dbFS, "system", "search_config"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().stopWords) {
+        setStopWords(docSnap.data().stopWords);
+      } else {
+        // רשימת ברירת מחדל אם טרם הוגדר במסד הנתונים
+        const defaults = ['רוצה', 'להזמין', 'לקנות', 'יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
+        setStopWords(defaults);
+        setDoc(doc(dbFS, "system", "search_config"), { stopWords: defaults }, { merge: true });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddStopWord = async () => {
+    if (!newStopWord.trim()) return;
+    const updated = [...new Set([...stopWords, newStopWord.trim()])];
+    await setDoc(doc(dbFS, "system", "search_config"), { stopWords: updated }, { merge: true });
+    setNewStopWord('');
+  };
+
+  const handleRemoveStopWord = async (word: string) => {
+    const updated = stopWords.filter(w => w !== word);
+    await setDoc(doc(dbFS, "system", "search_config"), { stopWords: updated }, { merge: true });
+  };
+
+  // פקודות קסם (Quick Actions)
   const magicCommands = [
     {
       id: 'create-dispatch',
@@ -72,7 +104,7 @@ export default function MasterBrainPWA() {
     setIsThinking(true);
 
     try {
-      // 2. שמירת היסטוריית הפקודות של המאסטר ב-Firebase (למעקב ולמידת מכונה עתידית)
+      // 2. שמירת היסטוריית הפקודות של המאסטר ב-Firebase
       await addDoc(collection(dbFS, "master_history"), {
         command: cmd,
         timestamp: serverTimestamp(),
@@ -160,12 +192,49 @@ export default function MasterBrainPWA() {
             </button>
           ))}
           
-          <div className={`mt-8 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-emerald-900/20 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+          {/* 🔥 ניהול דינאמי של מילות סינון (Stop Words) */}
+          <div className={`mt-8 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-[#1e1e24] border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 font-bold text-blue-500 text-sm">
+                <Tags size={16} /> מילות סינון למוח AI
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-4 max-h-32 overflow-y-auto pr-1">
+              {stopWords.map(w => (
+                <span key={w} className={`px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
+                  {w} 
+                  <button onClick={() => handleRemoveStopWord(w)} className="hover:text-red-500 transition-colors">
+                    <X size={10}/>
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={newStopWord} 
+                onChange={e => setNewStopWord(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddStopWord()}
+                placeholder="הוסף מילת התעלמות..."
+                className={`flex-1 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 ${theme === 'dark' ? 'bg-black/40 border border-white/10 text-white' : 'bg-slate-50 border border-slate-200 text-slate-800'}`}
+              />
+              <button 
+                onClick={handleAddStopWord} 
+                className="bg-blue-500 text-white p-2 rounded-xl hover:bg-blue-600 active:scale-95 transition-all"
+                title="הוסף מילה"
+              >
+                <Plus size={16}/>
+              </button>
+            </div>
+          </div>
+
+          {/* סטטוס חיבורים */}
+          <div className={`mt-4 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-emerald-900/20 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
             <div className="flex items-center gap-2 font-bold text-emerald-500 mb-2">
               <Activity size={18} /> סנכרון חי (Live Sync)
             </div>
             <ul className={`text-xs space-y-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              <li className="flex justify-between"><span>Firebase (היסטורית מאסטר)</span> <span className="text-emerald-500">מחובר</span></li>
+              <li className="flex justify-between"><span>Firebase (הגדרות סינון)</span> <span className="text-emerald-500">מחובר</span></li>
               <li className="flex justify-between"><span>Supabase (לוח סידור)</span> <span className="text-emerald-500">מחובר</span></li>
               <li className="flex justify-between"><span>מערכת לינקים (Magic Links)</span> <span className="text-emerald-500">פעיל</span></li>
             </ul>
