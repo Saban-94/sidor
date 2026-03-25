@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ];
 
     try {
-        // 🔥 תיקון הזהב: מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
+        // 🔥 מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
         const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
         const cleanSearchTerm = message
             .replace(/[^\w\sא-ת]/gi, ' ') // ניקוי תווים מיוחדים שמרסקים את המסד
@@ -65,14 +65,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .trim();
 
         let inv: any[] = [];
+        let rules: any[] = [];
         
-        // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש (מונע חיפושי סרק)
+        // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש
         if (cleanSearchTerm.length > 0) {
+            // 🔥 תיקון ה-TypeScript: שימוש ב-.then() כדי להפוך את השאילתה ל-Promise אמיתי ואז לתפוס שגיאות
             const [rulesRes, invRes] = await Promise.all([
-                supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).catch(() => ({ data: [] })),
-                supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).catch(() => ({ data: [] }))
+                supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).then(res => res).catch(() => ({ data: [] })),
+                supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).then(res => res).catch(() => ({ data: [] }))
             ]);
+            
             inv = invRes?.data || [];
+            rules = rulesRes?.data || [];
         }
 
         // 4. שליפת ידע מהזיכרון המוקשמון
@@ -92,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // 6. הרכבת הפרומפט (עם חוק אפס המצאות מחמיר)
-        const consultantDNA = "אתה יועץ טכני של ח. סבן."; // אפשר להרחיב מה-rules
+        const consultantDNA = rules.length ? rules.map((r: any) => r.instruction).join("\n") : "אתה יועץ טכני של ח. סבן.";
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
         
@@ -130,7 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.1, maxOutputTokens: 800 } // הורדתי טמפרטורה כדי שיהיה יותר עובדתי ופחות ימציא
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 800 } 
                     })
                 });
 
