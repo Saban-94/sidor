@@ -48,28 +48,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!message) return res.status(400).json({ error: "Missing message" });
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
 
-    // 🚀 תוקן: שימוש במודלים היציבים והרשמיים של גוגל (ה-EXP נסגר!)
     const modelPool = [
         "gemini-3.1-flash-lite-preview", 
         "gemini-2.0-flash",       // מודל הדגל המהיר והחדש
-        "gemini-1.5-flash",       // מודל גיבוי יציב בטירוף
-        "gemini-1.5-pro"          // גיבוי אחרון (כבד וחכם)
+        "gemini-1.5-flash",       // מודל גיבוי יציב
+        "gemini-1.5-pro"          // גיבוי אחרון
     ];
 
     try {
-        // 🔥 תוקן: ניקוי תווים מיוחדים (כמו גרשיים וסוגריים) כדי ש-Supabase לא יקרוס
-        const cleanSearchTerm = message.replace(/[()"']/g, ' ').trim();
+        // 🔥 תיקון קריטי: מנקה סימני שאלה, פסיקים וכל מה שעלול להקריס את ה-DB
+        const cleanSearchTerm = message.replace(/[^\w\sא-ת]/gi, ' ').trim();
 
-        // 4. שליפה מקבילית סופר-מהירה
+        // 4. שליפה מקבילית סופר-מהירה (חסינה מקריסות עם catch פנימי)
         const [rulesRes, invRes, cacheSnap] = await Promise.all([
-            supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true),
-            supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { config: 'hebrew' }).limit(5),
+            supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).catch(() => ({ data: [] })),
+            // 🔥 הוספנו type: 'websearch' שמלמד את המסד לקרוא את הטקסט כמו שורת חיפוש בגוגל ולא כקוד
+            supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).catch(() => ({ data: [] })),
             getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) 
         ]);
 
-        const rules = rulesRes.data;
-        const inv = invRes.data;
-        const cacheDocs = cacheSnap.docs.map(d => d.data());
+        const rules = rulesRes?.data || [];
+        const inv = invRes?.data || [];
+        const cacheDocs = cacheSnap?.docs ? cacheSnap.docs.map(d => d.data()) : [];
 
         let knowledgeBaseText = "";
         if (cacheDocs.length > 0) {
@@ -84,8 +84,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // 6. הרכבת הפרומפט
-        const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
-        const productInfo = inv?.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
+        const consultantDNA = rules.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
+        const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה מגוגל: ${googleSearchInfo.image || 'אין'}` : "";
         
         const prompt = `
@@ -114,7 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let finalReply = "";
         let activeModel = "";
 
-        // 7. לולאת מודלים (עם לוגים מסודרים לורסל)
+        // 7. לולאת מודלים
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -173,7 +173,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (e: any) {
-        // 🔥 הוספת לוג שמדפיס את השגיאה האמיתית ב-Vercel
         console.error("🔥 API Error (500):", e.message);
         return res.status(500).json({ error: e.message });
     }
