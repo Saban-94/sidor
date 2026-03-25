@@ -50,6 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 🚀 תוקן: שימוש במודלים היציבים והרשמיים של גוגל (ה-EXP נסגר!)
     const modelPool = [
+        "gemini-3.1-flash-lite-preview", 
         "gemini-2.0-flash",       // מודל הדגל המהיר והחדש
         "gemini-1.5-flash",       // מודל גיבוי יציב בטירוף
         "gemini-1.5-pro"          // גיבוי אחרון (כבד וחכם)
