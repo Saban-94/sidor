@@ -25,6 +25,7 @@ export default function MagicChat() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // טעינת פרופיל לקוח (כולל הזהות והחוקים מה-CRM)
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -40,6 +41,7 @@ export default function MagicChat() {
     return () => unsubscribe();
   }, [phone]);
 
+  // טעינת היסטוריית צ'אט
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -55,6 +57,7 @@ export default function MagicChat() {
     return () => unsubscribe();
   }, [phone]);
 
+  // שליחת הודעה ל-AI
   const handleSend = async () => {
     if (!inputText.trim() || !profile || isLoading) return;
     const userMsg = inputText.trim();
@@ -62,18 +65,45 @@ export default function MagicChat() {
     setIsLoading(true);
 
     try {
+      // 1. שמירת ההודעה הנכנסת
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: userMsg,
         type: 'in',
         timestamp: serverTimestamp()
       });
 
+      // 2. חילוץ חכם של הזהות והחוקים מתוך ה-CRM
+      let dynamicIdentity = 'אתה העוזר הלוגיסטי של ראמי מ"ח. סבן".';
+      let dynamicRules = '';
+
+      try {
+        if (profile.relation && profile.relation.startsWith('{')) {
+          const parsed = JSON.parse(profile.relation);
+          if (parsed.identity) dynamicIdentity = parsed.identity;
+          if (parsed.rules && Array.isArray(parsed.rules)) {
+            dynamicRules = parsed.rules.map((r: any) => `- ${r.title}: ${r.content}`).join('\n');
+          }
+        } else if (profile.relation) {
+          dynamicIdentity = profile.relation; // תאימות לאחור
+        }
+      } catch (e) {
+        console.warn("Could not parse profile relation, using defaults.");
+      }
+
+      // 3. הרכבת הפרומפט האולטימטיבי (זהות אישית + חוק שליפת המוצר)
       const aiContext = `
-        אתה העוזר הלוגיסטי של ראמי מ"ח. סבן".
+        זהות וסגנון התקשורת שלך:
+        ${dynamicIdentity}
+        
         הלקוח מולך: ${profile.name || "לקוח"}.
-        **חוק חשוב:** אם המערכת מצאה מוצר רלוונטי במלאי, אל תכתוב מפרטים ארוכים. ענה קצר והוסף בסוף המשפט: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון הסבר ומחשבון כמויות."
+        
+        חוקי התנהגות מול הלקוח:
+        ${dynamicRules}
+
+        **חוק מוצרים קריטי (חובה לציית):** אם המערכת מצאה מוצר רלוונטי במלאי, אל תכתוב מפרטים טכניים ארוכים! ענה קצר ובדיוק לפי סגנון התקשורת שהוגדר לך, ותמיד הוסף בסוף המשפט את השורה הבאה: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
       `;
 
+      // 4. שליחה למוח
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,6 +118,7 @@ export default function MagicChat() {
       const aiReply = data.reply || "שגיאה במוח.";
       const attachedProducts = data.products && data.products.length > 0 ? data.products : [];
 
+      // 5. תיעוד תשובת ה-AI ב-Firestore (כולל מוצרים אם יש)
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: aiReply,
         type: 'out',
@@ -134,13 +165,12 @@ export default function MagicChat() {
               <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
             </div>
 
-            {/* 🔥 כרטיס המוצר המלא (עם תמונה ויוטיוב) */}
+            {/* 🔥 כרטיס המוצר המלא (תמונה, יוטיוב, מחשבון) */}
             {m.attachedProducts && m.attachedProducts.length > 0 && (
               <div className="mt-2 flex flex-col gap-2">
                 {m.attachedProducts.map((product: any, idx: number) => (
                   <div key={idx} className="bg-white border border-emerald-100 rounded-2xl p-3 shadow-md w-[280px]">
                     <div className="flex gap-3">
-                      {/* תמונה מוקטנת */}
                       <div className="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
                         {product.image_url ? (
                           <img src={product.image_url} alt={product.product_name} className="w-full h-full object-cover" />
@@ -158,9 +188,7 @@ export default function MagicChat() {
                       </div>
                     </div>
 
-                    {/* כפתורי פעולה */}
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-50">
-                      {/* כפתור יוטיוב (מוצג רק אם יש לינק ליוטיוב) */}
                       {product.youtube_url && (
                         <a 
                           href={product.youtube_url} 
@@ -173,7 +201,6 @@ export default function MagicChat() {
                         </a>
                       )}
                       
-                      {/* כפתור מחשבון (מפנה לעמוד המוצר המלא) */}
                       <Link href={`/product/${product.sku}`} className="flex-1">
                         <div className="w-full flex items-center justify-center gap-1 text-[11px] bg-emerald-50 text-emerald-600 py-2 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition">
                           <Calculator size={14} />
