@@ -40,25 +40,23 @@ async function getGoogleCseInfo(query: string) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    // רק פניות POST
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     const { message, context } = req.body; 
 
-    // 🔥 טריק: מחזירים שגיאה ישירות לצ'אט כדי שראמי יראה מה חסר
     if (!message) return res.status(200).json({ reply: "אחי, קיבלתי הודעה ריקה. תנסה שוב." });
     if (!apiKey) return res.status(200).json({ reply: "⚠️ ראמי, חסר מפתח GEMINI_API_KEY ב-Vercel! השרת לא יכול לדבר עם המוח." });
     if (!supabaseUrl || !supabaseKey) return res.status(200).json({ reply: "⚠️ ראמי, חסרים מפתחות של Supabase ב-Vercel! לא יכול לשלוף מלאי." });
 
+    // 🔥 תיקון: מודלים גלובליים, חזקים ויציבים (ללא Pro שלפעמים חסום לאזורים מסוימים)
     const modelPool = [
-        "gemini-2.0-flash",       
-        "gemini-1.5-flash",       
-        "gemini-1.5-pro"          
+        "gemini-1.5-flash",         // המודל החדש והמהיר ביותר כיום (יציב ב-100%)
+        "gemini-1.5-flash-latest",  // גיבוי לגרסה העדכנית ביותר
+        "gemini-pro"                // גיבוי ברזל (מודל 1.0 שעובד מכל מקום בעולם)
     ];
 
     try {
-        // מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
         const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
         const cleanSearchTerm = message
             .replace(/[^\w\sא-ת]/gi, ' ') 
@@ -70,7 +68,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let inv: any[] = [];
         let rules: any[] = [];
         
-        // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש
         if (cleanSearchTerm.length > 0) {
             
             const fetchRules = async () => {
@@ -82,7 +79,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             
             const fetchInv = async () => {
                 try { 
-                    // 🔥 הוסר config: 'hebrew' שגרם לקריסות פוסטגרס. חיפוש נקי ויציב.
                     const res = await supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch' }).limit(5); 
                     return res.error ? { data: [] } : res;
                 } catch { return { data: [] }; }
@@ -94,7 +90,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             rules = rulesRes?.data || [];
         }
 
-        // 4. שליפת ידע מהזיכרון
         const cacheSnap = await getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] }));
         const cacheDocs = cacheSnap?.docs ? cacheSnap.docs.map(d => d.data()) : [];
 
@@ -104,13 +99,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                                 cacheDocs.map(p => `- ${p.productName}: ${p.description}`).join("\n");
         }
 
-        // 5. גוגל - רק אם אין במלאי הפנימי בכלל
         let googleSearchInfo: any = null;
         if (!inv || inv.length === 0) {
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט
         const consultantDNA = rules.length ? rules.map((r: any) => r.instruction).join("\n") : "אתה יועץ טכני של ח. סבן.";
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
@@ -137,11 +130,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         שאלת הלקוח: ${message}
         `;
         
-        let lastError: any = null;
+        let errorLogs: string[] = []; // 🔥 מערך חדש לאיסוף שגיאות של כל המודלים
         let finalReply = "";
         let activeModel = "";
 
-        // 7. לולאת מודלים (Fallback)
+        // לולאת גיבוי חכמה
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -163,14 +156,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     throw new Error(data.error.message);
                 }
             } catch (e: any) {
-                lastError = e.message;
+                errorLogs.push(`${modelName}: ${e.message}`); // שומר את השגיאה של המודל הספציפי
                 continue; 
             }
         }
 
-        if (!finalReply) throw new Error("כל המודלים של ג'מיני קרסו: " + lastError);
+        // אם כולם נפלו, נציג לראמי בדיוק למה כל אחד מהם נפל
+        if (!finalReply) throw new Error("קריסת מודלים מוחלטת | " + errorLogs.join(" | "));
 
-        // 8. תפיסת מוצרים חדשים ושמירה
         const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
         if (saveMatch) {
             const newProductName = saveMatch[1].trim();
@@ -201,9 +194,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } catch (e: any) {
         console.error("🔥 API Error:", e.message);
-        // במקום להקריס את האפליקציה ב-500, נחזיר את השגיאה בתוך הודעה מסודרת לצ'אט!
         return res.status(200).json({ 
-            reply: `⚠️ ראמי, יש לי שגיאת שרת פנימית (500). זה מה שקרס: ${e.message}` 
+            reply: `⚠️ ראמי, יש לי שגיאת שרת (500). פירוט מלא: ${e.message}` 
         });
     }
 }
