@@ -49,72 +49,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
 
     const modelPool = [
-        "gemini-3.1-flash-lite-preview", 
-        "gemini-2.0-flash",       // מודל הדגל המהיר והחדש
-        "gemini-1.5-flash",       // מודל גיבוי יציב
-        "gemini-1.5-pro"          // גיבוי אחרון
+        "gemini-2.0-flash",       
+        "gemini-1.5-flash",       
+        "gemini-1.5-pro"          
     ];
 
     try {
-        // 🔥 תיקון קריטי: מנקה סימני שאלה, פסיקים וכל מה שעלול להקריס את ה-DB
-        const cleanSearchTerm = message.replace(/[^\w\sא-ת]/gi, ' ').trim();
+        // 🔥 תיקון הזהב: מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
+        const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
+        const cleanSearchTerm = message
+            .replace(/[^\w\sא-ת]/gi, ' ') // ניקוי תווים מיוחדים שמרסקים את המסד
+            .split(/\s+/)
+            .filter((w: string) => !stopWords.includes(w) && w.length > 1) // סינון מילות קישור
+            .join(' ')
+            .trim();
 
-        // 4. שליפה מקבילית סופר-מהירה (חסינה מקריסות עם catch פנימי)
-        const [rulesRes, invRes, cacheSnap] = await Promise.all([
-            supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).catch(() => ({ data: [] })),
-            // 🔥 הוספנו type: 'websearch' שמלמד את המסד לקרוא את הטקסט כמו שורת חיפוש בגוגל ולא כקוד
-            supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).catch(() => ({ data: [] })),
-            getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) 
-        ]);
+        let inv: any[] = [];
+        
+        // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש (מונע חיפושי סרק)
+        if (cleanSearchTerm.length > 0) {
+            const [rulesRes, invRes] = await Promise.all([
+                supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).catch(() => ({ data: [] })),
+                supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).catch(() => ({ data: [] }))
+            ]);
+            inv = invRes?.data || [];
+        }
 
-        const rules = rulesRes?.data || [];
-        const inv = invRes?.data || [];
+        // 4. שליפת ידע מהזיכרון המוקשמון
+        const cacheSnap = await getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] }));
         const cacheDocs = cacheSnap?.docs ? cacheSnap.docs.map(d => d.data()) : [];
 
         let knowledgeBaseText = "";
         if (cacheDocs.length > 0) {
             knowledgeBaseText = "\nמידע טכני מהמאגר שלנו (השתמש בזה כדי לחסוך חיפוש):\n" + 
-                                cacheDocs.map(p => `- ${p.productName}: ${p.description} (תמונה אם יש: ${p.image_url || 'אין'})`).join("\n");
+                                cacheDocs.map(p => `- ${p.productName}: ${p.description}`).join("\n");
         }
 
-        // 5. גוגל - רק אם אין במלאי הפנימי
+        // 5. גוגל - רק אם אין במלאי הפנימי בכלל
         let googleSearchInfo: any = null;
         if (!inv || inv.length === 0) {
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט
-        const consultantDNA = rules.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
+        // 6. הרכבת הפרומפט (עם חוק אפס המצאות מחמיר)
+        const consultantDNA = "אתה יועץ טכני של ח. סבן."; // אפשר להרחיב מה-rules
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
-        const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה מגוגל: ${googleSearchInfo.image || 'אין'}` : "";
+        const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
         
         const prompt = `
-        הנחיות התנהגות מול הלקוח הנוכחי (CRM):
+        הנחיות התנהגות מול הלקוח הנוכחי (מתוך ה-CRM):
         ${context || 'לקוח רגיל'}
         
-        הנחיות יועץ (DNA מ-Supabase): ${consultantDNA}
-        ${knowledgeBaseText}
+        מידע נוסף: ${knowledgeBaseText}
         
-        רשימת מוצרים מהמלאי בזמן אמת: ${productInfo}
+        רשימת מוצרים שנשלפו מהמלאי בזמן אמת: 
+        ${productInfo}
+        
         ${googleContext}
         
-        תקצר משפט פתיחה ואל תתחנף תהיה פיקודי למבציע הזמנה למשתמש שהוזכר או מוגדר כלקוח או הזכיר הזמנה
-        חוקי הצגת מוצרים ותמונות (חובה לציית):
-        1. אם יש כמה מוצרים רלוונטיים, הצג אותם כרשימה מסודרת, קצרה וקולעת (שם, מחיר אם יש, ותיאור טכני קצר).
-        2. תמונות: אם בנתונים של המוצר (מהמלאי או מגוגל) יש קישור לתמונה (URL), חובה לצרף את הקישור לשורה נפרדת מתחת לתיאור המוצר. אל תשתמש בסימון Markdown של תמונות.
+        --- חוקי ברזל חמורים (חובה לציית) ---
+        1. תקצר משפט פתיחה, אל תתחנף, ענה לעניין לפי הטון שהוגדר לך.
+        2. חוק אפס המצאות (Zero Hallucination): אם המוצר לא מופיע ב"רשימת מוצרים מהמלאי בזמן אמת", **אסור לך להמציא סיבות שקריות** (למשל: אל תגיד "אנחנו מתמקדים בחומרי גמר"). פשוט פעל לפי החוק שהוגדר לך למקרה של חוסרים (למשל: "אני בודק חלופות...").
+        3. אם מצאת מוצר במלאי, אל תכתוב מפרט ארוך. תן משפט סיום: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
+        4. אם נעזרת בגוגל למוצר חדש, חובה להוסיף בסוף התשובה: [SAVE_PRODUCT: שם_המוצר | תקציר_טכני | קישור_לתמונה]
         
-        חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש, חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
-        [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות | קישור_לתמונה_אם_יש]
-        🚀חתימה: ראמי זמין וגם אם לא, דאג לי. יקבל את ההזמנה רק תאשר לי שיגור.
+        🚀 חתימה לכל הודעה: ראמי זמין וגם אם לא, דאג לי. יקבל את ההזמנה רק תאשר לי שיגור.
         
-        שאלה: ${message}
+        שאלת הלקוח: ${message}
         `;
         
         let lastError: any = null;
         let finalReply = "";
         let activeModel = "";
 
-        // 7. לולאת מודלים
+        // 7. לולאת מודלים (Fallback)
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -122,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.2, maxOutputTokens: 800 }
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 800 } // הורדתי טמפרטורה כדי שיהיה יותר עובדתי ופחות ימציא
                     })
                 });
 
@@ -143,7 +151,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (!finalReply) throw new Error("All models failed: " + lastError);
 
-        // 8. תפיסת מוצרים ושמירה
+        // 8. תפיסת מוצרים חדשים ושמירה
         const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
         if (saveMatch) {
             const newProductName = saveMatch[1].trim();
@@ -173,7 +181,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (e: any) {
-        console.error("🔥 API Error (500):", e.message);
+        console.error("🔥 API Error:", e.message);
         return res.status(500).json({ error: e.message });
     }
 }
