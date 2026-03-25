@@ -40,13 +40,16 @@ async function getGoogleCseInfo(query: string) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    // רק פניות POST
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY;
     const { message, context } = req.body; 
 
-    if (!message) return res.status(400).json({ error: "Missing message" });
-    if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
+    // 🔥 טריק: מחזירים שגיאה ישירות לצ'אט כדי שראמי יראה מה חסר
+    if (!message) return res.status(200).json({ reply: "אחי, קיבלתי הודעה ריקה. תנסה שוב." });
+    if (!apiKey) return res.status(200).json({ reply: "⚠️ ראמי, חסר מפתח GEMINI_API_KEY ב-Vercel! השרת לא יכול לדבר עם המוח." });
+    if (!supabaseUrl || !supabaseKey) return res.status(200).json({ reply: "⚠️ ראמי, חסרים מפתחות של Supabase ב-Vercel! לא יכול לשלוף מלאי." });
 
     const modelPool = [
         "gemini-2.0-flash",       
@@ -58,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
         const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
         const cleanSearchTerm = message
-            .replace(/[^\w\sא-ת]/gi, ' ') // ניקוי תווים מיוחדים
+            .replace(/[^\w\sא-ת]/gi, ' ') 
             .split(/\s+/)
             .filter((w: string) => !stopWords.includes(w) && w.length > 1)
             .join(' ')
@@ -70,15 +73,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש
         if (cleanSearchTerm.length > 0) {
             
-            // 🔥 פתרון TypeScript סופי: עטיפה בפונקציות אסינכרוניות אמיתיות שמטפלות בשגיאות בפנים
             const fetchRules = async () => {
-                try { return await supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true); } 
-                catch { return { data: [] }; }
+                try { 
+                    const res = await supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true); 
+                    return res.error ? { data: [] } : res;
+                } catch { return { data: [] }; }
             };
             
             const fetchInv = async () => {
-                try { return await supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5); } 
-                catch { return { data: [] }; }
+                try { 
+                    // 🔥 הוסר config: 'hebrew' שגרם לקריסות פוסטגרס. חיפוש נקי ויציב.
+                    const res = await supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch' }).limit(5); 
+                    return res.error ? { data: [] } : res;
+                } catch { return { data: [] }; }
             };
 
             const [rulesRes, invRes] = await Promise.all([fetchRules(), fetchInv()]);
@@ -87,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             rules = rulesRes?.data || [];
         }
 
-        // 4. שליפת ידע מהזיכרון המוקשמון
+        // 4. שליפת ידע מהזיכרון
         const cacheSnap = await getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] }));
         const cacheDocs = cacheSnap?.docs ? cacheSnap.docs.map(d => d.data()) : [];
 
@@ -121,7 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         --- חוקי ברזל חמורים (חובה לציית) ---
         1. תקצר משפט פתיחה, אל תתחנף, ענה לעניין לפי הטון שהוגדר לך.
-        2. חוק אפס המצאות (Zero Hallucination): אם המוצר לא מופיע ב"רשימת מוצרים מהמלאי בזמן אמת", **אסור לך להמציא סיבות שקריות** (למשל: אל תגיד "אנחנו מתמקדים בחומרי גמר"). פשוט פעל לפי החוק שהוגדר לך למקרה של חוסרים (למשל: "אני בודק חלופות...").
+        2. חוק אפס המצאות (Zero Hallucination): אם המוצר לא מופיע ב"רשימת מוצרים מהמלאי בזמן אמת", **אסור לך להמציא סיבות שקריות**. פעל לפי החוק שהוגדר לך למקרה של חוסרים.
         3. אם מצאת מוצר במלאי, אל תכתוב מפרט ארוך. תן משפט סיום: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
         4. אם נעזרת בגוגל למוצר חדש, חובה להוסיף בסוף התשובה: [SAVE_PRODUCT: שם_המוצר | תקציר_טכני | קישור_לתמונה]
         
@@ -161,7 +168,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
         }
 
-        if (!finalReply) throw new Error("All models failed: " + lastError);
+        if (!finalReply) throw new Error("כל המודלים של ג'מיני קרסו: " + lastError);
 
         // 8. תפיסת מוצרים חדשים ושמירה
         const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
@@ -194,6 +201,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } catch (e: any) {
         console.error("🔥 API Error:", e.message);
-        return res.status(500).json({ error: e.message });
+        // במקום להקריס את האפליקציה ב-500, נחזיר את השגיאה בתוך הודעה מסודרת לצ'אט!
+        return res.status(200).json({ 
+            reply: `⚠️ ראמי, יש לי שגיאת שרת פנימית (500). זה מה שקרס: ${e.message}` 
+        });
     }
 }
