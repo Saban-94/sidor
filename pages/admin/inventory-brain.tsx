@@ -157,7 +157,7 @@ export default function InventoryBrain() {
             <Search className="absolute right-3 top-3 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="חיפוש מק\"ט או שם..." 
+              placeholder="חיפוש מקט או שם..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-slate-100 pr-10 pl-4 py-2 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500"
