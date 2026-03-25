@@ -3,12 +3,12 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// 1. אתחול Supabase (מלאי ו-DNA)
+// 1. אתחול Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 2. אתחול Firebase (לשמירת ידע וקאש של מוצרים)
+// 2. אתחול Firebase
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
-// 3. פונקציית שחקן חיזוק - מנוע חיפוש גוגל מותאם (מחזיר גם תמונות)
+// 3. פונקציית שחקן חיזוק (גוגל)
 async function getGoogleCseInfo(query: string) {
     const cx = process.env.NEXT_PUBLIC_GOOGLE_CSE_ID || "1340c66f5e73a4076"; 
     const apiKey = process.env.Search_API_KEY || process.env.GOOGLE_SEARCH_API_KEY;
@@ -32,7 +32,7 @@ async function getGoogleCseInfo(query: string) {
             return {
                 snippet: data.items[0].snippet,
                 link: data.items[0].link,
-                image: data.items[0].pagemap?.cse_image?.[0]?.src || null // חילוץ תמונה מגוגל
+                image: data.items[0].pagemap?.cse_image?.[0]?.src || null 
             };
         }
         return null;
@@ -48,18 +48,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!message) return res.status(400).json({ error: "Missing message" });
     if (!apiKey) return res.status(500).json({ error: "API_KEY_MISSING" });
 
-    // מנגנון Fallback של מודלים
+    // 🚀 תוקן: שימוש במודלים היציבים והרשמיים של גוגל (ה-EXP נסגר!)
     const modelPool = [
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.1-flash-preview",
-        "gemini-2.0-flash-exp"
+        "gemini-2.0-flash",       // מודל הדגל המהיר והחדש
+        "gemini-1.5-flash",       // מודל גיבוי יציב בטירוף
+        "gemini-1.5-pro"          // גיבוי אחרון (כבד וחכם)
     ];
 
     try {
-        // 4. שליפה מקבילית: DNA, רשימת מלאי (עד 5 מוצרים במקום 1), וזיכרון מוקשמון מפיירבייס
+        // 🔥 תוקן: ניקוי תווים מיוחדים (כמו גרשיים וסוגריים) כדי ש-Supabase לא יקרוס
+        const cleanSearchTerm = message.replace(/[()"']/g, ' ').trim();
+
+        // 4. שליפה מקבילית סופר-מהירה
         const [rulesRes, invRes, cacheSnap] = await Promise.all([
             supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true),
-            supabase.from('inventory').select('*').textSearch('product_name', message, { config: 'hebrew' }).limit(5), // <-- שונה ל-5 כדי להביא רשימה
+            supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { config: 'hebrew' }).limit(5),
             getDocs(collection(dbFS, "knowledge_base")).catch(() => ({ docs: [] })) 
         ]);
 
@@ -67,20 +70,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const inv = invRes.data;
         const cacheDocs = cacheSnap.docs.map(d => d.data());
 
-        // הרכבת מידע טכני מהקאש 
         let knowledgeBaseText = "";
         if (cacheDocs.length > 0) {
             knowledgeBaseText = "\nמידע טכני מהמאגר שלנו (השתמש בזה כדי לחסוך חיפוש):\n" + 
                                 cacheDocs.map(p => `- ${p.productName}: ${p.description} (תמונה אם יש: ${p.image_url || 'אין'})`).join("\n");
         }
 
-        // 5. הפעלת שחקן חיזוק (גוגל) רק אם אין במלאי הפנימי בכלל
+        // 5. גוגל - רק אם אין במלאי הפנימי
         let googleSearchInfo: any = null;
         if (!inv || inv.length === 0) {
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט האולטימטיבי (כולל הוראות לתמונות ורשימות)
+        // 6. הרכבת הפרומפט
         const consultantDNA = rules?.map(r => r.instruction).join("\n") || "אתה יועץ טכני מקצועי של ח.סבן.";
         const productInfo = inv?.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה מגוגל: ${googleSearchInfo.image || 'אין'}` : "";
@@ -94,14 +96,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         רשימת מוצרים מהמלאי בזמן אמת: ${productInfo}
         ${googleContext}
+        
         תקצר משפט פתיחה ואל תתחנף תהיה פיקודי למבציע הזמנה למשתמש שהוזכר או מוגדר כלקוח או הזכיר הזמנה
         חוקי הצגת מוצרים ותמונות (חובה לציית):
         1. אם יש כמה מוצרים רלוונטיים, הצג אותם כרשימה מסודרת, קצרה וקולעת (שם, מחיר אם יש, ותיאור טכני קצר).
-        2. תמונות: אם בנתונים של המוצר (מהמלאי או מגוגל) יש קישור לתמונה (URL), חובה לצרף את הקישור לשורה נפרדת מתחת לתיאור המוצר. אל תשתמש בסימון Markdown של תמונות, פשוט תדביק את הקישור כמו שהוא כדי שווצאפ יפתח אותו (לדוגמה: לינק לתמונה: https://...).
+        2. תמונות: אם בנתונים של המוצר (מהמלאי או מגוגל) יש קישור לתמונה (URL), חובה לצרף את הקישור לשורה נפרדת מתחת לתיאור המוצר. אל תשתמש בסימון Markdown של תמונות.
         
         חוק קריטי: אם נעזרת ב"מידע משלים מגוגל" כדי ללמוד על מוצר חדש, חובה להוסיף בסוף התשובה שלך את השורה המדויקת הבאה כדי שנזכור זאת:
         [SAVE_PRODUCT: שם_המוצר | תקציר_טכני_של_שלוש_שורות | קישור_לתמונה_אם_יש]
-        🚀חתימה: ראמי זמין וגם אם לו דאג לי יקבל את ההזמנה רק תאשר לי שיגור
+        🚀חתימה: ראמי זמין וגם אם לא, דאג לי. יקבל את ההזמנה רק תאשר לי שיגור.
         
         שאלה: ${message}
         `;
@@ -110,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let finalReply = "";
         let activeModel = "";
 
-        // 7. לולאת מודלים
+        // 7. לולאת מודלים (עם לוגים מסודרים לורסל)
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -128,6 +131,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     finalReply = data.candidates[0].content.parts[0].text;
                     activeModel = modelName;
                     break; 
+                } else if (data.error) {
+                    throw new Error(data.error.message);
                 }
             } catch (e: any) {
                 lastError = e.message;
@@ -137,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (!finalReply) throw new Error("All models failed: " + lastError);
 
-        // 8. מנגנון תפיסת מוצרים חדשים ושמירתם למאגר (כולל חילוץ תמונה אם הגיעה מגוגל)
+        // 8. תפיסת מוצרים ושמירה
         const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
         if (saveMatch) {
             const newProductName = saveMatch[1].trim();
@@ -152,7 +157,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     addedAt: serverTimestamp(),
                     source: "google_search_cache"
                 });
-                console.log(`✅ המוח למד ושמר מוצר חדש (עם תמונה): ${newProductName}`);
             } catch (err) {
                 console.error("שגיאה בשמירת זיכרון מוצר:", err);
             }
@@ -168,6 +172,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (e: any) {
+        // 🔥 הוספת לוג שמדפיס את השגיאה האמיתית ב-Vercel
+        console.error("🔥 API Error (500):", e.message);
         return res.status(500).json({ error: e.message });
     }
 }
