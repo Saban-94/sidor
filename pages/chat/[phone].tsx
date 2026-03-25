@@ -4,7 +4,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, onSnapshot, collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Send, Bot, User, Calculator, ArrowLeft, PackageSearch } from 'lucide-react';
+import { Send, Bot, Calculator, PackageSearch, Youtube } from 'lucide-react';
 
 // אתחול Firebase
 const firebaseConfig = {
@@ -25,7 +25,6 @@ export default function MagicChat() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // טעינת פרופיל איש הקשר
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -41,7 +40,6 @@ export default function MagicChat() {
     return () => unsubscribe();
   }, [phone]);
 
-  // טעינת היסטוריית השיחות עם המוח
   useEffect(() => {
     if (!phone) return;
     const cleanPhone = phone.toString();
@@ -57,7 +55,6 @@ export default function MagicChat() {
     return () => unsubscribe();
   }, [phone]);
 
-  // שליחת הודעה + קבלת תשובה ומוצרים מצורפים
   const handleSend = async () => {
     if (!inputText.trim() || !profile || isLoading) return;
     const userMsg = inputText.trim();
@@ -65,21 +62,18 @@ export default function MagicChat() {
     setIsLoading(true);
 
     try {
-      // 1. שמירת הודעת הלקוח
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: userMsg,
         type: 'in',
         timestamp: serverTimestamp()
       });
 
-      // 2. פקודת ההזרקה למוח (מוסיפים לו הוראה שיגיד שהוא צירף כרטיס אם מצא מוצר)
       const aiContext = `
         אתה העוזר הלוגיסטי של ראמי מ"ח. סבן".
-        הלקוח מולך: ${profile.name || "לקוח"}. קשר: ${profile.relation || "כללי"}.
-        **חוק חשוב:** אם הלקוח שואל על מוצר ספציפי (כמו פלסטומר 603) והמערכת מצאה אותו במלאי, אל תכתוב לו מפרטים ארוכים. תכתוב תשובה קצרה וציין: "צירפתי לך כאן למטה את כרטיס המוצר המלא עם מחשבון כמויות."
+        הלקוח מולך: ${profile.name || "לקוח"}.
+        **חוק חשוב:** אם המערכת מצאה מוצר רלוונטי במלאי, אל תכתוב מפרטים ארוכים. ענה קצר והוסף בסוף המשפט: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון הסבר ומחשבון כמויות."
       `;
 
-      // 3. קריאה ל-API
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,16 +85,13 @@ export default function MagicChat() {
       });
       
       const data = await response.json();
-      const aiReply = data.reply || "הייתה לי שגיאה קטנה במוח, אפשר לנסות שוב?";
-      
-      // ה"קסם": שולפים את המוצרים שה-API מצא (inv מ-Supabase)
+      const aiReply = data.reply || "שגיאה במוח.";
       const attachedProducts = data.products && data.products.length > 0 ? data.products : [];
 
-      // 4. שמירת התשובה ב-Firestore יחד עם המידע על המוצרים!
       await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), {
         text: aiReply,
         type: 'out',
-        attachedProducts: attachedProducts, // שומרים את האובייקטים של המוצרים
+        attachedProducts: attachedProducts,
         timestamp: serverTimestamp()
       });
 
@@ -130,39 +121,25 @@ export default function MagicChat() {
           </div>
           <div className="flex flex-col">
             <h1 className="font-black text-lg leading-tight">העוזר של ראמי</h1>
-            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">מחובר ומאזין ל- {profile.name}</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">מאזין ל- {profile.name}</span>
           </div>
         </div>
       </header>
 
       <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-        {messages.length === 0 && (
-          <div className="m-auto text-center space-y-3 opacity-50">
-            <Bot size={48} className="mx-auto text-slate-400" />
-            <p className="text-sm font-bold text-slate-500">
-              אהלן {profile.name}, אני העוזר החכם של ראמי. <br/>
-              איך אפשר לעזור היום?
-            </p>
-          </div>
-        )}
-
         {messages.map((m) => (
           <div key={m.id} className={`flex flex-col max-w-[85%] ${m.type === 'in' ? 'self-end' : 'self-start'}`}>
             
-            {/* בועת טקסט רגילה */}
             <div className={`p-4 text-sm shadow-sm ${m.type === 'in' ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none' : 'bg-white text-slate-800 rounded-2xl rounded-tl-none border border-slate-100'}`}>
               <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
-              <div className={`text-[10px] mt-2 text-left ${m.type === 'in' ? 'text-slate-400' : 'text-slate-400'}`}>
-                {m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-              </div>
             </div>
 
-            {/* 🔥 כרטיס מוצר UI - מופיע רק אם ה-API שלח מוצרים */}
+            {/* 🔥 כרטיס המוצר המלא (עם תמונה ויוטיוב) */}
             {m.attachedProducts && m.attachedProducts.length > 0 && (
               <div className="mt-2 flex flex-col gap-2">
                 {m.attachedProducts.map((product: any, idx: number) => (
-                  <Link href={`/product/${product.sku}`} key={idx}>
-                    <div className="bg-white border border-emerald-100 rounded-2xl p-3 shadow-md hover:shadow-lg transition-all flex gap-3 cursor-pointer group w-[280px]">
+                  <div key={idx} className="bg-white border border-emerald-100 rounded-2xl p-3 shadow-md w-[280px]">
+                    <div className="flex gap-3">
                       {/* תמונה מוקטנת */}
                       <div className="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
                         {product.image_url ? (
@@ -172,37 +149,50 @@ export default function MagicChat() {
                         )}
                       </div>
                       
-                      {/* פרטים */}
                       <div className="flex flex-col justify-between flex-1 overflow-hidden">
                         <div>
                           <h3 className="font-black text-sm text-slate-800 leading-tight truncate">{product.product_name}</h3>
                           <p className="text-[10px] text-slate-500 font-mono mt-1">מק"ט: {product.sku}</p>
                         </div>
-                        
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-emerald-600 font-black text-sm">{product.price ? `₪${product.price}` : ''}</span>
-                          <span className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
-                            <Calculator size={12} />
-                            מחשבון
-                          </span>
-                        </div>
+                        <span className="text-emerald-600 font-black text-sm mt-1">{product.price ? `₪${product.price}` : ''}</span>
                       </div>
                     </div>
-                  </Link>
+
+                    {/* כפתורי פעולה */}
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-50">
+                      {/* כפתור יוטיוב (מוצג רק אם יש לינק ליוטיוב) */}
+                      {product.youtube_url && (
+                        <a 
+                          href={product.youtube_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1 text-[11px] bg-red-50 text-red-600 py-2 rounded-xl font-bold hover:bg-red-500 hover:text-white transition"
+                        >
+                          <Youtube size={14} />
+                          צפה בסרטון
+                        </a>
+                      )}
+                      
+                      {/* כפתור מחשבון (מפנה לעמוד המוצר המלא) */}
+                      <Link href={`/product/${product.sku}`} className="flex-1">
+                        <div className="w-full flex items-center justify-center gap-1 text-[11px] bg-emerald-50 text-emerald-600 py-2 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition">
+                          <Calculator size={14} />
+                          מחשבון וכמויות
+                        </div>
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
-            
           </div>
         ))}
 
         {isLoading && (
           <div className="self-start bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none text-sm text-slate-500 flex items-center gap-2">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></span>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-            </div>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></span>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
           </div>
         )}
       </main>
@@ -216,12 +206,12 @@ export default function MagicChat() {
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             disabled={isLoading}
             placeholder="שאל על חומר, כמות או מחיר..."
-            className="flex-1 bg-slate-50 p-4 rounded-2xl border-none outline-none text-sm shadow-inner focus:ring-2 focus:ring-emerald-500/20 transition-all disabled:opacity-50"
+            className="flex-1 bg-slate-50 p-4 rounded-2xl border-none outline-none text-sm shadow-inner focus:ring-2 focus:ring-emerald-500/20"
           />
           <button 
             onClick={handleSend}
             disabled={!inputText.trim() || isLoading}
-            className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:bg-slate-300"
+            className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 disabled:opacity-50"
           >
             <Send size={20} className="transform rotate-180" />
           </button>
