@@ -54,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "gemini-1.5-flash",         // המודל החדש והמהיר ביותר כיום (יציב ב-100%)
         "gemini-1.5-flash-latest",  // גיבוי לגרסה העדכנית ביותר
         "gemini-pro"                // גיבוי ברזל (מודל 1.0 שעובד מכל מקום בעולם)
+        "gemini-3.1-flash-lite-preview",
     ];
 
     try {
