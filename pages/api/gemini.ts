@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 // 1. אתחול Supabase
@@ -49,16 +49,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!apiKey) return res.status(200).json({ reply: "⚠️ ראמי, חסר מפתח GEMINI_API_KEY ב-Vercel! השרת לא יכול לדבר עם המוח." });
     if (!supabaseUrl || !supabaseKey) return res.status(200).json({ reply: "⚠️ ראמי, חסרים מפתחות של Supabase ב-Vercel! לא יכול לשלוף מלאי." });
 
-    // 🔥 תיקון: מודלים גלובליים, חזקים ויציבים (ללא Pro שלפעמים חסום לאזורים מסוימים)
     const modelPool = [
         "gemini-3.1-flash-lite-preview",
-        "gemini-1.5-flash",         // המודל החדש והמהיר ביותר כיום (יציב ב-100%)
-        "gemini-1.5-flash-latest",  // גיבוי לגרסה העדכנית ביותר
-        "gemini-pro"                // גיבוי ברזל (מודל 1.0 שעובד מכל מקום בעולם)
+        "gemini-1.5-flash",         
+        "gemini-1.5-flash-latest",  
+        "gemini-pro"                
     ];
 
     try {
-        const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
+        // 🔥 משיכת מילות הסינון בלייב מהגדרות המערכת ב-Firebase (עם גיבוי לדיפולט)
+        const systemConfigSnap = await getDoc(doc(dbFS, "system", "search_config")).catch(() => null);
+        const dbStopWords = systemConfigSnap?.exists() ? systemConfigSnap.data().stopWords : null;
+        
+        const stopWords = dbStopWords || ['רוצה', 'להזמין', 'לקנות', 'יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
+        
         const cleanSearchTerm = message
             .replace(/[^\w\sא-ת]/gi, ' ') 
             .split(/\s+/)
@@ -105,15 +109,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        const consultantDNA = rules.length ? rules.map((r: any) => r.instruction).join("\n") : "אתה יועץ טכני של ח. סבן.";
+        const consultantDNA = rules.length ? rules.map((r: any) => r.instruction).join("\n") : "היה יועץ טכני מקצועי.";
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
         
         const prompt = `
+        הזהות שלך: אתה ראמי, מנהל התפעול והלוגיסטיקה בחברת ח. סבן חומרי בניין. 
+        הלקוח פונה אליך! לעולם אל תפנה ללקוח בשם "ראמי".
+
         הנחיות התנהגות מול הלקוח הנוכחי (מתוך ה-CRM):
-        ${context || 'לקוח רגיל'}
+        ${context || 'דבר בגובה העיניים, קצר, מקצועי ובשפת קבלנים.'}
         
-        מידע נוסף: ${knowledgeBaseText}
+        מידע טכני מה-DNA שלך: ${consultantDNA}
+        ${knowledgeBaseText}
         
         רשימת מוצרים שנשלפו מהמלאי בזמן אמת: 
         ${productInfo}
@@ -121,17 +129,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ${googleContext}
         
         --- חוקי ברזל חמורים (חובה לציית) ---
-        1. תקצר משפט פתיחה, אל תתחנף, ענה לעניין לפי הטון שהוגדר לך.
-        2. חוק אפס המצאות (Zero Hallucination): אם המוצר לא מופיע ב"רשימת מוצרים מהמלאי בזמן אמת", **אסור לך להמציא סיבות שקריות**. פעל לפי החוק שהוגדר לך למקרה של חוסרים.
-        3. אם מצאת מוצר במלאי, אל תכתוב מפרט ארוך. תן משפט סיום: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
-        4. אם נעזרת בגוגל למוצר חדש, חובה להוסיף בסוף התשובה: [SAVE_PRODUCT: שם_המוצר | תקציר_טכני | קישור_לתמונה]
+        1. תקצר משפט פתיחה, אל תתחנף, תענה ישירות ולעניין.
+        2. התמודדות עם חוסרים (קריטי): אם המוצר לא נמצא ב"רשימת מוצרים מהמלאי בזמן אמת", אסור לך להמציא תירוצים רובוטיים או להגיד סתם "אין". ענה כמו ראמי התותח: "אהלן אחי, [שם המוצר שחיפש] לא נמצא לי כרגע במלאי. אני כבר בודק לך מול הספקים אלטרנטיבה או מתי נכנס ומעדכן אותך." (תתאים את הטון ללקוח).
+        3. אם מצאת מוצר במלאי, אל תכתוב מפרט ארוך בגוף ההודעה. תן משפט קצר שמסכם את המחיר/כמות וסיים עם: "צירפתי לך למטה את כרטיס המוצר עם תמונה, סרטון ומחשבון כמויות."
+        4. אם נעזרת בגוגל למוצר חדש, חובה להוסיף בסוף התשובה (בשורה נפרדת): [SAVE_PRODUCT: שם_המוצר | תקציר_טכני | קישור_לתמונה]
         
-        🚀 חתימה לכל הודעה: ראמי זמין וגם אם לא, דאג לי. יקבל את ההזמנה רק תאשר לי שיגור.
+        🚀 חתימה לכל הודעה (הוסף תמיד בסוף): ראמי זמין וגם אם לא, דאג לי. יקבל את ההזמנה רק תאשר לי שיגור.
         
         שאלת הלקוח: ${message}
         `;
         
-        let errorLogs: string[] = []; // 🔥 מערך חדש לאיסוף שגיאות של כל המודלים
+        let errorLogs: string[] = [];
         let finalReply = "";
         let activeModel = "";
 
@@ -157,12 +165,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     throw new Error(data.error.message);
                 }
             } catch (e: any) {
-                errorLogs.push(`${modelName}: ${e.message}`); // שומר את השגיאה של המודל הספציפי
+                errorLogs.push(`${modelName}: ${e.message}`);
                 continue; 
             }
         }
 
-        // אם כולם נפלו, נציג לראמי בדיוק למה כל אחד מהם נפל
         if (!finalReply) throw new Error("קריסת מודלים מוחלטת | " + errorLogs.join(" | "));
 
         const saveMatch = finalReply.match(/\[SAVE_PRODUCT:\s*(.*?)\s*\|\s*(.*?)(?:\s*\|\s*(.*?))?\]/);
