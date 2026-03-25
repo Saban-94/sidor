@@ -55,12 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ];
 
     try {
-        // 🔥 מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
+        // מסנן מילות קישור לשליפה מדויקת מהמלאי (Stop Words Filter)
         const stopWords = ['יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
         const cleanSearchTerm = message
-            .replace(/[^\w\sא-ת]/gi, ' ') // ניקוי תווים מיוחדים שמרסקים את המסד
+            .replace(/[^\w\sא-ת]/gi, ' ') // ניקוי תווים מיוחדים
             .split(/\s+/)
-            .filter((w: string) => !stopWords.includes(w) && w.length > 1) // סינון מילות קישור
+            .filter((w: string) => !stopWords.includes(w) && w.length > 1)
             .join(' ')
             .trim();
 
@@ -69,11 +69,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         // נחפש במלאי רק אם נשארו מילים אמיתיות לחיפוש
         if (cleanSearchTerm.length > 0) {
-            // 🔥 תיקון ה-TypeScript: שימוש ב-.then() כדי להפוך את השאילתה ל-Promise אמיתי ואז לתפוס שגיאות
-            const [rulesRes, invRes] = await Promise.all([
-                supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true).then(res => res).catch(() => ({ data: [] })),
-                supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5).then(res => res).catch(() => ({ data: [] }))
-            ]);
+            
+            // 🔥 פתרון TypeScript סופי: עטיפה בפונקציות אסינכרוניות אמיתיות שמטפלות בשגיאות בפנים
+            const fetchRules = async () => {
+                try { return await supabase.from('system_rules').select('instruction').eq('agent_type', 'consultant').eq('is_active', true); } 
+                catch { return { data: [] }; }
+            };
+            
+            const fetchInv = async () => {
+                try { return await supabase.from('inventory').select('*').textSearch('product_name', cleanSearchTerm, { type: 'websearch', config: 'hebrew' }).limit(5); } 
+                catch { return { data: [] }; }
+            };
+
+            const [rulesRes, invRes] = await Promise.all([fetchRules(), fetchInv()]);
             
             inv = invRes?.data || [];
             rules = rulesRes?.data || [];
@@ -95,7 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             googleSearchInfo = await getGoogleCseInfo(message);
         }
 
-        // 6. הרכבת הפרומפט (עם חוק אפס המצאות מחמיר)
+        // 6. הרכבת הפרומפט
         const consultantDNA = rules.length ? rules.map((r: any) => r.instruction).join("\n") : "אתה יועץ טכני של ח. סבן.";
         const productInfo = inv.length ? JSON.stringify(inv) : "המוצר לא נמצא במלאי הפנימי.";
         const googleContext = googleSearchInfo ? `\nמידע משלים מגוגל: ${googleSearchInfo.snippet}\nקישור: ${googleSearchInfo.link}\nלינק לתמונה: ${googleSearchInfo.image || 'אין'}` : "";
