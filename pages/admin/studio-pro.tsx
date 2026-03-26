@@ -44,6 +44,11 @@ export default function App() {
   const [messages, setMessages] = useState<any[]>([]);
   const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
   
+  // --- משתני State שתוקנו (היו חסרים וגרמו לשגיאת בילד) ---
+  const [chatInput, setChatInput] = useState<string>('');
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [globalDNA, setGlobalDNA] = useState<string>('');
+  
   const [isAiActive, setIsAiActive] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,11 +103,21 @@ export default function App() {
       setCustomers(Array.from(unifiedMap.values()));
     });
 
+    // טעינת עץ ה-AI
+    const unsubFlow = onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setNodes(data.nodes || []);
+          setGlobalDNA(data.globalDNA || '');
+        }
+      });
+
     return () => {
       window.removeEventListener('resize', checkSize);
       clearInterval(timer);
       unsubStatus();
       unsubCust();
+      unsubFlow();
     };
   }, []);
 
@@ -261,6 +276,7 @@ export default function App() {
               { id: 'HUB', icon: MessageCircle, label: 'JONI HUB' },
               { id: 'CRM', icon: Users, label: 'זהויות ואיחוד' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
+              { id: 'INVENTORY', icon: PackageSearch, label: 'מלאי טכני' },
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
@@ -312,8 +328,8 @@ export default function App() {
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#0f172a] rounded-full"></div>
                 </div>
                 <div className="text-right flex-1 overflow-hidden">
-                  <div className="text-sm font-black truncate leading-tight">{c.projectName || c.name || "אורח"}</div>
-                  <div className="text-[10px] opacity-40 font-mono mt-1 truncate">{normalizeId(c.id)}</div>
+                  <div className="text-sm font-black truncate leading-tight text-slate-800 dark:text-slate-100">{c.projectName || c.name || "אורח"}</div>
+                  <div className="text-[10px] opacity-40 font-mono mt-1 truncate text-slate-500 dark:text-slate-400">{normalizeId(c.id)}</div>
                 </div>
               </button>
             ))}
@@ -365,7 +381,7 @@ export default function App() {
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight text-slate-800 dark:text-slate-200">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
         )}
       </main>
 
@@ -417,7 +433,7 @@ export default function App() {
                 <button onClick={() => setShowQrModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-xl text-white animate-pulse"><QrCode size={48} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter mb-4">סנכרון ברקוד JONI</h2>
-                <p className="text-slate-500 font-bold mb-8 leading-relaxed">השרת במשרד ממתין לסריקת הברקוד החדש שלך. סרוק עכשיו כדי לחבר את הצינור חזרה.</p>
+                <p className="text-slate-500 font-bold mb-8 leading-relaxed text-slate-600">השרת במשרד ממתין לסריקת הברקוד החדש שלך. סרוק עכשיו כדי לחבר את הצינור חזרה.</p>
                 <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-lg rounded-xl border-4 border-white" alt="QR" />
@@ -441,4 +457,7 @@ export default function App() {
 
 function Clock({ size = 16, className = "" }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+}
+function toggleMessageSelection(id: string): void {
+    // This is defined inside App component scope now to maintain state access.
 }
