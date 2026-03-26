@@ -23,10 +23,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const { message, name, state, isGroup, senderPhone } = req.body; 
+    const { message, name, state, isGroup, senderPhone, manualInjection } = req.body; 
 
     // הגנות בסיס
-    if (!message) return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
+    if (!message && !manualInjection) return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
     if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
     const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash", "gemini-pro"];
@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // 2. ניווט חכם וזיהוי "חזור" (Guard Rail)
         let forcedState = state || 'MENU';
-        const cleanMsg = message.trim();
+        const cleanMsg = (message || "").trim();
 
         if (['0', 'חזור', 'תפריט', 'איפוס'].includes(cleanMsg)) {
             forcedState = 'MENU';
@@ -64,7 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // 4. שליפת מלאי חכמה (רק בבירור מוצר)
         let invInfo = "";
         if (forcedState === 'INQUIRY') {
-            const keyword = message.replace(/[^\w\sא-ת]/gi, '').split(/\s+/).filter((w: string) => w.length > 2)[0] || message;
+            const keyword = cleanMsg.replace(/[^\w\sא-ת]/gi, '').split(/\s+/).filter((w: string) => w.length > 2)[0] || cleanMsg;
             const { data } = await supabase.from('inventory').select('*').ilike('product_name', `%${keyword}%`).limit(3); 
             if (data && data.length > 0) {
                 invInfo = data.map(p => `💎 מוצר: ${p.product_name} | SKU: ${p.sku} | מחיר: ₪${p.price} | לינק: https://sidor.vercel.app/product/${p.sku} | תמונה: ${p.image_url}`).join('\n');
@@ -93,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         -- חוקי עיצוב והתנהגות יוקרתיים --
         1. אם המצב הוא MENU: 
-           - הצג תפריט מעוצב לעילא עם אימוג'ים (✨, 🏗️, 💎, 🚚, 📞).
+           - הצג תפריט מעוצב לעילא עם אימוג'ים יוקרתיים (✨, 🏗️, 💎, 🚚, 📞).
            - השתמש בכתב מודגש (*טקסט*) להדגשת אפשרויות.
            - חובה להחזיר את ${BRAND_LOGO} בשדה ה-mediaUrl.
         
@@ -101,7 +101,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            - אם מצאת מוצר במלאי (${invInfo}), צרף את לינק המחשבון הייעודי שלו.
            - אם יש תמונה למוצר בנתונים, שים אותה ב-mediaUrl.
         
-        3. לינקי קסם: אם הלקוח שואל על אזור אישי, הזמנה חדשה או פגישה, שלח לו את "לינק הקסם האישי" שלו בטקסט.
+        3. לינקי קסם וקבצים:
+           - אם הלקוח שואל על אזור אישי או מסמכים, שלח לו את "לינק הקסם האישי" בטקסט.
+           - במידה ונדרש PDF (קטלוג/מחירון), ציין את ה-URL שלו בשדה ה-pdfUrl.
 
         4. זיהוי המשכיות: אל תחזור לתפריט אם הלקוח שואל שאלת המשך מקצועית. הישאר בענף.
         
@@ -111,7 +113,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {
           "reply": "הטקסט המעוצב והיוקרתי",
           "newState": "${forcedState}",
-          "mediaUrl": "URL לתמונה (לוגו בתפריט / תמונת מוצר בבירור) או null"
+          "mediaUrl": "URL לתמונה (לוגו בתפריט / תמונת מוצר בבירור) או null",
+          "pdfUrl": "לינק לקובץ PDF אם נדרש, אחרת null",
+          "actionButton": { "text": "טקסט לכפתור", "link": "URL ללינק קסם או מוצר" } או null
         }
         `;
 
