@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { getDatabase, ref, push } from 'firebase/database';
+import { getDatabase, ref, push, onValue } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
-  BrainCircuit, Plus, Trash2, Settings, Clock, Play, Sun, Moon,
+  BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, AlertTriangle, Wifi, WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,6 +34,7 @@ export default function App() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isServerOnline, setIsServerOnline] = useState(false);
 
   // --- נתוני ליבה ---
   const [customers, setCustomers] = useState<any[]>([]);
@@ -59,10 +60,10 @@ export default function App() {
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
-    return clean.length >= 9 ? clean.slice(-9) : id;
+    return clean.length >= 9 ? clean.slice(-12) : id;
   };
 
-  // --- הגדרות עיצוב דינמיות בתוך הסקופ ---
+  // --- הגדרות עיצוב ---
   const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
   const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
   const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
@@ -75,7 +76,13 @@ export default function App() {
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // 1. טעינת לקוחות עם איחוד לוגי (למניעת כפל ברשימה)
+    // בדיקת סטטוס שרת (JONI)
+    const statusRef = ref(dbRT, 'saban94/status');
+    onValue(statusRef, (snap) => {
+      setIsServerOnline(snap.val()?.online || false);
+    });
+
+    // 1. טעינת לקוחות עם איחוד לוגי
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
@@ -83,7 +90,6 @@ export default function App() {
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
-          // שמירה על הגרסה עם השם או התמונה
           if (!existing || (!existing.name && curr.name) || (!existing.photo && curr.photo)) {
               unifiedMap.set(uid, { ...curr, uid });
           }
@@ -141,7 +147,7 @@ export default function App() {
     const txt = chatInput.trim();
     setChatInput('');
 
-    if (isAiActive) setIsAiActive(false); // השתלטות ידנית
+    if (isAiActive) setIsAiActive(false);
 
     try {
       await push(ref(dbRT, 'saban94/outgoing'), { number: selectedCustomer.id, message: txt, timestamp: Date.now() });
@@ -214,14 +220,12 @@ export default function App() {
     setSelectedMsgIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  // סינון לקוחות בחיפוש
   const filteredCustomers = customers.filter(c => 
     (c.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (c.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (c.id || '').includes(searchTerm)
   );
 
-  // --- תצוגת הדפסה ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
         <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl">
@@ -243,9 +247,9 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic text-sm">
-            <div className="text-center space-y-2"><div className="w-48 border-b-2 border-black mx-auto h-12"></div><p className="font-black text-xs uppercase text-slate-600">חתימת מנהל פרויקט</p></div>
-            <div className="text-center space-y-2"><div className="w-48 border-b-2 border-black mx-auto h-12"></div><p className="font-black text-xs uppercase text-slate-600">אישור מחסן ח. סבן</p></div>
+          <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic text-sm text-slate-600 uppercase font-black">
+            <div>חתימת מנהל פרויקט</div>
+            <div>אישור מחסן ח. סבן</div>
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print">
@@ -279,19 +283,26 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
-            {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
-          </button>
+          <div className="flex flex-col items-center gap-4 mt-auto">
+             <div className={`w-3 h-3 rounded-full ${isServerOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_10px_#ef4444]'}`} title={isServerOnline ? "Server Online" : "Server Offline"}></div>
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
+               {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
+             </button>
+          </div>
         </aside>
       )}
 
-      {/* 2. רשימת פניות עם חיפוש */}
+      {/* 2. רשימת פניות */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-85 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
                 <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                <span className="text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse uppercase tracking-tighter">Live Sync</span>
+                {isServerOnline ? (
+                    <span className="text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse uppercase">Live</span>
+                ) : (
+                    <span className="text-[9px] bg-red-500 text-white px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1"><WifiOff size={10}/> Offline</span>
+                )}
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -315,19 +326,22 @@ export default function App() {
         </aside>
       )}
 
-      {/* 3. Main Operational Workspace */}
+      {/* 3. Main Workspace */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         {selectedCustomer && activeTab === 'HUB' ? (
           <div className="flex-1 flex flex-col h-full">
             <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20 relative group">
-                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
+                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
                   <div onClick={handlePhotoUpdate} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"><ImageIcon className="text-white" size={20}/></div>
                 </div>
                 <div><h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>{normalizeId(selectedCustomer.id)} | UNIFIED CONTROL</p></div>
               </div>
               <div className="flex items-center gap-4">
+                {!isServerOnline && (
+                    <div className="bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-[10px] font-black flex items-center gap-2 border border-red-500/20"><AlertTriangle size={14}/> JONI SERVER OFFLINE</div>
+                )}
                 <button onClick={() => setIsSelectionMode(!isSelectionMode)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all border ${isSelectionMode ? 'bg-orange-500 border-orange-400 text-white shadow-lg' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><Activity size={16} /> {isSelectionMode ? 'סימון פעיל' : 'מצב בחירה'}</button>
                 <button onClick={() => setIsAiActive(!isAiActive)} className={`flex items-center gap-3 px-7 py-3 rounded-[1.4rem] font-black text-xs transition-all border-2 ${isAiActive ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl shadow-emerald-500/30' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><Power size={20} /> {isAiActive ? 'AI AUTO ON' : 'MANUAL'}</button>
                 <button onClick={() => setIsPrinting(true)} className="p-4 bg-blue-600/10 text-blue-500 rounded-[1.5rem] hover:bg-blue-600/20 border border-blue-600/20 shadow-xl group"><Printer size={28} className="group-hover:scale-110 transition-transform"/></button>
@@ -340,80 +354,39 @@ export default function App() {
                   <div className={`p-6 rounded-[2.2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-500/40'}`}>
                     {isSelectionMode && (<div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400'}`}><CheckCircle2 size={16}/></div>)}
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">{m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצה' : 'אישי'}</div>
-                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="content" />}
+                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="product" />}
                     <div className="whitespace-pre-wrap font-bold">{m.text}</div>
-                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'ממש עכשיו'}</div>
+                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}</div>
                   </div>
                 </motion.div>
               ))}
-              {isThinking && (
-                <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl animate-pulse">
-                  <Activity size={24} className="animate-spin" />
-                  <span className="text-sm font-black uppercase tracking-widest">JONI AI FORMULATING...</span>
-                </div>
-              )}
+              {isThinking && <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl animate-pulse"><Activity size={24} className="animate-spin" /><span className="text-sm font-black uppercase tracking-widest">JONI IS THINKING...</span></div>}
             </div>
 
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
               <div className={`flex items-center gap-5 p-5 rounded-[2.8rem] border transition-all ${inputBg} shadow-2xl`}>
                 <button onClick={handlePhotoUpdate} className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={28}/></button>
-                <input 
-                  type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} 
-                  onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                  placeholder="הקש הודעה לניהול פרויקט (יכבה AI אוטומטית)..." 
-                  className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" 
-                />
-                <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500">
-                  <Send size={28} className="transform rotate-180" />
-                </button>
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט (השתלטות ידנית)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
+                <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
           </div>
-        ) : activeTab === 'FLOW' ? (
-          <div className="flex-1 overflow-y-auto p-16 flex flex-col gap-12">
-            <header className="flex justify-between items-center">
-              <div><h1 className="text-5xl font-black italic tracking-tighter uppercase">AI <span className="text-blue-500">Studio</span></h1><p className="text-sm font-bold opacity-60 mt-2 uppercase tracking-widest">תכנות המוח המרכזי</p></div>
-              <div className="flex gap-4"><button onClick={() => setNodes([...nodes, { id: `BNCH_${Date.now()}`, title: 'ענף חדש', trigger: '', prompt: '' }])} className="bg-blue-600 text-white px-10 py-5 rounded-[1.8rem] font-black text-sm shadow-2xl active:scale-95 transition-all"><Plus size={24}/> ענף חדש</button><button onClick={async () => { setIsSaving(true); try { await setDoc(doc(dbFS, 'system', 'bot_flow_config'), { nodes, globalDNA }, { merge: true }); } catch(err:any){ console.error(err.message); } finally { setTimeout(()=>setIsSaving(false), 800); } }} className="bg-slate-900 text-white px-10 py-5 rounded-[1.8rem] font-black text-sm shadow-2xl flex items-center gap-3 transition-all">{isSaving ? <Activity className="animate-spin"/> : <><Save size={24}/> שמור עץ LIVE</>}</button></div>
-            </header>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              {nodes.map(node => (
-                <div key={node.id} className={`p-10 rounded-[3rem] border relative group hover:shadow-2xl transition-all ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
-                  <button onClick={() => setNodes(nodes.filter(n => n.id !== node.id))} className="absolute -left-2 -top-2 w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-2xl hover:scale-110 z-10"><Trash2 size={20}/></button>
-                  <div className="grid grid-cols-2 gap-8 mb-8">
-                    <div><label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">שם הענף</label><input value={node.title} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, title: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-black outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} /></div>
-                    <div><label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">טריגר</label><input value={node.trigger} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, trigger: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-mono text-blue-400 outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} /></div>
-                  </div>
-                  <textarea value={node.prompt} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, prompt: e.target.value} : n))} className={`w-full h-40 p-5 rounded-[1.8rem] text-[12px] font-medium leading-relaxed resize-none outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} />
-                </div>
-              ))}
-            </div>
-          </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group">
-             <div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div>
-             <h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2>
-             <p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v5.5</p>
-          </div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2><p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v5.6</p></div>
         )}
       </main>
 
       {/* 4. CRM Sidebar */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[480px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
-          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center">
-             <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2>
-             <button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button>
-          </header>
+          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button></header>
           <div className="flex-1 overflow-y-auto p-10 space-y-10 no-scrollbar">
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
                 <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-2xl border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all">
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                    <button onClick={handlePhotoUpdate} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3"><ImageIcon size={28}/><span className="text-[11px] font-black uppercase tracking-[0.2em]">החלף תמונה</span></button>
                 </div>
-                <div className="text-center space-y-3">
-                   <h3 className="text-3xl font-black italic tracking-tighter">{editCrm.contactName || selectedCustomer.name}</h3>
-                   <div className="flex justify-center gap-3"><span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">זהות מאוחדת: {normalizeId(selectedCustomer.id)}</span></div>
-                </div>
+                <div className="text-center space-y-3"><h3 className="text-3xl font-black italic tracking-tighter leading-none">{editCrm.contactName || selectedCustomer.name}</h3><span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">זהות מאוחדת: {normalizeId(selectedCustomer.id)}</span></div>
              </div>
              <div className="space-y-8">
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מספר לקוח בקומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} /></div>
