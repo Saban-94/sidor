@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { database, db } from '../../lib/firebase';
-import { ref, onValue, set } from 'firebase/database';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { database, app } from '../../lib/firebase'; // ייבוא האפליקציה וה-RTDB
+import { ref, onValue } from 'firebase/database';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'; // שימוש ב-Firestore API
 import { 
   Save, 
   Plus, 
@@ -20,6 +20,9 @@ import {
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default function BotFlowBuilder() {
+    // אתחול Firestore עם האפליקציה הקיימת כדי למנוע בלבול עם RTDB
+    const dbFS = getFirestore(app); 
+    
     const [nodes, setNodes] = useState<any[]>([]);
     const [globalDNA, setGlobalDNA] = useState("");
     const [loading, setLoading] = useState(true);
@@ -29,7 +32,8 @@ export default function BotFlowBuilder() {
     useEffect(() => {
         const fetchConfig = async () => {
             try {
-                const docRef = doc(db, 'system', 'bot_flow_config');
+                // שימוש ב-dbFS (Firestore) במקום ב-db (RTDB)
+                const docRef = doc(dbFS, 'system', 'bot_flow_config');
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
                     const data = snap.data();
@@ -43,11 +47,11 @@ export default function BotFlowBuilder() {
             }
         };
         fetchConfig();
-    }, []);
+    }, [dbFS]);
 
     const saveConfig = async () => {
         try {
-            await setDoc(doc(db, 'system', 'bot_flow_config'), {
+            await setDoc(doc(dbFS, 'system', 'bot_flow_config'), {
                 nodes,
                 globalDNA,
                 updatedAt: new Date().toISOString()
@@ -214,22 +218,6 @@ export default function BotFlowBuilder() {
                             </div>
                         ))}
                     </div>
-
-                    {nodes.length === 0 && (
-                        <div className={`p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                            <div className="w-16 h-16 rounded-full bg-slate-500/10 flex items-center justify-center mb-4">
-                                <Layout className="opacity-20 w-8 h-8" />
-                            </div>
-                            <h4 className="font-black text-lg mb-2">אין ענפי שיחה עדיין</h4>
-                            <p className="text-sm opacity-50 mb-6">התחל לבנות את הלוגיקה של הבוט על ידי הוספת ענף חדש.</p>
-                            <button 
-                                onClick={addNode}
-                                className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-2xl font-black transition-all shadow-xl shadow-emerald-500/20"
-                            >
-                                הוסף ענף ראשון
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
 
