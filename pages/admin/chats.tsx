@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, updateDoc, getDoc } from 'firebase/firestore';
 import { getDatabase, ref, push, onValue, set, update, remove, onChildAdded } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, MessageCircle, Save, Activity, Smartphone, ShieldCheck, 
-  Users, Printer, UserCog, Building, MapPin, Phone, CreditCard, Power, X, Search, 
-  Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, Heart, QrCode, Clock, Trash,
-  Zap, Network, AlertTriangle, ShieldAlert, History, Terminal, Database, ArrowRightLeft, 
-  Loader2, Radio, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, AlertCircle, Settings2, Link2, Globe, Eraser
+  Users, UserCog, Building, MapPin, CreditCard, Power, X, Search, 
+  Merge, CheckCircle2, Wifi, WifiOff, Heart, QrCode, Clock, Trash,
+  Zap, Network, Terminal, Database, ArrowRightLeft, 
+  Loader2, ToggleLeft, ToggleRight, RefreshCw, AlertCircle, Settings2, Link2, Globe, Eraser, LayoutDashboard, GitBranch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- Firebase Config ---
+// --- Firebase Configuration ---
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -25,15 +25,16 @@ const dbRT = getDatabase(app);
 
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'NETWORK'>('HUB');
+export default function SabanMasterHub() {
+  // Navigation & UI State
+  const [activeTab, setActiveTab] = useState<'CHATS' | 'CRM' | 'FLOW' | 'NETWORK'>('CHATS');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchTerm, setSearchTerm] = useState('');
-  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0, qr: null as string | null, battery: 100 });
+  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0, qr: null as string | null });
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [showDiagnostics, setShowDiagnostics] = useState(true); 
+  const [showDiagnostics, setShowDiagnostics] = useState(true);
   
+  // Core Data State
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -42,21 +43,13 @@ export default function App() {
   const [queueCount, setQueueCount] = useState(0);
   const [incomingLogs, setIncomingLogs] = useState<any[]>([]);
 
-  // הגדרות תשתית
-  const [sysConfig, setSysConfig] = useState({
-    rtDbUrl: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
-    callbackUrl: "",
-    msgDelay: 2,
-    alwaysConnected: true,
-    activePath: 'rami' // ברירת מחדל rami
-  });
-
-  const [editCrm, setEditCrm] = useState<any>({ 
-    name: '', comaxId: '', projectName: '', projectAddress: '', dnaContext: '', photo: '' 
-  });
+  // System & CRM Edit States
+  const [sysConfig, setSysConfig] = useState({ msgDelay: 2, activePath: 'rami' });
+  const [editCrm, setEditCrm] = useState<any>({ name: '', comaxId: '', dnaContext: '', photo: '' });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Helpers
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
@@ -65,362 +58,352 @@ export default function App() {
 
   const timeDiff = currentTime - (serverStatus.lastSeen || 0);
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
-  const signalQuality = timeDiff < 15000 ? 'EXCELLENT' : timeDiff < 45000 ? 'GOOD' : timeDiff < 90000 ? 'WEAK' : 'DISCONNECTED';
+  const signalQuality = timeDiff < 15000 ? 'EXCELLENT' : timeDiff < 45000 ? 'GOOD' : 'WEAK';
 
+  // --- Realtime Listeners ---
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. סטטוס (saban94/status)
+    // 1. Status Pulse (saban94/status)
     onValue(ref(dbRT, 'saban94/status'), (snap) => {
-      const data = snap.val();
-      if (data) {
-        setServerStatus(prev => ({ ...prev, ...data }));
-        if (data.qr && !data.online) setShowQrModal(true);
-      }
+      if (snap.exists()) setServerStatus(prev => ({ ...prev, ...snap.val() }));
     });
 
-    // 2. 🔥 מלשינון כפול (Dual Sniffer) - בודק גם rami וגם saban94
-    const pathsToWatch = ['rami/incoming', 'saban94/incoming'];
-    pathsToWatch.forEach(path => {
-        onChildAdded(ref(dbRT, path), (snapshot) => {
+    // 2. Dual Path Sniffer (The Malshinan)
+    const paths = ['rami/incoming', 'saban94/incoming'];
+    paths.forEach(p => {
+        onChildAdded(ref(dbRT, p), (snapshot) => {
             const data = snapshot.val();
-            if (data && data.sender) {
-                setIncomingLogs(prev => [{
-                    ...data, 
-                    id: snapshot.key, 
-                    time: Date.now(),
-                    path: path, // מציין מאיפה ההודעה הגיעה
-                    status: 'RECEIVED'
-                }, ...prev].slice(0, 30));
+            if (data?.sender) {
+                setIncomingLogs(prev => [{...data, id: snapshot.key, time: Date.now(), path: p}, ...prev].slice(0, 25));
             }
         });
     });
 
-    // 3. ניטור תור שליחה (לפי הנתיב הנבחר)
-    onValue(ref(dbRT, `${sysConfig.activePath}/outgoing`), (snap) => {
+    // 3. Outgoing Queue Monitor
+    onValue(ref(dbRT, 'rami/outgoing'), (snap) => {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
 
-    // 4. טעינת לקוחות
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(150)), (snap) => {
-      const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const unifiedMap = new Map();
-      raw.forEach((curr: any) => {
-          const uid = normalizeId(curr.id);
-          const lastActivity = curr.lastMessageAt?.seconds ? curr.lastMessageAt.seconds * 1000 : 0;
-          const isInactive = (Date.now() - lastActivity) > (12 * 60 * 60 * 1000); 
-          const existing = unifiedMap.get(uid);
-          if (!existing || (!existing.name && curr.name)) {
-            unifiedMap.set(uid, { ...curr, uid, isInactive });
-          }
-      });
-      setCustomers(Array.from(unifiedMap.values()));
+    // 4. CRM Customers Listener
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(100)), (snap) => {
+      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
     return () => { clearInterval(timer); unsubCust(); };
-  }, [sysConfig.activePath]);
+  }, []);
 
-  // סנכרון צ'אט
+  // --- Selection & Chat Logic ---
   useEffect(() => {
     if (!selectedCustomer) return;
     setEditCrm({
       name: selectedCustomer.name || '',
       comaxId: selectedCustomer.comaxId || '',
-      projectName: selectedCustomer.projectName || '',
-      projectAddress: selectedCustomer.projectAddress || '',
       dnaContext: selectedCustomer.dnaContext || '',
       photo: selectedCustomer.photo || ''
     });
-    const unsubHistory = onSnapshot(query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'), limit(100)), (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsubHistory();
-  }, [selectedCustomer?.id]);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+    const unsubChat = onSnapshot(query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'), limit(50)), (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
+    });
+    return () => unsubChat();
+  }, [selectedCustomer?.id]);
 
   const handleSend = async () => {
     if (!chatInput.trim() || !selectedCustomer) return;
     const txt = chatInput.trim();
     const targetId = selectedCustomer.id; 
     setChatInput('');
+
     try {
+      // Manual Takeover Status
       await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
-      // שליחה לפי הנתיב הפעיל
-      await push(ref(dbRT, `${sysConfig.activePath}/outgoing`), { number: targetId, message: txt, timestamp: Date.now() });
+      
+      // Push to Realtime Pipe
+      await push(ref(dbRT, 'rami/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
+      
+      // Log to History
       await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
-        text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-control' 
+        text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami' 
       });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Send Error:", e); }
   };
 
-  const handleClearQueue = async () => {
-    if (window.confirm(`למחוק את כל ${queueCount} ההודעות בנתיב ${sysConfig.activePath}/outgoing?`)) {
-        await remove(ref(dbRT, `${sysConfig.activePath}/outgoing`));
-    }
-  };
-
-  const saveProfile = async () => {
+  const handleSaveProfile = async () => {
     if (!selectedCustomer) return;
     setIsSaving(true);
     await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, lastUpdated: serverTimestamp() }, { merge: true });
     setIsSaving(false);
   };
 
-  const filtered = customers.filter(c => (c.projectName || c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || c.id.includes(searchTerm));
+  const filtered = customers.filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || c.id.includes(searchTerm));
 
   return (
-    <div className={`flex h-screen overflow-hidden ${theme === 'dark' ? 'bg-[#020617] text-slate-100 font-sans' : 'bg-slate-50 text-slate-900 font-sans'}`} dir="rtl">
+    <div className={`flex h-screen overflow-hidden ${theme === 'dark' ? 'bg-[#0B141A] text-slate-100' : 'bg-slate-50 text-slate-900'} font-sans`} dir="rtl">
       
-      {/* 1. Sidebar ניווט */}
-      <aside className={`w-20 flex flex-col items-center py-8 border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl'}`}>
-        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg mb-10 overflow-hidden cursor-pointer active:scale-95 transition-transform">
-            <img src={BRAND_LOGO} alt="logo" className="w-full h-full object-cover" />
+      {/* --- 1. Left Navigation Bar (PWA Style) --- */}
+      <aside className="w-20 bg-[#111B21] border-l border-white/5 flex flex-col items-center py-8 z-30 shadow-2xl">
+        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg mb-10 overflow-hidden cursor-pointer active:scale-90 transition-transform">
+          <img src={BRAND_LOGO} alt="Saban" className="w-full h-full object-cover" />
         </div>
-        <div className="flex flex-col gap-6 flex-1 text-slate-500">
-            {[{id: 'HUB', icon: MessageCircle}, {id: 'CRM', icon: UserCog}, {id: 'NETWORK', icon: Network}].map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`p-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-emerald-500 text-white shadow-xl' : 'hover:bg-emerald-500/10 hover:text-emerald-400'}`}>
-                    <tab.icon size={24} />
-                </button>
-            ))}
+        <div className="flex flex-col gap-8 flex-1">
+          {[
+            { id: 'CHATS', icon: MessageCircle, label: 'צ\'אטים' },
+            { id: 'CRM', icon: UserCog, label: 'סטודיו DNA' },
+            { id: 'FLOW', icon: GitBranch, label: 'ניהול תפריט' },
+            { id: 'NETWORK', icon: Network, label: 'מלשינון רשת' }
+          ].map(tab => (
+            <button 
+              key={tab.id} 
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`p-3 rounded-2xl transition-all relative group ${activeTab === tab.id ? 'bg-emerald-500/20 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <tab.icon size={26} />
+              <span className="absolute right-20 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                {tab.label}
+              </span>
+            </button>
+          ))}
         </div>
-        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500 transition-colors">
-            {theme === 'dark' ? <Clock size={24} /> : <Terminal size={24}/>}
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-600 hover:text-emerald-500 transition-colors">
+          {theme === 'dark' ? <Clock size={24} /> : <Activity size={24} />}
         </button>
       </aside>
 
-      {/* 2. רשימת צ'אטים / ממשק רשת */}
-      <aside className={`w-96 flex flex-col border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200'}`}>
-        <header className="p-6 border-b border-inherit space-y-4">
+      {/* --- 2. Side Panel (List) --- */}
+      <aside className="w-[380px] bg-[#111B21] border-l border-white/5 flex flex-col z-20">
+        <header className="p-6 border-b border-white/5 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="font-black text-lg flex items-center gap-2 text-emerald-500 uppercase tracking-tighter">
-                {activeTab === 'NETWORK' ? 'תשתית' : 'JONI HUB'}
-            </h2>
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-black ${isTrulyOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500 animate-pulse'}`}>
-                {isTrulyOnline ? 'LIVE' : 'OFFLINE'}
+            <h1 className="text-xl font-black italic tracking-tighter text-slate-200">SABAN <span className="text-emerald-500">HUB</span></h1>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ${isTrulyOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+              {isTrulyOnline ? 'LIVE' : 'OFFLINE'}
             </div>
           </div>
-          {activeTab !== 'NETWORK' && (
-            <div className="relative">
-                <Search className="absolute right-3 top-3 text-slate-500" size={16}/>
-                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש לקוח..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner focus:ring-1 focus:ring-emerald-500" />
-            </div>
-          )}
+          <div className="relative">
+            <Search className="absolute right-3 top-3 text-slate-500" size={16} />
+            <input 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              placeholder="חיפוש מנהל פרויקט..." 
+              className="w-full bg-[#202C33] p-3 pr-10 rounded-xl border-none outline-none text-sm font-medium text-slate-200 focus:ring-1 focus:ring-emerald-500/50 transition-all" 
+            />
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar bg-black/5">
-          {activeTab === 'NETWORK' ? (
-              <div className="space-y-6">
-                  {/* 🔥 בורר נתיבים לדיאגנוסטיקה */}
-                  <div className="p-4 bg-slate-900 rounded-2xl border border-white/5 space-y-4 shadow-xl">
-                      <div className="flex justify-between items-center mb-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">נתיב פעיל בצינור:</label>
-                          <div className="flex bg-black/40 p-1 rounded-lg">
-                              {['rami', 'saban94'].map(p => (
-                                  <button key={p} onClick={() => setSysConfig({...sysConfig, activePath: p})} className={`px-3 py-1 text-[10px] font-black rounded-md transition-all ${sysConfig.activePath === p ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>
-                                      {p.toUpperCase()}
-                                  </button>
-                              ))}
-                          </div>
-                      </div>
-                      <div className="space-y-1 opacity-50">
-                          <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1"><Database size={10}/> Firebase RTDB URL</label>
-                          <input value={sysConfig.rtDbUrl} readOnly className="w-full bg-black/20 p-3 rounded-lg text-[10px] font-mono text-slate-400 outline-none border border-white/5" />
-                      </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-900 rounded-2xl border border-white/5">
-                      <div className="flex justify-between items-center mb-4">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">איכות הצינור</span>
-                          <span className={`text-[10px] font-bold ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{signalQuality}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
-                        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                            <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500' : 'bg-red-500'}`}/>
-                        </div>
-                        <span className="font-mono text-[10px] opacity-50">{(timeDiff/1000).toFixed(1)}s</span>
-                      </div>
-                  </div>
-
-                  <div className="space-y-2">
-                      <p className="text-[10px] font-black text-slate-500 uppercase px-2 flex justify-between">
-                          <span>מלשינון תעבורה (DUAL SNIFFER)</span>
-                          <span className="text-emerald-500 animate-pulse">LIVE</span>
-                      </p>
-                      {incomingLogs.map((log, idx) => (
-                          <div key={idx} className={`p-3 rounded-xl border border-white/5 text-[10px] leading-tight mb-2 ${log.path.includes('saban94') ? 'bg-amber-500/5' : 'bg-black/20'}`}>
-                              <div className="flex justify-between mb-1">
-                                  <span className={`font-black uppercase ${log.path.includes('saban94') ? 'text-amber-400' : 'text-blue-400'}`}>PATH: {log.path}</span>
-                                  <span className="font-mono opacity-60">{new Date(log.time).toLocaleTimeString()}</span>
-                              </div>
-                              <p className="font-bold text-slate-200">מ-{log.sender}: "{log.text?.substring(0,30)}..."</p>
-                          </div>
-                      ))}
-                  </div>
+        <div className="flex-1 overflow-y-auto no-scrollbar py-2">
+          {filtered.map(c => (
+            <button 
+              key={c.id} 
+              onClick={() => setSelectedCustomer(c)}
+              className={`w-full p-4 flex items-center gap-4 transition-all relative ${selectedCustomer?.id === c.id ? 'bg-[#2A3942] border-r-4 border-emerald-500' : 'hover:bg-[#202C33] border-r-4 border-transparent'}`}
+            >
+              <div className="w-14 h-14 rounded-full bg-slate-800 overflow-hidden shrink-0 border border-white/5 relative shadow-inner">
+                {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-4 text-slate-600" size={24}/>}
+                {c.botState === 'HUMAN_RAMI' && <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-[#111B21] rounded-full shadow-sm"></div>}
               </div>
-          ) : (
-            filtered.map(c => (
-                <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all border-2 ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg' : 'border-transparent hover:bg-white/5'}`}>
-                  <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative border border-white/5 shadow-sm text-white">
-                    {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-3 text-slate-500" size={20}/>}
-                  </div>
-                  <div className="text-right flex-1 overflow-hidden">
-                    <div className="text-sm font-black truncate text-white">{c.name || "לקוח"}</div>
-                    <div className="text-[10px] opacity-40 font-mono mt-1 italic text-slate-400">{normalizeId(c.id)}</div>
-                  </div>
-                  {c.botState !== 'HUMAN_RAMI' && <Bot size={14} className="text-emerald-500 animate-pulse" />}
-                </button>
-              ))
-          )}
+              <div className="text-right flex-1 overflow-hidden">
+                <div className="text-[15px] font-bold text-slate-200 truncate">{c.name || "לקוח ללא שם"}</div>
+                <div className="text-[11px] opacity-40 font-mono mt-1 flex items-center gap-2 italic">
+                  ID: {normalizeId(c.id)} | {c.botState || 'MENU'}
+                </div>
+              </div>
+              {c.botState !== 'HUMAN_RAMI' && <Bot size={14} className="text-emerald-500 animate-pulse" />}
+            </button>
+          ))}
         </div>
       </aside>
 
-      {/* 3. אזור עבודה מרכזי */}
-      <main className="flex-1 flex flex-col relative" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: 'soft-light' }}>
+      {/* --- 3. Main Command Area --- */}
+      <main className="flex-1 flex flex-col relative bg-[#0B141A]" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: 'soft-light' }}>
         {selectedCustomer ? (
           <>
-            <header className="h-20 bg-[#0f172a]/90 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-8 z-10 shadow-2xl">
+            {/* Header */}
+            <header className="h-20 bg-[#202C33]/95 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-8 z-10 shadow-lg">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500/50 shadow-lg">
-                    <img src={selectedCustomer.photo || BRAND_LOGO} className="w-full h-full object-cover" />
+                <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-emerald-500/30 shadow-md">
+                  <img src={selectedCustomer.photo || BRAND_LOGO} className="w-full h-full object-cover" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-black italic tracking-tight">{selectedCustomer.name}</h2>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{selectedCustomer.id}</span>
+                  <h2 className="text-lg font-black text-slate-200 tracking-tight">{selectedCustomer.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${selectedCustomer.botState === 'HUMAN_RAMI' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      {selectedCustomer.botState === 'HUMAN_RAMI' ? 'שליטה ידנית של ראמי' : 'מנוע AI פעיל'}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                  <div onClick={handleClearQueue} className={`px-4 py-2 rounded-xl border-2 transition-all cursor-pointer ${queueCount > 0 ? 'bg-red-500/20 border-red-500/40 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
-                      <span className="text-[10px] font-black uppercase flex items-center gap-2">
-                        {queueCount > 0 ? <Eraser size={12}/> : <CheckCircle2 size={12}/>}
-                        {queueCount > 0 ? `חסימה: ${queueCount} (נקה)` : 'צינור נקי'}
-                      </span>
-                  </div>
-                  <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
-                      {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
-                  </button>
+                <div className={`px-4 py-2 rounded-xl border-2 transition-all ${queueCount > 0 ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'}`}>
+                  <span className="text-[10px] font-black uppercase flex items-center gap-2">
+                    {queueCount > 0 ? <AlertCircle size={14}/> : <CheckCircle2 size={14}/>}
+                    תור: {queueCount} {queueCount > 0 ? '(חסום)' : '(נקי)'}
+                  </span>
+                </div>
+                <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-2xl border-2 transition-all shadow-lg ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                  {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
+                </button>
               </div>
             </header>
 
-            {/* 🔥 מלשינון תעבורה כפול מעל הצ'אט */}
+            {/* Malshinan Sniffer Terminal */}
             <AnimatePresence>
-                {showDiagnostics && (
-                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/95 backdrop-blur-md border-b border-white/10 overflow-hidden z-20 shadow-inner">
-                        <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
-                            <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה כפול (rami + saban94)</p>
-                                <div className="flex gap-2">
-                                    <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-black uppercase">Rami Path</span>
-                                    <span className="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black uppercase">Saban Path</span>
-                                </div>
-                            </div>
-                            {incomingLogs.length === 0 && <p className="text-slate-600 italic">ממתין לתעבורה מכל נתיב אפשרי...</p>}
-                            {incomingLogs.map((log, idx) => (
-                                <div key={log.id || idx} className={`flex gap-4 border-b border-white/5 py-1 hover:bg-white/5 transition-colors ${log.path.includes('saban94') ? 'text-amber-200' : 'text-white'}`}>
-                                    <span className="text-blue-500">[{new Date(log.time).toLocaleTimeString()}]</span>
-                                    <span className={`font-black ${log.path.includes('saban94') ? 'text-amber-500' : 'text-purple-400'}`}>FROM: {log.sender}</span>
-                                    <span className="text-slate-400 truncate italic flex-1">"{log.text}"</span>
-                                    <span className="opacity-50 text-[8px] uppercase">{log.path}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
+              {showDiagnostics && (
+                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/95 backdrop-blur-md border-b border-emerald-500/20 overflow-hidden z-20 shadow-2xl">
+                  <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                      <p className="text-emerald-500 font-black uppercase flex items-center gap-2 tracking-[0.2em]"><Terminal size={14}/> מלשינון תעבורה (DUAL PATH SNIFFER)</p>
+                      <div className="flex gap-2">
+                         <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black">RAMI/INC</span>
+                         <span className="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black">SABAN/INC</span>
+                      </div>
+                    </div>
+                    {incomingLogs.map((log, idx) => (
+                      <div key={idx} className={`flex gap-4 border-b border-white/5 py-1.5 hover:bg-white/5 transition-colors ${log.path?.includes('saban94') ? 'text-amber-200' : 'text-slate-100'}`}>
+                        <span className="text-blue-500 font-bold">[{new Date(log.time).toLocaleTimeString()}]</span>
+                        <span className={`font-black ${log.path?.includes('saban94') ? 'text-amber-500' : 'text-emerald-400'}`}>FROM: {log.sender}</span>
+                        <span className="text-slate-400 truncate italic flex-1">"{log.text}"</span>
+                        <span className="opacity-40 text-[8px] uppercase">{log.path}</span>
+                      </div>
+                    ))}
+                    {incomingLogs.length === 0 && <p className="text-slate-600 italic py-2 animate-pulse">ממתין לתעבורה משרת המשרד...</p>}
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
+            {/* Chat Body */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 flex flex-col gap-5 no-scrollbar shadow-inner">
               {messages.map((m, i) => (
-                <div key={m.id || i} className={`max-w-[75%] p-4 rounded-2xl text-[14px] shadow-xl relative leading-relaxed ${m.type === 'in' ? 'bg-slate-800 text-slate-100 self-start rounded-tr-none border border-white/5' : 'bg-[#005c4b] text-white self-end rounded-tl-none shadow-emerald-950/20'}`}>
-                  <div className="font-bold leading-relaxed">{m.text}</div>
-                  <div className="text-[9px] opacity-40 text-left mt-3 font-mono flex justify-end gap-1 items-center italic">
+                <div key={m.id || i} className={`max-w-[75%] p-4 rounded-[1.5rem] text-[15px] shadow-xl relative leading-relaxed transition-all ${m.type === 'in' ? 'bg-[#202C33] text-slate-100 self-start rounded-tr-none border border-white/5' : 'bg-[#005C4B] text-white self-end rounded-tl-none shadow-emerald-950/20 border border-emerald-400/10'}`}>
+                  {m.source === 'manual-rami' && <div className="text-[9px] font-black uppercase text-emerald-300 mb-1 tracking-widest border-b border-white/10 pb-1">ראמי שלח</div>}
+                  <div className="font-medium whitespace-pre-wrap">{m.text}</div>
+                  <div className="text-[10px] opacity-40 text-left mt-3 font-mono flex justify-end gap-1 items-center italic">
                     {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : '...'}
-                    {!m.type && <CheckCircle2 size={10} className="text-emerald-400 ml-1"/>}
+                    {!m.type && <CheckCircle2 size={12} className="text-emerald-400 ml-1"/>}
                   </div>
                 </div>
               ))}
             </div>
 
-            <footer className="p-6 bg-[#0f172a]/95 border-t border-white/5 flex gap-4 z-10 shadow-2xl">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={queueCount > 5 ? "⚠️ הצינור סתום!" : "כתוב הודעה..."} className={`flex-1 bg-black/40 p-4 rounded-2xl border outline-none font-bold text-white transition-all shadow-inner ${queueCount > 5 ? 'border-red-500/50' : 'border-white/5'}`} />
-              <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all"><Send className="rotate-180 -mr-1" size={28}/></button>
+            {/* Footer Input */}
+            <footer className="p-6 bg-[#202C33] border-t border-white/5 flex gap-4 z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
+              <div className="flex-1 relative">
+                <input 
+                  value={chatInput} 
+                  onChange={e => setChatInput(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && handleSend()} 
+                  placeholder={queueCount > 5 ? "⚠️ הצינור סתום, ההודעה עשויה להתעכב" : "כתוב הודעה לצינור..."} 
+                  className={`w-full bg-[#2A3942] p-4 rounded-2xl border outline-none font-bold text-slate-100 focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner ${queueCount > 5 ? 'border-red-500/50' : 'border-white/5'}`} 
+                />
+              </div>
+              <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-[#111B21] rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all">
+                <Send className="rotate-180 -mr-1" size={30}/>
+              </button>
             </footer>
           </>
         ) : (
-          <div className="m-auto opacity-10 flex flex-col items-center gap-8 text-white text-center">
-              <div className="relative">
-                <MessageCircle size={220} className="animate-pulse opacity-20" />
-                <Bot size={80} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" />
-              </div>
-              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none text-slate-400">SABAN HUB<br/><span className="text-2xl text-emerald-500 tracking-[0.2em]">Operational Command Center</span></h1>
+          <div className="m-auto flex flex-col items-center gap-10 text-white text-center opacity-20">
+              <MessageCircle size={250} className="animate-pulse" />
+              <h1 className="text-7xl font-black italic tracking-tighter uppercase leading-none">SABAN HUB<br/><span className="text-3xl text-emerald-500 tracking-[0.4em]">Ready for Action</span></h1>
           </div>
         )}
       </main>
 
-      {/* 4. CRM Sidebar */}
+      {/* --- 4. CRM & AI Studio (Right Sidebar) --- */}
       {selectedCustomer && (
-        <aside className={`w-[450px] flex flex-col p-8 border-r ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white'} overflow-y-auto no-scrollbar`}>
-          <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight mb-10 border-b border-white/5 pb-4 uppercase"><ShieldCheck size={28}/> DNA & CRM</h3>
+        <aside className="w-[450px] flex flex-col bg-[#111B21] border-r border-white/5 p-8 overflow-y-auto no-scrollbar shadow-2xl z-30">
+          <header className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
+            <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight uppercase"><ShieldCheck size={28}/> DNA & IDENTITY</h3>
+            <div className="flex gap-2">
+               <button onClick={() => remove(ref(dbRT, 'rami/outgoing'))} title="נקה תור" className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Eraser size={18}/></button>
+            </div>
+          </header>
           
           <div className="space-y-10">
+            {/* Profile Avatar & Name */}
             <div className="flex flex-col items-center gap-6">
-                <div className="w-36 h-36 rounded-[2.5rem] bg-slate-800 overflow-hidden border-4 border-emerald-500/20 shadow-2xl relative group">
-                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
-                  <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer font-black text-xs uppercase text-white">החלף תמונה</div>
+              <div className="w-44 h-44 rounded-[3.5rem] bg-slate-800 overflow-hidden border-4 border-emerald-500/20 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] relative group transform hover:rotate-2 transition-all">
+                <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
+                <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer font-black text-[10px] uppercase text-white gap-2">
+                  <ImageIcon size={24}/> החלף תמונת זהות
                 </div>
-                <input value={editCrm.name} onChange={e => setEditCrm({...editCrm, name: e.target.value})} className="bg-transparent border-none outline-none text-2xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500 rounded transition-all" placeholder="שם הלקוח" />
+              </div>
+              <div className="text-center w-full space-y-2">
+                <input 
+                  value={editCrm.name} 
+                  onChange={e => setEditCrm({...editCrm, name: e.target.value})} 
+                  className="bg-transparent border-none outline-none text-3xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500/30 rounded" 
+                  placeholder="שם הלקוח" 
+                />
+                <span className="text-[11px] bg-emerald-500/10 text-emerald-500 px-4 py-1 rounded-full font-mono font-black tracking-[0.2em] uppercase shadow-inner border border-emerald-500/10">ID: {selectedCustomer.id}</span>
+              </div>
             </div>
 
+            {/* Config Fields */}
             <div className="grid gap-6 text-white">
-                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner text-white transition-all focus:border-blue-500" /></div>
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><Zap size={14}/> פקודות DNA אישיות</label>
-                    <textarea value={editCrm.dnaContext} onChange={e => setEditCrm({...editCrm, dnaContext: e.target.value})} rows={6} className="w-full bg-purple-500/5 p-4 rounded-2xl outline-none border border-purple-500/10 focus:border-purple-500 font-bold text-xs resize-none leading-relaxed shadow-inner text-slate-100" placeholder="תכנת את הבוט ללקוח זה..." />
-                </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={14}/> מספר לקוח קומקס</label>
+                <input 
+                  value={editCrm.comaxId} 
+                  onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} 
+                  className="w-full bg-[#202C33] p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner focus:border-blue-500/50 transition-all" 
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-2 px-1"><Zap size={16}/> פקודות DNA והזרקת מוח AI</label>
+                <textarea 
+                  value={editCrm.dnaContext} 
+                  onChange={e => setEditCrm({...editCrm, dnaContext: e.target.value})} 
+                  rows={8} 
+                  className="w-full bg-purple-500/5 p-5 rounded-[2rem] outline-none border border-purple-500/20 focus:border-purple-500 font-bold text-[13px] resize-none leading-relaxed text-slate-200 shadow-inner" 
+                  placeholder="תכנת את הבוט ללקוח זה: למשל, 'תמיד להציע הובלה עם מנוף', 'לקוח VIP - לדבר בשיא הכבוד'..." 
+                />
+              </div>
             </div>
 
-            <div className="p-6 bg-slate-900 rounded-3xl border border-white/5 shadow-inner space-y-4 text-[11px]">
-                <div className="flex justify-between items-center text-slate-400 font-black uppercase tracking-widest">
-                    <span>איכות הצינור</span>
-                    <span className={queueCount > 0 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}>{queueCount > 0 ? `QUEUE: ${queueCount} STUCK` : 'Pipeline Clear'}</span>
+            {/* Pulse Stats */}
+            <div className="p-6 bg-black/40 rounded-[2rem] border border-white/5 shadow-inner space-y-5">
+              <div className="flex justify-between items-center text-slate-400 font-black uppercase tracking-widest text-[10px]">
+                <span>איכות הצינור</span>
+                <span className={queueCount > 0 ? 'text-red-500' : 'text-emerald-500'}>{signalQuality}</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Heart size={24} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
+                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                  <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}/>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
-                    <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                        <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}/>
-                    </div>
-                    <span className="font-mono opacity-50 font-black">{(timeDiff/1000).toFixed(1)}s LAG</span>
-                </div>
+                <span className="font-mono text-xs opacity-50 font-black">{(timeDiff/1000).toFixed(1)}s LAG</span>
+              </div>
             </div>
 
-            <button onClick={saveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest shadow-blue-900/20">
-                {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync DNA & Profile</>}
+            <button 
+              onClick={handleSaveProfile} 
+              disabled={isSaving} 
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-[0_15px_30px_rgba(37,99,235,0.2)] active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest uppercase"
+            >
+              {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Commit DNA</>}
             </button>
           </div>
         </aside>
       )}
 
-      {/* מודל סריקה */}
+      {/* --- 5. Global QR Overlay --- */}
       <AnimatePresence>
-        {showQrModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#020617]/98 backdrop-blur-3xl">
-             <div className="bg-white rounded-[4rem] p-12 max-w-md w-full text-center shadow-2xl relative border-4 border-amber-500/30 overflow-hidden">
-                <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
-                <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
-                <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
-                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600 text-center">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden shadow-inner">
-                    {serverStatus.qr ? (
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
-                    ) : (
-                        <div className="flex flex-col items-center gap-4 text-slate-400">
-                            <Activity size={48} className="animate-spin text-amber-500" />
-                            <span className="text-xs font-black uppercase tracking-widest">Generating Secure QR...</span>
-                        </div>
-                    )}
+        {!isTrulyOnline && serverStatus.qr && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0B141A]/98 backdrop-blur-3xl">
+             <div className="bg-white rounded-[4rem] p-12 max-w-md w-full text-center shadow-[0_50px_100px_rgba(0,0,0,0.8)] relative border-4 border-amber-500/30 overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-2 bg-amber-500 animate-pulse shadow-[0_0_15px_#f59e0b]"></div>
+                <div className="w-24 h-24 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-2xl text-white animate-bounce"><QrCode size={56} /></div>
+                <h2 className="text-4xl font-black text-slate-900 italic mb-3 tracking-tighter uppercase leading-none">Connection Lost</h2>
+                <p className="text-slate-500 font-bold mb-10 text-base leading-relaxed">השרת במשרד נותק. סרוק כדי לחבר מחדש את צינור הנתונים של סבן.</p>
+                <div className="bg-slate-50 p-8 rounded-[3rem] border-4 border-dashed border-slate-200 mb-10 aspect-square flex items-center justify-center overflow-hidden shadow-inner relative group">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-3xl border-8 border-white" alt="QR" />
                 </div>
+                <button onClick={() => update(ref(dbRT, 'saban94/status'), { reset_command: true })} className="w-full bg-red-600 text-white py-6 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-red-700 transition-all shadow-lg active:scale-95 border border-red-700/20">ביצוע ריסטרט קשיח למשרד</button>
              </div>
           </motion.div>
         )}
