@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { getDatabase, ref, push, onValue, set } from 'firebase/database';
+import { getDatabase, ref, push, onValue } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
@@ -26,8 +26,8 @@ const dbRT = getDatabase(app);
 
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
-export default function SabanSupremeHub() {
-  // --- ניהול מערכת ---
+export default function App() {
+  // --- ניהול תצוגה ומערכת ---
   const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'FLOW' | 'INVENTORY' | 'DISPATCH' | 'MASTER'>('HUB');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isMobile, setIsMobile] = useState(false);
@@ -50,46 +50,53 @@ export default function SabanSupremeHub() {
   const [isThinking, setIsThinking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // --- CRM States ---
   const [editCrm, setEditCrm] = useState<any>({ 
     comaxId: '', projectName: '', projectAddress: '', contactName: '', contactPhone: '', photo: '' 
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- עזר: איחוד זהויות (UID) ---
+  // --- 🔥 לוגיקת נורמליזציה (המפתח לאיחוד משתמשים) ---
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
+    // זיהוי לפי 9 ספרות אחרונות (ה-DNA של עלי)
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // --- טעינת נתונים ---
+  // --- טעינת נתונים ראשונית ---
   useEffect(() => {
     document.title = "Saban Hub Command | JONI Pipe";
     const checkSize = () => setIsMobile(window.innerWidth < 1024);
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // סטטוס שרת JONI בלייב
+    // סטטוס שרת JONI בלייב מה-RTDB
     const statusRef = ref(dbRT, 'saban94/status');
-    onValue(statusRef, (snap) => setIsServerOnline(snap.val()?.online || false));
+    const unsubStatus = onValue(statusRef, (snap) => {
+      setIsServerOnline(snap.val()?.online || false);
+    });
 
-    // טעינת לקוחות מאוחדים (זהויות)
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
+    // טעינת לקוחות מאוחדים (זהויות) מ-Firestore
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(200)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
+      
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
-          if (!existing || (!existing.name && curr.name) || (!existing.photo && curr.photo)) {
+          
+          // אסטרטגיית איחוד: נשמור את הכרטיס עם השם או הפרויקט המפורט יותר
+          if (!existing || (!existing.projectName && curr.projectName) || (!existing.photo && curr.photo)) {
               unifiedMap.set(uid, { ...curr, uid });
           }
       });
       setCustomers(Array.from(unifiedMap.values()));
     });
 
-    // טעינת הגדרות AI
-    onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
+    // טעינת הגדרות עץ ה-AI
+    const unsubFlow = onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setNodes(data.nodes || []);
@@ -99,13 +106,16 @@ export default function SabanSupremeHub() {
 
     return () => {
       window.removeEventListener('resize', checkSize);
+      unsubStatus();
       unsubCust();
+      unsubFlow();
     };
   }, []);
 
-  // טעינת היסטוריה - סינכרון מלא וחי
+  // טעינת היסטוריה - סינכרון מלא וחי ללקוח הנבחר
   useEffect(() => {
     if (!selectedCustomer) return;
+    
     setEditCrm({ 
       comaxId: selectedCustomer.comaxId || '', 
       projectName: selectedCustomer.projectName || '', 
@@ -124,10 +134,12 @@ export default function SabanSupremeHub() {
   }, [selectedCustomer?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, isThinking]);
 
-  // --- פונקציות שליטה ---
+  // --- פונקציות ביצוע ---
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const handleSend = async () => {
@@ -139,23 +151,46 @@ export default function SabanSupremeHub() {
     if (isAiActive) setIsAiActive(false);
 
     try {
+      // שליחה לצינור RTDB של JONI
       await push(ref(dbRT, 'saban94/outgoing'), { 
         number: selectedCustomer.id, 
         message: txt, 
         timestamp: Date.now() 
       });
 
+      // תיעוד ב-Firestore תחת הזהות הנבחרת
       await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
-        text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami'
+        text: txt, 
+        type: 'out', 
+        timestamp: serverTimestamp(),
+        source: 'manual-rami'
       });
-    } catch (err: any) { console.error("Send error:", err.message); }
+    } catch (err: any) {
+      console.error("Send error:", err.message);
+    }
+  };
+
+  const saveCustomerCard = async () => {
+    if (!selectedCustomer) return;
+    setIsSaving(true);
+    try {
+      await setDoc(doc(dbFS, 'customers', selectedCustomer.id), {
+        ...editCrm,
+        name: editCrm.contactName || selectedCustomer.name,
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+    } catch (err: any) {
+      console.error("Save error:", err.message);
+    } finally {
+      setTimeout(() => setIsSaving(false), 800);
+    }
   };
 
   const handleMergeManual = async () => {
     const targetPhone = prompt("הכנס מספר טלפון לאיחוד (למשל: 972542276631):");
     if (!targetPhone || !selectedCustomer || targetPhone === selectedCustomer.id) return;
     
-    if (window.confirm(`האם להעביר את כל ההיסטוריה ל-${targetPhone} ולמחוק את הכפילויות?`)) {
+    if (window.confirm(`האם להעביר את כל ההיסטוריה ל-${targetPhone} ולמחוק את המזהה הישן?`)) {
       setIsSaving(true);
       try {
         const oldId = selectedCustomer.id;
@@ -174,9 +209,13 @@ export default function SabanSupremeHub() {
 
         batch.delete(doc(dbFS, 'customers', oldId));
         await batch.commit();
-        alert("איחוד הזהויות הושלם.");
+        alert("איחוד הזהויות הושלם בהצלחה.");
         setSelectedCustomer(null);
-      } catch (err: any) { console.error(err.message); } finally { setIsSaving(false); }
+      } catch (err: any) {
+        console.error("Merge error:", err.message);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -191,20 +230,20 @@ export default function SabanSupremeHub() {
     (c.id || '').includes(searchTerm)
   );
 
-  // --- סגנונות (Saban Premium UI) ---
+  // --- הגדרות עיצוב ---
   const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
   const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
   const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
   const chatAreaBg = theme === 'dark' ? 'bg-[#0b141a]' : 'bg-[#efeae2]';
 
-  // --- תצוגת הדפסה (הזמנה סלקטיבית) ---
+  // --- תצוגת הדפסה ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto shadow-inner" dir="rtl">
-        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-12 shadow-2xl bg-white relative">
+        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-12 shadow-2xl bg-white">
           <div className="flex justify-between items-center border-b-4 border-black pb-8 mb-8">
             <div>
               <h1 className="text-6xl font-black italic tracking-tighter text-[#0B2C63]">ח. סבן - חומרי בניין</h1>
-              <p className="text-xl font-bold uppercase mt-2">הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p>
+              <p className="text-xl font-bold uppercase mt-2">טופס הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p>
             </div>
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
@@ -223,9 +262,9 @@ export default function SabanSupremeHub() {
             </div>
           </div>
 
-          <div className="border-2 border-black min-h-[500px] flex flex-col">
+          <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
             <div className="bg-black text-white p-4 flex justify-between font-black text-xl uppercase tracking-widest">
-              <span>תיאור הפריטים שנבחרו</span>
+              <span>תיאור הפריטים שנבחרו מהשיחה</span>
               <span className="w-32 text-center">כמות</span>
             </div>
             <div className="p-8 space-y-8 flex-1">
@@ -239,12 +278,10 @@ export default function SabanSupremeHub() {
             </div>
           </div>
 
-          <div className="mt-10">
-            <div className="grid grid-cols-4 gap-4">
-              {messages.filter(m => m.mediaUrl && selectedMsgIds.includes(m.id)).map((m, i) => (
-                <img key={i} src={m.mediaUrl} className="border-2 border-black aspect-square object-cover shadow-lg" alt="site-photo" />
-              ))}
-            </div>
+          <div className="mt-10 grid grid-cols-4 gap-4">
+            {messages.filter(m => m.mediaUrl && selectedMsgIds.includes(m.id)).map((m, i) => (
+              <img key={i} src={m.mediaUrl} className="border-2 border-black aspect-square object-cover shadow-lg" alt="site" />
+            ))}
           </div>
 
           <div className="mt-20 flex justify-between items-end pt-12 border-t-4 border-black font-black uppercase italic opacity-80">
@@ -259,9 +296,9 @@ export default function SabanSupremeHub() {
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print z-50">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all">ביטול וחזרה</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all">חזור לצ'אט</button>
           <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-3">
-            <Printer size={24}/> הדפס הזמנה עכשיו
+            <Printer size={24}/> הדפס הזמנה
           </button>
         </div>
     </div>
@@ -270,16 +307,17 @@ export default function SabanSupremeHub() {
   return (
     <div className={`flex h-screen font-sans overflow-hidden transition-all duration-500 ${themeClass}`} dir="rtl">
       
-      {/* 1. Sidebar ראשי */}
+      {/* --- 1. Sidebar ראשי --- */}
       {!isMobile && (
         <aside className={`w-24 flex flex-col items-center py-10 border-l gap-10 shrink-0 z-40 ${sidebarBg}`}>
           <div onClick={() => setActiveTab('HUB')} className="w-16 h-16 bg-emerald-500 rounded-[1.8rem] flex items-center justify-center shadow-2xl active:scale-95 transition-transform cursor-pointer overflow-hidden border-2 border-white/20">
             <img src={BRAND_LOGO} alt="Bot" className="w-full h-full object-cover" />
           </div>
+          
           <nav className="flex flex-col gap-6 flex-1">
             {[
               { id: 'HUB', icon: MessageCircle, label: 'JONI HUB' },
-              { id: 'CRM', icon: Users, label: 'זהויות ו-DNA' },
+              { id: 'CRM', icon: Users, label: 'זהויות ואיחוד' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
               { id: 'INVENTORY', icon: PackageSearch, label: 'מלאי טכני' },
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
@@ -294,21 +332,22 @@ export default function SabanSupremeHub() {
               </button>
             ))}
           </nav>
+
           <div className="flex flex-col items-center gap-4 mt-auto">
              <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isServerOnline ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]'}`} title={isServerOnline ? "Server Live" : "Server Dead"}></div>
-             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
              </button>
           </div>
         </aside>
       )}
 
-      {/* 2. רשימת צ'אטים (WhatsApp Web Interface) */}
+      {/* --- 2. רשימת שיחות (WhatsApp Style) --- */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-96 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
-          <header className="p-6 border-b border-inherit bg-emerald-500/5 flex flex-col gap-5">
+          <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-5">
             <div className="flex justify-between items-center">
-                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט פניות JONI</h2>
+                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isServerOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{isServerOnline ? 'Live' : 'Offline'}</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
@@ -316,6 +355,7 @@ export default function SabanSupremeHub() {
                 <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חיפוש מנהל פרויקט..." className="w-full bg-transparent p-4 pr-12 text-xs border-none outline-none font-bold" />
             </div>
           </header>
+
           <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar bg-slate-50/20">
             {filteredCustomers.map(c => (
               <button 
@@ -336,12 +376,11 @@ export default function SabanSupremeHub() {
         </aside>
       )}
 
-      {/* 3. Main Command Workspace */}
+      {/* --- 3. אזור העבודה המרכזי --- */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         
         {selectedCustomer && activeTab === 'HUB' ? (
           <div className="flex-1 flex flex-col h-full">
-            {/* Header */}
             <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20 relative group">
@@ -352,7 +391,7 @@ export default function SabanSupremeHub() {
                   <h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2>
                   <p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    {normalizeId(selectedCustomer.id)} | JONI PIPE ACTIVE
+                    {normalizeId(selectedCustomer.id)} | UNIFIED CONTROL
                   </p>
                 </div>
               </div>
@@ -372,13 +411,12 @@ export default function SabanSupremeHub() {
               </div>
             </header>
 
-            {/* Chat Area (WhatsApp Style) */}
             <div ref={scrollRef} className={`flex-1 overflow-y-auto p-12 flex flex-col gap-6 scroll-smooth no-scrollbar ${chatAreaBg}`} style={{backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: theme === 'dark' ? 'soft-light' : 'overlay'}}>
               {messages.map((m, i) => (
-                <motion.div initial={{ opacity: 0, x: m.type === 'in' ? 20 : -20 }} animate={{ opacity: 1, x: 0 }} key={m.id || i} 
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={m.id || i} 
                     onClick={() => isSelectionMode && toggleSelection(m.id)}
                     className={`flex flex-col max-w-[75%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'} ${isSelectionMode ? 'cursor-pointer hover:scale-[1.02]' : ''} transition-transform`}>
-                  <div className={`p-6 rounded-[2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none shadow-black/20' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-950/20'}`}>
+                  <div className={`p-6 rounded-[2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-950/20'}`}>
                     {isSelectionMode && (
                       <div className={`absolute -top-3 -right-3 w-7 h-7 rounded-full flex items-center justify-center shadow-2xl border-4 border-[#0b141a] ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white scale-110' : 'bg-slate-700 text-slate-400 opacity-50'}`}>
                         <CheckCircle2 size={16}/>
@@ -387,7 +425,7 @@ export default function SabanSupremeHub() {
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">
                       {m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצת הזמנות' : 'פרטי'}
                     </div>
-                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl border border-white/5" alt="product" />}
+                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="img" />}
                     <div className="whitespace-pre-wrap font-bold tracking-tight">{m.text}</div>
                     <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}>
                       <Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}
@@ -403,7 +441,6 @@ export default function SabanSupremeHub() {
               )}
             </div>
 
-            {/* Input Bar */}
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
               {!isServerOnline && (
                   <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3"><AlertCircle size={20}/> שרת ה-Bridge במחשב שלך למטה. וודא ש-PM2 רץ ו-whatsapp-server מחובר.</div>
@@ -429,12 +466,11 @@ export default function SabanSupremeHub() {
                 <Bot size={80} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" />
              </div>
              <h2 className="text-7xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>SUPREME COMMAND</h2>
-             <p className="text-sm font-bold tracking-[1em] text-center uppercase">Secure Operating System v6.0</p>
           </div>
         )}
       </main>
 
-      {/* 4. CRM Sidebar - Identity Management */}
+      {/* --- 4. CRM Sidebar - ניהול זהות מאוחדת --- */}
       {!isMobile && selectedCustomer && (activeTab === 'CRM' || activeTab === 'HUB') && (
         <aside className={`w-[500px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center">
@@ -447,27 +483,25 @@ export default function SabanSupremeHub() {
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                 </div>
                 <div className="text-center space-y-4">
-                   <h3 className="text-4xl font-black italic tracking-tighter">{editCrm.contactName || selectedCustomer.name}</h3>
+                   <h3 className="text-4xl font-black italic tracking-tighter leading-tight">{editCrm.contactName || selectedCustomer.name}</h3>
                    <div className="flex justify-center gap-3">
-                     <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-6 py-2.5 rounded-full uppercase border border-emerald-500/40">VIP IDENTITY: {normalizeId(selectedCustomer.id)}</span>
+                     <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-6 py-2.5 rounded-full uppercase border border-emerald-500/40">ID: {normalizeId(selectedCustomer.id)}</span>
                    </div>
                 </div>
              </div>
              <div className="space-y-10">
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מספר לקוח בקומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-lg font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-2xl`} /></div>
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Building size={14} className="text-blue-500"/> שם פרויקט / חברה</label><input value={editCrm.projectName} onChange={e => setEditCrm((prev:any)=>({...prev, projectName: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-lg font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-2xl`} /></div>
-                <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת אספקה מדויקת</label><input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-lg font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-2xl`} /></div>
+                <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת אספקה</label><input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-lg font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-2xl`} /></div>
                 <div className="grid grid-cols-2 gap-8">
                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest"><UserCheck size={14}/> שם איש קשר</label><input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} /></div>
                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest"><Phone size={14}/> נייד</label><input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} /></div>
                 </div>
              </div>
+             {/* 🔥 תיקון שגיאת ה-Build: שם הפונקציה המדויק הוא saveCustomerCard */}
              <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-8 rounded-[3rem] shadow-[0_30px_80px_rgba(37,99,235,0.5)] active:scale-95 transition-all flex items-center justify-center gap-6 mt-8 uppercase tracking-widest text-xl">
                 {isSaving ? <Activity size={32} className="animate-spin"/> : <><Save size={32}/> Sync Supreme Card</>}
              </button>
-             <div className="p-8 rounded-[3.5rem] border-4 border-dashed border-amber-500/40 bg-amber-500/5 text-amber-600 text-xs font-black leading-relaxed shadow-inner italic">
-                ⚠️ JONI LOGIC: מזהה זה מנרמל את כל הפניות של הלקוח (קבוצת הזמנות ח. סבן + צ'אט אישי) לזהות אחת. כל היסטוריה מזהות אחרת תימחק ותמוזג לכאן.
-             </div>
           </div>
         </aside>
       )}
