@@ -60,10 +60,10 @@ export default function App() {
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
-    return clean.length >= 9 ? clean.slice(-12) : id;
+    return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // --- הגדרות עיצוב ---
+  // --- הגדרות עיצוב דינמיות ---
   const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
   const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
   const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
@@ -147,6 +147,7 @@ export default function App() {
     const txt = chatInput.trim();
     setChatInput('');
 
+    // 🔥 השתלטות עוינת: השתקה אוטומטית של ה-AI כשרמי מתערב
     if (isAiActive) setIsAiActive(false);
 
     try {
@@ -179,11 +180,12 @@ export default function App() {
     } catch (e: any) { console.error(e.message); } finally { setTimeout(() => setIsSaving(false), 800); }
   };
 
+  // 🔥 איחוד ידני סופי - מוחק את הכפילויות פיזית מה-Firestore
   const handleMergeManual = async () => {
     const targetPhone = prompt("הכנס את מספר הטלפון המדויק לאיחוד (למשל: 972542276631):");
     if (!targetPhone || !selectedCustomer || targetPhone === selectedCustomer.id) return;
     
-    if (window.confirm(`מבצע איחוד סופי: מעביר את כל ההיסטוריה ל-${targetPhone} ומוחק את המזהה הישן. לאשר?`)) {
+    if (window.confirm(`מבצע איחוד סופי: מעביר את כל ההיסטוריה ל-${targetPhone} ומוחק את המזהה הישן מהמאגר. לאשר?`)) {
       setIsSaving(true);
       try {
         const oldId = selectedCustomer.id;
@@ -209,7 +211,7 @@ export default function App() {
         batch.delete(doc(dbFS, 'customers', oldId));
 
         await batch.commit();
-        alert("האיחוד הושלם בהצלחה.");
+        alert("האיחוד הושלם בהצלחה. כפילויות נמחקו.");
         setSelectedCustomer(null);
       } catch (err: any) { alert("שגיאה: " + err.message); } finally { setIsSaving(false); }
     }
@@ -226,6 +228,7 @@ export default function App() {
     (c.id || '').includes(searchTerm)
   );
 
+  // --- תצוגת הדפסה ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
         <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl">
@@ -234,17 +237,18 @@ export default function App() {
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover" alt="logo" />
           </div>
           <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-6 border-2 border-black shadow-lg">
-            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרויקט</p><p className="text-2xl font-black">{editCrm.projectName || "פרויקט כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={16}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
+            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרויקט</p><p className="text-2xl font-black">{editCrm.projectName || "פרויקט כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={16}/> {editCrm.projectAddress || "נא להזין כתובת"}</p></div>
             <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרטי לקוח</p><p className="text-xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
           <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
-            <div className="bg-black text-white p-3 flex justify-between font-black text-lg"><span>תיאור מהצ'אט</span><span className="w-32 text-center">כמות</span></div>
+            <div className="bg-black text-white p-3 flex justify-between font-black text-lg"><span>תיאור מהצ'אט (נבחר ע"י ראמי)</span><span className="w-32 text-center">כמות</span></div>
             <div className="p-6 space-y-6 flex-1">
               {messages.filter(m => selectedMsgIds.includes(m.id)).map((m, i) => (
                 <div key={i} className="flex justify-between border-b-2 border-slate-200 pb-4 last:border-0 items-center">
                   <span className="flex-1 font-medium">{m.text}</span><span className="w-40 border-b-2 border-black h-8"></span>
                 </div>
               ))}
+              {selectedMsgIds.length === 0 && <p className="m-auto opacity-30 italic">לא נבחרו הודעות להדפסה.</p>}
             </div>
           </div>
           <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic text-sm text-slate-600 uppercase font-black">
@@ -254,7 +258,7 @@ export default function App() {
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print">
           <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all">חזור</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2"><Printer size={22}/> הדפס</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2"><Printer size={22}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -292,17 +296,13 @@ export default function App() {
         </aside>
       )}
 
-      {/* 2. רשימת פניות */}
+      {/* 2. רשימת פניות עם חיפוש */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-85 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
                 <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                {isServerOnline ? (
-                    <span className="text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse uppercase">Live</span>
-                ) : (
-                    <span className="text-[9px] bg-red-500 text-white px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1"><WifiOff size={10}/> Offline</span>
-                )}
+                <span className="text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse uppercase tracking-tighter">Live Sync</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -326,7 +326,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* 3. Main Workspace */}
+      {/* 3. Main Operational Workspace */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         {selectedCustomer && activeTab === 'HUB' ? (
           <div className="flex-1 flex flex-col h-full">
@@ -339,9 +339,6 @@ export default function App() {
                 <div><h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>{normalizeId(selectedCustomer.id)} | UNIFIED CONTROL</p></div>
               </div>
               <div className="flex items-center gap-4">
-                {!isServerOnline && (
-                    <div className="bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-[10px] font-black flex items-center gap-2 border border-red-500/20"><AlertTriangle size={14}/> JONI SERVER OFFLINE</div>
-                )}
                 <button onClick={() => setIsSelectionMode(!isSelectionMode)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all border ${isSelectionMode ? 'bg-orange-500 border-orange-400 text-white shadow-lg' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><Activity size={16} /> {isSelectionMode ? 'סימון פעיל' : 'מצב בחירה'}</button>
                 <button onClick={() => setIsAiActive(!isAiActive)} className={`flex items-center gap-3 px-7 py-3 rounded-[1.4rem] font-black text-xs transition-all border-2 ${isAiActive ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl shadow-emerald-500/30' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><Power size={20} /> {isAiActive ? 'AI AUTO ON' : 'MANUAL'}</button>
                 <button onClick={() => setIsPrinting(true)} className="p-4 bg-blue-600/10 text-blue-500 rounded-[1.5rem] hover:bg-blue-600/20 border border-blue-600/20 shadow-xl group"><Printer size={28} className="group-hover:scale-110 transition-transform"/></button>
