@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-import { Network, MessageSquare, Edit3, Save, Search, FileText, ShoppingCart, User, GitMerge, AlertCircle } from 'lucide-react';
+import { Network, MessageSquare, Edit3, Save, Search, FileText, ShoppingCart, User, GitMerge, AlertCircle, PlusCircle, Trash2, ChevronDown, CornerDownLeft } from 'lucide-react';
 
-// 🔥 אתחול Firebase
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,172 +12,196 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
-// הגדרת צמתי העץ (Nodes) כברירת מחדל
+// מבנה נתונים חדש: תמיכה בהיררכיה (parentId)
 const defaultNodes = [
-  { id: 'MENU', title: 'תפריט ראשי (Root)', icon: GitMerge, color: 'bg-indigo-500', 
-    prompt: 'הודעת הפתיחה. הצג תפריט: 1. בירור, 2. הצעת מחיר, 3. הזמנה, 4. נציג.' },
-  { id: 'INQUIRY', title: '1️⃣ בירור מוצר', icon: Search, color: 'bg-blue-500', 
-    prompt: 'חפש במלאי. אם יש תמונה, צרף לינק קסם.' },
-  { id: 'QUOTE', title: '2️⃣ הצעת מחיר', icon: FileText, color: 'bg-emerald-500', 
-    prompt: 'שאל כמויות מדויקות וכתובת לאספקה. אל תמציא מחירים.' },
-  { id: 'ORDER', title: '3️⃣ הזמנה', icon: ShoppingCart, color: 'bg-amber-500', 
-    prompt: 'שלח לינק קסם אישי לסיום הרכישה במערכת.' },
-  { id: 'HUMAN_RAMI', title: '4️⃣ נציג אנושי', icon: User, color: 'bg-red-500', 
-    prompt: 'הודע ללקוח שראמי יחזור אליו והשתתק.' },
+  { id: 'MENU', parentId: null, title: 'תפריט ראשי', color: 'bg-indigo-500', prompt: 'הודעת הפתיחה. הצג תפריט: 1. בירור, 2. הצעת מחיר, 3. הזמנה, 4. נציג.' },
+  { id: 'INQUIRY', parentId: 'MENU', title: '1️⃣ בירור מוצר', color: 'bg-blue-500', prompt: 'חפש במלאי. ברגע שמצאת את המוצר, שאל את הלקוח "כמה מ"ר/יחידות אתה צריך?" ושנה את הסטטוס ל-INQUIRY_QTY.' },
+  { id: 'INQUIRY_QTY', parentId: 'INQUIRY', title: 'חישוב כמויות (תת-ענף)', color: 'bg-cyan-500', prompt: 'קח את הכמות שהלקוח ביקש. חשב לפי נתוני המחשבון שבמלאי כמה שקים צריך, תן לו סה"כ מחיר, ושאל אם להפוך להצעת מחיר. שנה סטטוס ל-QUOTE.' },
+  { id: 'QUOTE', parentId: 'MENU', title: '2️⃣ הצעת מחיר', color: 'bg-emerald-500', prompt: 'שאל כתובת לאספקה וסכם מחיר סופי. שנה סטטוס ל-ORDER לאישור.' },
+  { id: 'ORDER', parentId: 'QUOTE', title: '3️⃣ אישור הזמנה (תת-ענף)', color: 'bg-amber-500', prompt: 'שלח לינק קסם אישי לסיום הרכישה במערכת.' },
+  { id: 'HUMAN_RAMI', parentId: 'MENU', title: '4️⃣ נציג אנושי', color: 'bg-red-500', prompt: 'הודע ללקוח שראמי יחזור אליו והשתתק.' },
 ];
 
 export default function BotFlowBuilder() {
-  const [nodes, setNodes] = useState(defaultNodes);
+  const [nodes, setNodes] = useState<any[]>(defaultNodes);
   const [activeNode, setActiveNode] = useState<any>(nodes[0]);
   const [isSaving, setIsSaving] = useState(false);
   const [globalDNA, setGlobalDNA] = useState("אתה ראמי, המוח הלוגיסטי של ח. סבן. דבר קצר, בשפת קבלנים (עלא ראסי).");
 
-  // משיכת הגדרות קיימות
   useEffect(() => {
     const fetchConfig = async () => {
       const snap = await getDoc(doc(dbFS, 'system', 'bot_flow_config'));
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.nodes) setNodes(data.nodes);
-        if (data.globalDNA) setGlobalDNA(data.globalDNA);
-        setActiveNode(data.nodes.find((n:any) => n.id === 'MENU') || data.nodes[0]);
+      if (snap.exists() && snap.data().nodes) {
+        setNodes(snap.data().nodes);
+        setGlobalDNA(snap.data().globalDNA || globalDNA);
+        setActiveNode(snap.data().nodes[0]);
       }
     };
     fetchConfig();
   }, []);
 
-  // שמירת העץ ל-Firestore
   const saveFlow = async () => {
     setIsSaving(true);
     await setDoc(doc(dbFS, 'system', 'bot_flow_config'), { nodes, globalDNA }, { merge: true });
     setTimeout(() => setIsSaving(false), 1000);
   };
 
-  const updateActiveNode = (val: string) => {
-    const updated = nodes.map(n => n.id === activeNode.id ? { ...n, prompt: val } : n);
+  const updateNode = (key: string, val: string) => {
+    const updated = nodes.map(n => n.id === activeNode.id ? { ...n, [key]: val } : n);
     setNodes(updated);
-    setActiveNode({ ...activeNode, prompt: val });
+    setActiveNode({ ...activeNode, [key]: val });
+  };
+
+  const addChildNode = (parentId: string) => {
+    const newNode = {
+      id: `NEW_STATE_${Date.now().toString().slice(-4)}`,
+      parentId,
+      title: 'שלב חדש בענף',
+      color: 'bg-slate-500',
+      prompt: 'הגדר מה ה-AI עושה בשלב זה...'
+    };
+    setNodes([...nodes, newNode]);
+    setActiveNode(newNode);
+  };
+
+  const deleteNode = (id: string) => {
+    // מוחק את הצומת ואת כל הילדים שלו
+    const nodesToDelete = new Set([id]);
+    let added = true;
+    while (added) {
+      added = false;
+      nodes.forEach(n => {
+        if (nodesToDelete.has(n.parentId) && !nodesToDelete.has(n.id)) {
+          nodesToDelete.add(n.id);
+          added = true;
+        }
+      });
+    }
+    const filtered = nodes.filter(n => !nodesToDelete.has(n.id));
+    setNodes(filtered);
+    setActiveNode(filtered[0]);
+  };
+
+  // פונקציה רקורסיבית לציור העץ
+  const renderTree = (parentId: string | null, level: number = 0) => {
+    const children = nodes.filter(n => n.parentId === parentId);
+    if (children.length === 0) return null;
+
+    return (
+      <div className="flex flex-col gap-2 w-full mt-2">
+        {children.map(node => (
+          <div key={node.id} className="flex flex-col">
+            <div 
+              onClick={() => setActiveNode(node)}
+              className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
+                activeNode?.id === node.id ? 'bg-indigo-50 border-indigo-300 shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'
+              }`}
+              style={{ marginRight: `${level * 24}px` }}
+            >
+              {level > 0 && <CornerDownLeft size={16} className="text-slate-300" />}
+              <div className={`w-3 h-3 rounded-full ${node.color}`}></div>
+              <div className="flex-1 font-black text-slate-800 text-sm truncate">{node.title}</div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); addChildNode(node.id); }}
+                className="text-slate-400 hover:text-indigo-600 transition p-1"
+                title="הוסף תת-ענף"
+              >
+                <PlusCircle size={16} />
+              </button>
+            </div>
+            {renderTree(node.id, level + 1)}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
     <div className="flex h-screen bg-[#f8fafc] font-sans" dir="rtl">
-      <Head><title>Master Rami | קנבס עץ AI</title></Head>
+      <Head><title>Master Rami | בונה ענפי AI</title></Head>
 
-      {/* אזור הקנבס הוויזואלי (שמאל) */}
-      <main className="flex-1 relative overflow-hidden flex flex-col">
-        {/* רקע נקודות של סטודיו */}
-        <div className="absolute inset-0 z-0 opacity-40" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
-        
-        <header className="relative z-10 p-5 bg-white/80 backdrop-blur-md border-b flex justify-between items-center shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><Network size={24} /></div>
-            <div>
-              <h1 className="font-black text-xl text-slate-800">עורך עץ AI (Canvas Studio)</h1>
-              <p className="text-xs font-bold text-slate-500">עיצוב פרוטוקול ומצבי שיחה בלייב</p>
-            </div>
-          </div>
-          <button onClick={saveFlow} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95">
-            {isSaving ? <span className="animate-pulse">שומר...</span> : <><Save size={18} /> שמור עץ לשרת</>}
-          </button>
+      {/* טור ימין: עץ הניווט (Sidebar) */}
+      <aside className="w-80 bg-white border-l shadow-2xl flex flex-col shrink-0 z-20 overflow-y-auto">
+        <header className="p-6 bg-slate-900 text-white border-b-4 border-indigo-500">
+          <h1 className="text-xl font-black flex items-center gap-2"><Network size={20} /> AI Flow Builder</h1>
+          <p className="text-xs font-bold text-indigo-300 mt-1">מנהל ענפים ותרחישי שיחה</p>
         </header>
 
-        {/* עץ הצמתים */}
-        <div className="relative z-10 flex-1 overflow-auto flex flex-col items-center pt-16 pb-20">
-          
-          {/* צומת אב - תפריט */}
-          <div 
-            onClick={() => setActiveNode(nodes[0])}
-            className={`w-72 bg-white rounded-2xl p-4 shadow-xl border-2 cursor-pointer transition-all hover:-translate-y-1 ${activeNode.id === nodes[0].id ? 'border-indigo-500 ring-4 ring-indigo-500/20' : 'border-slate-200'}`}
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`w-10 h-10 rounded-full flex justify-center items-center text-white ${nodes[0].color}`}><GitMerge size={20} /></div>
-              <div className="font-black text-slate-800">{nodes[0].title}</div>
-            </div>
-            <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{nodes[0].prompt}</div>
-          </div>
-
-          {/* קווים מחברים */}
-          <div className="w-px h-12 bg-slate-300"></div>
-          <div className="w-[800px] border-t-2 border-slate-300 relative flex justify-between pt-12">
-            {/* צמתים בנים */}
-            {nodes.slice(1).map((node, i) => {
-              const Icon = node.icon;
-              return (
-                <div key={node.id} className="flex flex-col items-center relative w-64">
-                  {/* קו אנכי יורד לכל ילד */}
-                  <div className="w-px h-12 bg-slate-300 absolute -top-12"></div>
-                  
-                  <div 
-                    onClick={() => setActiveNode(node)}
-                    className={`w-full bg-white rounded-2xl p-4 shadow-lg border-2 cursor-pointer transition-all hover:-translate-y-1 ${activeNode.id === node.id ? `border-${node.color.split('-')[1]}-500 ring-4 ring-${node.color.split('-')[1]}-500/20` : 'border-slate-200'}`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className={`w-10 h-10 rounded-full flex justify-center items-center text-white ${node.color}`}><Icon size={18} /></div>
-                      <div className="font-black text-slate-800 text-sm">{node.title}</div>
-                    </div>
-                    <div className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{node.prompt}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
+        <div className="p-4 flex-1 overflow-y-auto">
+          <div className="text-xs font-black text-slate-400 mb-4 uppercase tracking-wider">מבנה העץ הלוגי</div>
+          {renderTree(null)}
         </div>
-      </main>
 
-      {/* חלונית עריכה (ימין) */}
-      <aside className="w-[400px] bg-white border-l shadow-2xl flex flex-col shrink-0 z-20">
-        <header className="p-5 bg-slate-50 border-b flex items-center gap-2">
-          <Edit3 size={18} className="text-blue-600" />
-          <h2 className="font-black text-slate-800">עריכת פרוטוקול (DNA)</h2>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
-          
-          {/* הגדרות כלליות */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <label className="text-xs font-black text-slate-500 mb-2 flex items-center gap-1 uppercase tracking-wider">
-              <AlertCircle size={14}/> DNA גלובלי (אישיות ה-AI)
-            </label>
-            <textarea 
-              value={globalDNA} onChange={(e) => setGlobalDNA(e.target.value)}
-              className="w-full h-24 bg-white border border-slate-300 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none leading-relaxed"
-            />
-          </div>
-
-          <hr className="border-slate-100" />
-
-          {/* עריכת צומת ספציפי */}
-          {activeNode && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3 mb-2">
-                 <div className={`w-12 h-12 rounded-2xl flex justify-center items-center text-white shadow-inner ${activeNode.color}`}>
-                    <MessageSquare size={24} />
-                 </div>
-                 <div>
-                    <h3 className="font-black text-lg text-slate-800">{activeNode.title}</h3>
-                    <p className="text-xs font-bold text-slate-400 font-mono">ID: {activeNode.id}</p>
-                 </div>
-              </div>
-
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                <label className="text-xs font-black text-blue-600 mb-2 block uppercase tracking-wider">הוראות ביצוע למצב זה</label>
-                <textarea 
-                  value={activeNode.prompt} onChange={(e) => updateActiveNode(e.target.value)}
-                  placeholder="כתוב מה ה-AI צריך לעשות כשלקוח מגיע לשלב הזה..."
-                  className="w-full h-48 bg-white border border-blue-200 rounded-xl p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none leading-relaxed"
-                />
-              </div>
-
-              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 mt-4">
-                <p className="text-xs text-amber-800 font-bold leading-relaxed">
-                  💡 טיפ: הוסף תגית <code className="bg-amber-200 px-1 rounded mx-1">[IMAGE]</code> או לינקים, וה-API ידע לתרגם אותם לכרטיסי מוצר עשירים בווצאפ.
-                </p>
-              </div>
-            </div>
-          )}
+        <div className="p-4 border-t bg-slate-50">
+          <button onClick={saveFlow} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl shadow-lg active:scale-95 transition-all flex justify-center items-center gap-2">
+            {isSaving ? 'שומר עץ...' : <><Save size={18} /> שמור עץ לשרת</>}
+          </button>
         </div>
       </aside>
+
+      {/* טור שמאל: עורך הענף המרכזי */}
+      <main className="flex-1 p-8 overflow-y-auto flex flex-col items-center relative" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
+        
+        {activeNode && (
+          <div className="w-full max-w-3xl bg-white p-8 rounded-[2rem] shadow-xl border border-slate-200 space-y-6 relative z-10">
+            <header className="flex justify-between items-start border-b border-slate-100 pb-6">
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex justify-center items-center text-white shadow-inner ${activeNode.color}`}>
+                  <MessageSquare size={32} />
+                </div>
+                <div>
+                  <input 
+                    type="text" 
+                    value={activeNode.title} 
+                    onChange={e => updateNode('title', e.target.value)}
+                    className="text-2xl font-black text-slate-800 border-none outline-none bg-transparent placeholder-slate-300 focus:ring-2 focus:ring-indigo-100 rounded-lg px-2 -mx-2"
+                    placeholder="שם הענף (למשל: בירור מוצר)"
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs font-bold text-slate-500">מזהה סטטוס (State ID):</span>
+                    <input 
+                      type="text" 
+                      value={activeNode.id} 
+                      onChange={e => updateNode('id', e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                      className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded outline-none w-40"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {activeNode.id !== 'MENU' && (
+                <button onClick={() => deleteNode(activeNode.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition">
+                  <Trash2 size={20} />
+                </button>
+              )}
+            </header>
+
+            {/* DNA של הסטטוס הספציפי */}
+            <div className="space-y-3">
+              <label className="text-sm font-black text-indigo-600 flex items-center gap-2">
+                <AlertCircle size={16}/> פקודת מוח לענף זה (Prompt)
+              </label>
+              <textarea 
+                value={activeNode.prompt} 
+                onChange={e => updateNode('prompt', e.target.value)}
+                placeholder='מה ה-AI צריך לעשות כאן? (למשל: "אחרי שחישבת כמות, תשאל אם לשלוח לינק תשלום, ושנה סטטוס ל-QUOTE")'
+                className="w-full h-48 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all resize-none leading-relaxed"
+              />
+            </div>
+
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex gap-3 text-amber-800">
+              <AlertCircle size={20} className="shrink-0" />
+              <div className="text-xs font-bold leading-relaxed">
+                <strong>איך מעבירים לענף הבא?</strong><br/>
+                פשוט תכתוב בתיבה למעלה במילים שלך: <br/>
+                <span className="bg-amber-200 px-1 rounded mx-1">"ברגע שהלקוח עונה X, תשנה את הסטטוס שלו ל-[ID של הענף הבא]".</span><br/>
+                ה-API המרכזי קורא את הטקסט הזה ומבצע את המעבר מאחורי הקלעים!
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }
