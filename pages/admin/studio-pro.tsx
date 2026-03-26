@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { getDatabase, ref, push, onValue, set } from 'firebase/database';
+import { getDatabase, ref, push, onValue, set, off } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
-  BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
+  BrainCircuit, Plus, Trash2, Settings, Clock, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,6 +36,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0 });
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [syncRetryCount, setSyncRetryCount] = useState(0);
 
   // --- נתוני ליבה ---
   const [customers, setCustomers] = useState<any[]>([]);
@@ -58,8 +59,9 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 חישוב "חי באמת" - אם השרת שלח Heartbeat בדקה האחרונה
-  const isTrulyOnline = serverStatus.online && (currentTime - serverStatus.lastSeen < 65000);
+  // 🔥 חישוב "חי באמת" - הוספנו מרווח ביטחון של 90 שניות למנוע לאגים
+  const timeDiff = currentTime - serverStatus.lastSeen;
+  const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
   // --- עזר: איחוד זהויות (UID) ---
   const normalizeId = (id: string) => {
@@ -75,8 +77,8 @@ export default function App() {
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // עדכון זמן מקומי כל 10 שניות לבדיקת הדופק
-    const timer = setInterval(() => setCurrentTime(Date.now()), 10000);
+    // עדכון זמן מקומי כל 5 שניות לבדיקת דופק רגישה
+    const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
 
     // סטטוס שרת JONI בלייב מה-RTDB
     const statusRef = ref(dbRT, 'saban94/status');
@@ -116,7 +118,7 @@ export default function App() {
       unsubCust();
       unsubFlow();
     };
-  }, []);
+  }, [syncRetryCount]); // רענון במידת הצורך
 
   // טעינת היסטוריה - סינכרון מלא וחי ללקוח הנבחר
   useEffect(() => {
@@ -137,7 +139,7 @@ export default function App() {
     }, (err) => console.error("Sync Error:", err));
 
     return () => unsubHistory();
-  }, [selectedCustomer?.id]);
+  }, [selectedCustomer?.id, syncRetryCount]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -147,6 +149,12 @@ export default function App() {
 
   // --- פונקציות ביצוע ---
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  const forceSync = () => {
+    setSyncRetryCount(prev => prev + 1);
+    setChatInput('');
+    alert("מבצע סינכרון מחדש מול JONI...");
+  };
 
   const handleSend = async () => {
     if (!chatInput.trim() || !selectedCustomer) return;
@@ -339,8 +347,8 @@ export default function App() {
 
           <div className="flex flex-col items-center gap-4 mt-auto">
              {/* 🔥 חיווי סטטוס שרת חכם (דופק אמיתי) */}
-             <div className="flex flex-col items-center gap-1 group cursor-help">
-                <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_15px_#ef4444]'}`} />
+             <div onClick={forceSync} className="flex flex-col items-center gap-1 group cursor-pointer hover:scale-110 transition-all">
+                <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]'}`} />
                 <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>
                    {isTrulyOnline ? 'LIVE' : 'DEAD'}
                 </span>
@@ -359,7 +367,10 @@ export default function App() {
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-5">
             <div className="flex justify-between items-center">
                 <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white animate-pulse shadow-md'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
+                <div className="flex items-center gap-2">
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white animate-pulse shadow-md'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
+                    <button onClick={forceSync} className="text-slate-400 hover:text-emerald-500 transition-colors"><RefreshCw size={14}/></button>
+                </div>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -519,8 +530,13 @@ export default function App() {
                    <Heart size={20} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} />
                    <div className="text-xs font-black uppercase tracking-widest">JONI PULSE: {isTrulyOnline ? 'STABLE' : 'ERROR'}</div>
                 </div>
-                <div className="text-[10px] font-mono font-bold">
-                   דופק אחרון: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'}
+                <div className="text-right flex flex-col">
+                   <div className="text-[10px] font-mono font-bold">
+                      דופק: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'}
+                   </div>
+                   <div className="text-[8px] opacity-60">
+                      איחור: {(timeDiff/1000).toFixed(1)}s
+                   </div>
                 </div>
              </div>
           </div>
