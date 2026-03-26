@@ -99,9 +99,13 @@ export default function LiveChatCRM() {
       timestamp: rtdbTimestamp()
     });
 
-    // שומרים בהיסטוריה המקומית
-    await collection(dbFS, 'customers', activeChat.id, 'chat_history');
-    // Note: The local server will save the history once sent, but we can do optimistic UI if needed.
+    // שומרים בהיסטוריה המקומית כדי שזה יקפוץ מיד ב-UI
+    const chatRef = collection(dbFS, 'customers', activeChat.id, 'chat_history');
+    await setDoc(doc(chatRef), {
+      text: inputMsg.trim(),
+      type: 'out',
+      timestamp: new Date() // זמני עד שהשרת יעדכן
+    });
     
     setInputMsg('');
   };
