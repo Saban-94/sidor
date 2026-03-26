@@ -156,6 +156,24 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
+  // 🔥 תיקון השגיאה: הוספת פונקציית saveProfile החסרה
+  const saveProfile = async () => {
+    if (!selectedCustomer) return;
+    setIsSaving(true);
+    try {
+      await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { 
+        ...editCrm, 
+        lastUpdated: serverTimestamp() 
+      }, { merge: true });
+      setIsSaving(false);
+      alert("פרופיל הלקוח ו-DNA סונכרנו בהצלחה!");
+    } catch (e) {
+      console.error(e);
+      setIsSaving(false);
+      alert("שגיאה בסנכרון הפרופיל.");
+    }
+  };
+
   const saveConfig = async () => {
     setIsSaving(true);
     await setDoc(doc(dbFS, 'system', 'config'), sysConfig, { merge: true });
@@ -180,8 +198,8 @@ export default function App() {
                 </button>
             ))}
         </div>
-        <button onClick={() => setShowDiagnostics(!showDiagnostics)} className={`p-3 transition-colors ${showDiagnostics ? 'text-amber-500' : 'text-slate-500'}`}>
-            <Terminal size={24} />
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500 transition-colors">
+            {theme === 'dark' ? <Clock size={24} /> : <Terminal size={24}/>}
         </button>
       </aside>
 
