@@ -30,12 +30,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "gemini-pro"                
     ];
 
-    // שליפת מוצרים למקרה שאנחנו בסטטוס בירור (INQUIRY)
+    // 🔥 שליפת מוצרים חכמה מותאמת לעברית (ilike)
     let invInfo = "לא רלוונטי כרגע.";
-    if (state === 'INQUIRY' || message.length > 3) {
-        const cleanSearch = message.replace(/[^\w\sא-ת]/gi, ' ').trim();
-        const { data } = await supabase.from('inventory').select('*').textSearch('product_name', cleanSearch, { type: 'websearch' }).limit(3); 
-        if (data && data.length > 0) invInfo = JSON.stringify(data);
+    if (state === 'INQUIRY' || message.length > 2) {
+        // שולפים את מילת המפתח המרכזית מההודעה כדי למצוא התאמה רחבה במלאי
+        const words = message.replace(/[^\w\sא-ת]/gi, '').split(/\s+/).filter((w: string) => w.length > 2);
+        const keyword = words.length > 0 ? words[0] : message.trim();
+
+        const { data, error } = await supabase
+            .from('inventory')
+            .select('*')
+            .ilike('product_name', `%${keyword}%`) // חיפוש חכם וגמיש יותר בעברית
+            .limit(3); 
+
+        if (data && data.length > 0) {
+            // מאכילים את ה-AI בכפית עם הלינק המדויק למוצר!
+            invInfo = data.map(p => 
+                `שם המוצר: ${p.product_name} | מחיר: ₪${p.price || 'לא הוגדר'} | לינק קסם להזמנה: https://sidor.vercel.app/product/${p.sku} | תמונה: ${p.image_url || 'null'}`
+            ).join('\n');
+        } else {
+            invInfo = "המוצר המבוקש לא נמצא כרגע במלאי. תעדכן את הלקוח שאתה בודק חלופות.";
+        }
     }
 
     // 🔥 פרוטוקול ה-DNA: חוקים נוקשים למכונת המצבים של ה-AI
@@ -46,7 +61,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     המצב הנוכחי של הלקוח במערכת (State): ${state}
     הודעת הלקוח: "${message}"
-    מידע מהמלאי (אם נדרש): ${invInfo}
+    מידע מהמלאי שנשלף הרגע (אם נדרש): 
+    ${invInfo}
 
     -- חוקי ניתוב מצבים (CRITICAL RULES) --
     עליך לנתח את ההודעה ולהחליט מה המצב הבא (newState) של הלקוח.
@@ -57,8 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
        - חריג: אם הוא ענה "1", שנה newState ל-"INQUIRY". אם "2", שנה ל-"QUOTE". אם "3", שנה ל-"ORDER". אם "4", שנה ל-"HUMAN_RAMI".
 
     2. אם State="INQUIRY" (בירור מוצר):
-       - ענה לו על המוצר מתוך המלאי שסופק לך.
-       - אם יש למוצר תמונה (image_url), שים אותה בשדה mediaUrl ב-JSON!
+       - קרא את 'מידע מהמלאי'. אם מצאת את המוצר, ענה לו בהתלהבות, ציין את המחיר, **וחובה להדביק את "לינק קסם להזמנה"** בדיוק כפי שמופיע בנתונים!
+       - אם יש לינק לתמונה בנתונים שקיבלת (ולא null), שים אותה בשדה mediaUrl ב-JSON.
        - ה-newState נשאר "INQUIRY" עד שהוא מבקש משהו אחר.
 
     3. אם State="QUOTE" או "ORDER":
@@ -72,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     -- פורמט חובה: רק JSON --
     אתה חייב להחזיר אך ורק אובייקט JSON תקין (בלי מרכאות סביבו, נקי לחלוטין) במבנה הבא:
     {
-      "reply": "הטקסט שיישלח ללקוח בווצאפ",
+      "reply": "הטקסט שיישלח ללקוח בווצאפ (כולל לינק הקסם למוצר אם מצאת במלאי)",
       "newState": "MENU או INQUIRY או QUOTE או ORDER או HUMAN_RAMI",
       "mediaUrl": "לינק לתמונה אם מצאת במלאי, אחרת null"
     }
