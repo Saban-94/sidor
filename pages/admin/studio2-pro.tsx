@@ -57,16 +57,14 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- 🔥 לוגיקת נורמליזציה ---
+  // 🔥 לוגיקת נורמליזציה: הופכת כל ID לזהות של 9 ספרות אחרונות
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // חישוב דופק שרת
-  const timeDiff = currentTime - serverStatus.lastSeen;
-  const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
+  const isTrulyOnline = serverStatus.online && (currentTime - serverStatus.lastSeen < 90000);
 
   // --- טעינת נתונים ראשונית ---
   useEffect(() => {
@@ -77,7 +75,6 @@ export default function App() {
 
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
 
-    // מאזין לסטטוס השרת והברקוד
     const statusRef = ref(dbRT, 'saban94/status');
     const unsubStatus = onValue(statusRef, (snap) => {
       const data = snap.val();
@@ -88,27 +85,29 @@ export default function App() {
       }
     });
 
-    // שליפת לקוחות עם איחוד זהויות
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(200)), (snap) => {
+    // 🔥 איחוד זהויות לוגי ברמת הלקוח
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
+      
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
-          if (!existing || (!existing.projectName && curr.projectName) || (!existing.photo && curr.photo)) {
-              unifiedMap.set(uid, { ...curr, uid });
+          
+          if (!existing) {
+            unifiedMap.set(uid, { ...curr, uid, allIds: [curr.id] });
+          } else {
+            // מיזוג מידע לתוך הזהות המאוחדת
+            unifiedMap.set(uid, {
+              ...existing,
+              ...curr,
+              name: curr.name || existing.name,
+              photo: curr.photo || existing.photo,
+              allIds: Array.from(new Set([...existing.allIds, curr.id]))
+            });
           }
       });
       setCustomers(Array.from(unifiedMap.values()));
-    });
-
-    // טעינת הגדרות AI
-    const unsubFlow = onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setNodes(data.nodes || []);
-          setGlobalDNA(data.globalDNA || '');
-        }
     });
 
     return () => {
@@ -116,13 +115,13 @@ export default function App() {
       clearInterval(timer);
       unsubStatus();
       unsubCust();
-      unsubFlow();
     };
   }, []);
 
-  // טעינת היסטוריה
+  // 🔥 טעינת היסטוריה - מאזין לכל המזהים של אותה זהות מאוחדת
   useEffect(() => {
     if (!selectedCustomer) return;
+    
     setEditCrm({ 
       comaxId: selectedCustomer.comaxId || '', 
       projectName: selectedCustomer.projectName || '', 
@@ -131,10 +130,14 @@ export default function App() {
       contactPhone: selectedCustomer.id || '', 
       photo: selectedCustomer.photo || '' 
     });
+
+    // מאזין למזהה הראשי שנבחר
     const q = query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'));
     const unsubHistory = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMessages(msgs);
+    }, (err) => console.error("Sync Error:", err));
+
     return () => unsubHistory();
   }, [selectedCustomer?.id]);
 
@@ -142,7 +145,7 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // --- פונקציות לוגיקה שתוקנו ---
+  // --- פונקציות ביצוע ---
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const handleResetConnection = async () => {
@@ -154,6 +157,34 @@ export default function App() {
         setShowQrModal(true);
       } catch (e) { console.error(e); } finally { setIsSaving(false); }
     }
+  };
+
+  const handleSend = async () => {
+    if (!chatInput.trim() || !selectedCustomer) return;
+    const txt = chatInput.trim();
+    setChatInput('');
+    if (isAiActive) setIsAiActive(false);
+
+    // 🔥 אופטימיזציה: הוספת ההודעה ל-UI מיד
+    const tempId = Date.now().toString();
+    setMessages(prev => [...prev, { id: tempId, text: txt, type: 'out', timestamp: { seconds: Date.now()/1000 } }]);
+
+    try {
+      // שליחה ל-RTDB - משתמשים ב-ID המלא של הלקוח
+      await push(ref(dbRT, 'saban94/outgoing'), { 
+        number: selectedCustomer.id, 
+        message: txt, 
+        timestamp: Date.now() 
+      });
+
+      // תיעוד ב-Firestore
+      await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
+        text: txt, 
+        type: 'out', 
+        timestamp: serverTimestamp(), 
+        source: 'manual-rami' 
+      });
+    } catch (err: any) { console.error(err.message); }
   };
 
   const saveCustomerCard = async () => {
@@ -181,21 +212,10 @@ export default function App() {
         batch.set(doc(dbFS, 'customers', targetPhone), { ...selectedCustomer, id: targetPhone, lastUpdated: serverTimestamp(), identityUnified: true }, { merge: true });
         batch.delete(doc(dbFS, 'customers', oldId));
         await batch.commit();
-        alert("האיחוד הושלם.");
+        alert("איחוד הזהויות הושלם.");
         setSelectedCustomer(null);
       } catch (err: any) { console.error(err.message); } finally { setIsSaving(false); }
     }
-  };
-
-  const handleSend = async () => {
-    if (!chatInput.trim() || !selectedCustomer) return;
-    const txt = chatInput.trim();
-    setChatInput('');
-    if (isAiActive) setIsAiActive(false);
-    try {
-      await push(ref(dbRT, 'saban94/outgoing'), { number: selectedCustomer.id, message: txt, timestamp: Date.now() });
-      await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami' });
-    } catch (err: any) { console.error(err.message); }
   };
 
   const toggleSelection = (id: string) => {
@@ -284,13 +304,13 @@ export default function App() {
         </aside>
       )}
 
-      {/* 2. רשימת פניות */}
+      {/* 2. רשימת זהויות מאוחדת */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-96 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-4">
-            <div className="flex justify-between items-center">
-                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2 text-slate-800 dark:text-slate-200"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
+            <div className="flex justify-between items-center text-slate-800 dark:text-slate-100">
+                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-500"/> זהויות JONI</h2>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{isTrulyOnline ? 'Sync OK' : 'Offline'}</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -358,11 +378,11 @@ export default function App() {
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight text-slate-800 dark:text-slate-200">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
         )}
       </main>
 
-      {/* 4. CRM Sidebar */}
+      {/* 4. CRM Sidebar - Identity Management */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[480px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3 text-slate-800 dark:text-slate-100"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button></header>
@@ -372,8 +392,8 @@ export default function App() {
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                    <button onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3 font-black uppercase text-xs">החלף תמונה</button>
                 </div>
-                <div className="text-center space-y-3">
-                   <h3 className="text-3xl font-black italic tracking-tighter leading-none text-slate-800 dark:text-slate-100">{editCrm.contactName || selectedCustomer.name}</h3>
+                <div className="text-center space-y-3 text-slate-800 dark:text-slate-100">
+                   <h3 className="text-3xl font-black italic tracking-tighter leading-none">{editCrm.contactName || selectedCustomer.name}</h3>
                    <div className="flex justify-center gap-3">
                      <span className={`text-[10px] font-black px-5 py-2 rounded-full uppercase border ${isTrulyOnline ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' : 'text-red-500 bg-red-500/10 border-red-500/30'}`}>Identity: {selectedCustomer.uid}</span>
                    </div>
@@ -384,7 +404,7 @@ export default function App() {
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Building size={14} className="text-blue-500"/> שם פרויקט / חברה</label><input value={editCrm.projectName} onChange={e => setEditCrm((prev:any)=>({...prev, projectName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-xl text-slate-800 dark:text-slate-100`} /></div>
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת אספקה</label><input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl text-slate-800 dark:text-slate-100`} /></div>
                 <div className="grid grid-cols-2 gap-6">
-                   <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14}/> שם איש קשר</label><input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl text-slate-800 dark:text-slate-100`} /></div>
+                   <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14}/> איש קשר</label><input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl text-slate-800 dark:text-slate-100`} /></div>
                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Phone size={14}/> נייד</label><input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl text-slate-800 dark:text-slate-100`} /></div>
                 </div>
              </div>
