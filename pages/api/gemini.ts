@@ -3,7 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// הגדרות סביבה
+// הגדרות סביבה - Supabase & Firebase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -13,6 +13,7 @@ const firebaseConfig = {
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 };
+
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
@@ -23,13 +24,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const { message, name, state, isGroup, senderPhone, manualInjection } = req.body; 
+    const { message, name, state, senderPhone, manualInjection } = req.body; 
 
     // הגנות בסיס
     if (!message && !manualInjection) return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
     if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
-    const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash", "gemini-pro"];
+    // בריכת מודלים לגיבוי
+        const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash", "gemini-pro"];
 
     try {
         // 1. משיכת עץ ה-Flow הדינמי מהסטודיו (Firestore)
@@ -48,10 +50,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             if (cleanMsg === '1') forcedState = 'INQUIRY';
             else if (cleanMsg === '2') forcedState = 'QUOTE';
             else if (cleanMsg === '3') forcedState = 'ORDER';
-            else if (cleanMsg === '4') forcedState = 'HUMAN_RAMI';
         }
 
-        // 3. שליפת DNA אישי מה-CRM
+        // 3. שליפת DNA אישי מה-CRM (Firestore)
         let customerDNA = '';
         if (senderPhone) {
             const custSnap = await getDoc(doc(dbFS, 'customers', senderPhone)).catch(() => null);
@@ -61,20 +62,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
         }
 
-        // 4. שליפת מלאי חכמה (רק בבירור מוצר)
+        // 4. שליפת מלאי חכמה מ-Supabase (רק בבירור מוצר)
         let invInfo = "";
         if (forcedState === 'INQUIRY') {
             const keyword = cleanMsg.replace(/[^\w\sא-ת]/gi, '').split(/\s+/).filter((w: string) => w.length > 2)[0] || cleanMsg;
             const { data } = await supabase.from('inventory').select('*').ilike('product_name', `%${keyword}%`).limit(3); 
             if (data && data.length > 0) {
-                invInfo = data.map(p => `💎 מוצר: ${p.product_name} | SKU: ${p.sku} | מחיר: ₪${p.price} | לינק: https://sidor.vercel.app/product/${p.sku} | תמונה: ${p.image_url}`).join('\n');
+                invInfo = data.map(p => `💎 מוצר: ${p.product_name} | SKU: ${p.sku} | מחיר: ₪${p.price}`).join('\n');
             }
         }
 
         // 5. בניית הנחיות העץ (Nodes Instructions)
         const nodesInstructions = dynamicNodes.map((n: any) => `מצב [${n.id}]: ${n.prompt}`).join('\n');
 
-        // 6. בניית ה-Prompt המשולב (DNA + Studio + Luxury)
+        // 6. בניית ה-Prompt המשולב
         const prompt = `
         ${globalDNA}
         ${customerDNA}
@@ -82,47 +83,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         -- מפת ענפי השיחה מהסטודיו (Flow Builder) --
         ${nodesInstructions}
 
-        -- נתונים אישיים ולינקים --
+        -- נתונים אישיים --
         שם הלקוח: ${name || 'אח יקר'}
         מספר טלפון: ${senderPhone || 'לא ידוע'}
-        לינק קסם אישי: https://sidor.vercel.app/start?ref=${senderPhone || 'guest'}
         לוגו המותג: ${BRAND_LOGO}
 
-        -- מצב נוכחי של הלקוח: ${forcedState} --
+        -- מצב נוכחי: ${forcedState} --
         הודעת הלקוח: "${message}"
 
-        -- חוקי עיצוב והתנהגות יוקרתיים --
-        1. אם המצב הוא MENU: 
-           - הצג תפריט מעוצב לעילא עם אימוג'ים יוקרתיים (✨, 🏗️, 💎, 🚚, 📞).
-           - השתמש בכתב מודגש (*טקסט*) להדגשת אפשרויות.
-           - חובה להחזיר את ${BRAND_LOGO} בשדה ה-mediaUrl.
-        
-        2. בירור מוצר (INQUIRY):
-           - אם מצאת מוצר במלאי (${invInfo}), צרף את לינק המחשבון הייעודי שלו.
-           - אם יש תמונה למוצר בנתונים, שים אותה ב-mediaUrl.
-        
-        3. לינקי קסם וקבצים:
-           - אם הלקוח שואל על אזור אישי או מסמכים, שלח לו את "לינק הקסם האישי" בטקסט.
-           - במידה ונדרש PDF (קטלוג/מחירון), ציין את ה-URL שלו בשדה ה-pdfUrl.
+        -- חוקי עיצוב יוקרתיים --
+        1. בתפריט (MENU): הצג אימוג'ים (✨, 🏗️, 💎), כתב מודגש, ושלח את ${BRAND_LOGO} ב-mediaUrl.
+        2. בבירור (INQUIRY): השתמש בנתוני המלאי: ${invInfo}.
+        3. פורמט חובה: JSON בלבד.
 
-        4. זיהוי המשכיות: אל תחזור לתפריט אם הלקוח שואל שאלת המשך מקצועית. הישאר בענף.
-        
-        5. בכל הודעה שאינה תפריט, הוסף בסוף בכתב קטן: "להתחלה מחדש הקש 0".
-
-        -- פורמט חובה: JSON בלבד --
         {
-          "reply": "הטקסט המעוצב והיוקרתי",
+          "reply": "טקסט מעוצב",
           "newState": "${forcedState}",
-          "mediaUrl": "URL לתמונה (לוגו בתפריט / תמונת מוצר בבירור) או null",
-          "pdfUrl": "לינק לקובץ PDF אם נדרש, אחרת null",
-          "actionButton": { "text": "טקסט לכפתור", "link": "URL ללינק קסם או מוצר" } או null
+          "mediaUrl": "URL או null",
+          "pdfUrl": "URL או null",
+          "actionButton": { "text": "טקסט", "link": "URL" } או null
         }
         `;
 
         // 7. הרצת מודלים ברוטציה (Fallback)
-        let jsonResult: any = null;
-        let errorLogs: string[] = [];
-
+        let jsonResult = null;
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -136,19 +120,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 const data = await response.json();
                 if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
                     jsonResult = JSON.parse(data.candidates[0].content.parts[0].text);
-                    // דריסת לוגו בתפריט למניעת טעויות AI
                     if (forcedState === 'MENU') jsonResult.mediaUrl = BRAND_LOGO;
                     break;
                 }
-            } catch (e: any) {
-                errorLogs.push(`${modelName}: ${e.message}`);
-                continue;
-            }
+            } catch (e) { continue; }
         }
 
-        if (!jsonResult) return res.status(200).json({ reply: `⚠️ ראמי, המוח עמוס. שגיאות: ${errorLogs.join(" | ")}` });
-
-        return res.status(200).json(jsonResult);
+        return res.status(200).json(jsonResult || { reply: "משהו השתבש במוח, נסה שוב." });
 
     } catch (e: any) {
         return res.status(200).json({ reply: `תקלה בשרת: ${e.message}` });
