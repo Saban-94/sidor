@@ -63,13 +63,14 @@ export default function App() {
   };
 
   const timeDiff = currentTime - (serverStatus.lastSeen || 0);
+  // 🔥 חישוב חיבור אקטיבי - החמרה ל-90 שניות
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
   const signalQuality = timeDiff < 15000 ? 'EXCELLENT' : timeDiff < 45000 ? 'GOOD' : timeDiff < 90000 ? 'WEAK' : 'DISCONNECTED';
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. סטטוס ודופק (לפי saban94/status)
+    // 1. סטטוס ודופק (saban94/status)
     onValue(ref(dbRT, 'saban94/status'), (snap) => {
       const data = snap.val();
       if (data) {
@@ -83,7 +84,7 @@ export default function App() {
         if (snap.exists()) setSysConfig(prev => ({ ...prev, ...snap.data() }));
     });
 
-    // 3. מלשינון תעבורה נכנסת (נתיב: rami/incoming)
+    // 3. מלשינון תעבורה נכנסת (rami/incoming)
     const incomingRef = ref(dbRT, 'rami/incoming');
     const unsubIncoming = onChildAdded(incomingRef, (snapshot) => {
         const data = snapshot.val();
@@ -97,7 +98,7 @@ export default function App() {
         }
     });
 
-    // 4. ניטור תור שליחה (נתיב: rami/outgoing)
+    // 4. ניטור תור שליחה (rami/outgoing)
     onValue(ref(dbRT, 'rami/outgoing'), (snap) => {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
@@ -109,7 +110,7 @@ export default function App() {
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const lastActivity = curr.lastMessageAt?.seconds ? curr.lastMessageAt.seconds * 1000 : 0;
-          const isInactive = (Date.now() - lastActivity) > (24 * 60 * 60 * 1000); 
+          const isInactive = (Date.now() - lastActivity) > (12 * 60 * 60 * 1000); 
           const existing = unifiedMap.get(uid);
           if (!existing || (!existing.name && curr.name)) {
             unifiedMap.set(uid, { ...curr, uid, isInactive });
@@ -149,14 +150,7 @@ export default function App() {
     setChatInput('');
     try {
       await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
-      
-      // דחיפה לתור השליחה בנתיב rami/outgoing
-      await push(ref(dbRT, 'rami/outgoing'), { 
-        number: targetId, 
-        message: txt, 
-        timestamp: Date.now() 
-      });
-      
+      await push(ref(dbRT, 'rami/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
       await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-control' 
       });
@@ -169,8 +163,11 @@ export default function App() {
     try {
       await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, lastUpdated: serverTimestamp() }, { merge: true });
       setIsSaving(false);
-      alert("סונכרן!");
-    } catch (e) { setIsSaving(false); }
+      alert("פרופיל הלקוח ו-DNA סונכרנו בהצלחה!");
+    } catch (e) {
+      console.error(e);
+      setIsSaving(false);
+    }
   };
 
   const saveConfig = async () => {
@@ -186,7 +183,7 @@ export default function App() {
     <div className={`flex h-screen overflow-hidden ${theme === 'dark' ? 'bg-[#020617] text-slate-100 font-sans' : 'bg-slate-50 text-slate-900 font-sans'}`} dir="rtl">
       
       {/* 1. Sidebar ניווט */}
-      <aside className={`w-20 flex flex-col items-center py-8 border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200'}`}>
+      <aside className={`w-20 flex flex-col items-center py-8 border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg mb-10 overflow-hidden cursor-pointer active:scale-95 transition-transform">
             <img src={BRAND_LOGO} alt="logo" className="w-full h-full object-cover" />
         </div>
@@ -197,7 +194,7 @@ export default function App() {
                 </button>
             ))}
         </div>
-        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500">
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500 transition-colors">
             {theme === 'dark' ? <Clock size={24} /> : <Terminal size={24}/>}
         </button>
       </aside>
@@ -216,7 +213,7 @@ export default function App() {
           {activeTab !== 'NETWORK' && (
             <div className="relative">
                 <Search className="absolute right-3 top-3 text-slate-500" size={16}/>
-                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש לקוח..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner" />
+                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש לקוח..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner focus:ring-1 focus:ring-emerald-500" />
             </div>
           )}
         </header>
@@ -268,7 +265,7 @@ export default function App() {
                                   <span className="font-black text-blue-400">INCOMING</span>
                                   <span className="font-mono">{new Date(log.time).toLocaleTimeString()}</span>
                               </div>
-                              <p className="font-bold text-slate-300">מ-{log.sender}: "{log.text?.substring(0,25)}..."</p>
+                              <p className="font-bold text-slate-300 truncate">מ-{log.sender}: "{log.text}"</p>
                           </div>
                       ))}
                   </div>
@@ -290,7 +287,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 3. אזור הצ'אט */}
+      {/* 3. אזור עבודה מרכזי */}
       <main className="flex-1 flex flex-col relative" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: 'soft-light' }}>
         {selectedCustomer ? (
           <>
@@ -305,14 +302,39 @@ export default function App() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                  <div className={`px-4 py-2 rounded-xl border-2 transition-all ${queueCount > 0 ? 'bg-amber-500/10 border-amber-500/40 text-amber-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
-                      <span className="text-[10px] font-black uppercase">תור שליחה: {queueCount}</span>
+                  {/* 🔥 מלשינון תור אקטיבי בראש הצ'אט */}
+                  <div className={`px-4 py-2 rounded-xl border-2 transition-all ${queueCount > 0 ? 'bg-red-500/20 border-red-500/40 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
+                      <span className="text-[10px] font-black uppercase">{queueCount > 0 ? `צינור סתום: ${queueCount} הודעות` : 'צינור נקי'}</span>
                   </div>
                   <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
                       {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
                   </button>
               </div>
             </header>
+
+            {/* מלשינון תעבורה מעל הצ'אט */}
+            <AnimatePresence>
+                {showDiagnostics && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/90 backdrop-blur-md border-b border-white/10 overflow-hidden z-20 shadow-inner">
+                        <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה (PATH: rami/incoming)</p>
+                                <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
+                                    {queueCount > 0 ? 'Pipe Error: Bridge Offline' : 'Bridge Listening'}
+                                </span>
+                            </div>
+                            {incomingLogs.map((log, idx) => (
+                                <div key={log.id || idx} className="flex gap-4 border-b border-white/5 py-1 hover:bg-white/5 transition-colors">
+                                    <span className="text-blue-500">[{new Date(log.time).toLocaleTimeString()}]</span>
+                                    <span className="text-purple-400 font-black">FROM: {log.sender}</span>
+                                    <span className="text-slate-300 truncate italic flex-1">"{log.text}"</span>
+                                    <span className="text-emerald-500 font-bold">{log.status}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 flex flex-col gap-5 no-scrollbar shadow-inner">
               {messages.map((m, i) => (
@@ -327,13 +349,16 @@ export default function App() {
             </div>
 
             <footer className="p-6 bg-[#0f172a]/95 border-t border-white/5 flex gap-4 z-10 shadow-2xl">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={queueCount > 10 ? "הצינור עמוס, המתן..." : "כתוב הודעה לצינור..."} className="flex-1 bg-black/40 p-4 rounded-2xl border border-white/5 outline-none font-bold text-white focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner" />
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={queueCount > 5 ? "⚠️ הצינור סתום, הודעות לא נשלחות!" : "כתוב הודעה לצינור..."} className={`flex-1 bg-black/40 p-4 rounded-2xl border outline-none font-bold text-white focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner ${queueCount > 5 ? 'border-red-500/50' : 'border-white/5'}`} />
               <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all"><Send className="rotate-180 -mr-1" size={28}/></button>
             </footer>
           </>
         ) : (
           <div className="m-auto opacity-10 flex flex-col items-center gap-8 text-white text-center">
-              <MessageCircle size={220} className="animate-pulse opacity-20" />
+              <div className="relative">
+                <MessageCircle size={220} className="animate-pulse opacity-20" />
+                <Bot size={80} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" />
+              </div>
               <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none text-slate-400">SABAN HUB<br/><span className="text-2xl text-emerald-500 tracking-[0.2em]">Operational Command Center</span></h1>
           </div>
         )}
@@ -376,7 +401,8 @@ export default function App() {
                 <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
-                <div className="bg-white p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden shadow-inner">
+                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600 text-center">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
+                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
                     ) : (
