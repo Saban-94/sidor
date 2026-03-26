@@ -7,7 +7,7 @@ import {
   Users, Printer, UserCog, Building, MapPin, Phone, CreditCard, Power, X, Search, 
   Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, Heart, QrCode, Clock, Trash,
   Zap, Network, AlertTriangle, ShieldAlert, History, Terminal, Database, ArrowRightLeft, 
-  Loader2, Radio, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, AlertCircle, Settings2, Link2, Globe
+  Loader2, Radio, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, AlertCircle, Settings2, Link2, Globe, Eraser
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,7 +42,7 @@ export default function App() {
   const [queueCount, setQueueCount] = useState(0);
   const [incomingLogs, setIncomingLogs] = useState<any[]>([]);
 
-  // הגדרות תשתית (מתואם ל-RTDB שלך)
+  // הגדרות תשתית
   const [sysConfig, setSysConfig] = useState({
     rtDbUrl: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
     callbackUrl: "",
@@ -63,14 +63,13 @@ export default function App() {
   };
 
   const timeDiff = currentTime - (serverStatus.lastSeen || 0);
-  // 🔥 חישוב חיבור אקטיבי - החמרה ל-90 שניות
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
   const signalQuality = timeDiff < 15000 ? 'EXCELLENT' : timeDiff < 45000 ? 'GOOD' : timeDiff < 90000 ? 'WEAK' : 'DISCONNECTED';
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. סטטוס ודופק (saban94/status)
+    // 1. סטטוס (saban94/status)
     onValue(ref(dbRT, 'saban94/status'), (snap) => {
       const data = snap.val();
       if (data) {
@@ -79,7 +78,7 @@ export default function App() {
       }
     });
 
-    // 2. הגדרות מערכת מ-Firestore
+    // 2. הגדרות מערכת
     onSnapshot(doc(dbFS, 'system', 'config'), (snap) => {
         if (snap.exists()) setSysConfig(prev => ({ ...prev, ...snap.data() }));
     });
@@ -88,7 +87,7 @@ export default function App() {
     const incomingRef = ref(dbRT, 'rami/incoming');
     const unsubIncoming = onChildAdded(incomingRef, (snapshot) => {
         const data = snapshot.val();
-        if (data) {
+        if (data && data.sender) {
             setIncomingLogs(prev => [{
                 ...data, 
                 id: snapshot.key, 
@@ -103,7 +102,7 @@ export default function App() {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
 
-    // 5. טעינת רשימת לקוחות
+    // 5. טעינת לקוחות
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
@@ -157,17 +156,26 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
+  // 🔥 פונקציית שחרור סתימה - מנקה את רשימת ההודעות שלא נשלחו
+  const handleClearQueue = async () => {
+    if (window.confirm(`למחוק את כל ${queueCount} ההודעות שממתינות בצינור? זה ישחרר את הסתימה.`)) {
+        try {
+            await remove(ref(dbRT, 'rami/outgoing'));
+            alert("הצינור נוקה בהצלחה. נסה לשלוח שוב.");
+        } catch (e) {
+            alert("שגיאה בניקוי הצינור.");
+        }
+    }
+  };
+
   const saveProfile = async () => {
     if (!selectedCustomer) return;
     setIsSaving(true);
     try {
       await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, lastUpdated: serverTimestamp() }, { merge: true });
       setIsSaving(false);
-      alert("פרופיל הלקוח ו-DNA סונכרנו בהצלחה!");
-    } catch (e) {
-      console.error(e);
-      setIsSaving(false);
-    }
+      alert("סונכרן!");
+    } catch (e) { setIsSaving(false); }
   };
 
   const saveConfig = async () => {
@@ -194,7 +202,7 @@ export default function App() {
                 </button>
             ))}
         </div>
-        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500 transition-colors">
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500">
             {theme === 'dark' ? <Clock size={24} /> : <Terminal size={24}/>}
         </button>
       </aside>
@@ -302,9 +310,12 @@ export default function App() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                  {/* 🔥 מלשינון תור אקטיבי בראש הצ'אט */}
-                  <div className={`px-4 py-2 rounded-xl border-2 transition-all ${queueCount > 0 ? 'bg-red-500/20 border-red-500/40 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
-                      <span className="text-[10px] font-black uppercase">{queueCount > 0 ? `צינור סתום: ${queueCount} הודעות` : 'צינור נקי'}</span>
+                  {/* 🔥 כפתור ניקוי תור אקטיבי בראש הצ'אט */}
+                  <div onClick={handleClearQueue} className={`px-4 py-2 rounded-xl border-2 transition-all cursor-pointer ${queueCount > 0 ? 'bg-red-500/20 border-red-500/40 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
+                      <span className="text-[10px] font-black uppercase flex items-center gap-2">
+                        {queueCount > 0 ? <Eraser size={12}/> : <CheckCircle2 size={12}/>}
+                        {queueCount > 0 ? `צינור סתום: ${queueCount} (נקה)` : 'צינור נקי'}
+                      </span>
                   </div>
                   <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
                       {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
@@ -320,7 +331,7 @@ export default function App() {
                             <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
                                 <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה (PATH: rami/incoming)</p>
                                 <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest uppercase">
-                                    {queueCount > 0 ? 'Pipe Error: Bridge Offline' : 'Bridge Listening'}
+                                    {queueCount > 0 ? 'Pipe Blockage Detected' : 'Bridge Heartbeat Detected'}
                                 </span>
                             </div>
                             {incomingLogs.map((log, idx) => (
@@ -386,6 +397,20 @@ export default function App() {
                 </div>
             </div>
 
+            <div className="p-6 bg-slate-900 rounded-3xl border border-white/5 shadow-inner space-y-4 text-[11px]">
+                <div className="flex justify-between items-center text-slate-400 font-black uppercase tracking-widest">
+                    <span>איכות הצינור</span>
+                    <span className={queueCount > 0 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}>{queueCount > 0 ? `QUEUE: ${queueCount} STUCK` : 'Pipeline Clear'}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
+                    <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                        <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}/>
+                    </div>
+                    <span className="font-mono opacity-50 font-black">{(timeDiff/1000).toFixed(1)}s LAG</span>
+                </div>
+            </div>
+
             <button onClick={saveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest shadow-blue-900/20">
                 {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync DNA & Profile</>}
             </button>
@@ -402,7 +427,7 @@ export default function App() {
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
                 <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600 text-center">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden">
+                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden shadow-inner">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
                     ) : (
