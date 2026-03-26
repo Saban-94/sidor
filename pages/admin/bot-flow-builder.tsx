@@ -19,8 +19,7 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
-const EMOJIS = ["✨", "🏗️", "💎", "🚚", "📞", "🤝", "🔥", "🚀", "✅", "⚠️", "📊"];
-const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
+
 
 export default function App() {
   // --- States ניהול מערכת ---
