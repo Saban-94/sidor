@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy } from 'firebase/firestore';
 import { getDatabase, ref, push, onValue } from 'firebase/database';
-// הסרת הייבוא הישיר שגרם לשגיאה בסביבת הפיתוח, נשתמש במימוש חלופי או בדיקה
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
@@ -27,7 +26,7 @@ const dbRT = getDatabase(app);
 
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
-export default function SabanUnifiedHub() {
+export default function App() {
   // --- ניהול תצוגה ומערכת ---
   const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'FLOW' | 'INVENTORY' | 'DISPATCH' | 'MASTER'>('HUB');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -63,9 +62,12 @@ export default function SabanUnifiedHub() {
   // --- פונקציית עזר לאיחוד משתמשים (פרטי וקבוצה) ---
   const normalizeId = (id: string) => id.replace(/\D/g, '').slice(-9);
 
+  // --- פונקציות בקרת תצוגה ---
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
   // --- טעינת נתונים ---
   useEffect(() => {
-    document.title = "Saban HUB | Unified Command";
+    document.title = "Saban HUB | Operational Command";
     const checkSize = () => setIsMobile(window.innerWidth < 1024);
     checkSize();
     window.addEventListener('resize', checkSize);
@@ -102,7 +104,6 @@ export default function SabanUnifiedHub() {
   useEffect(() => {
     if (!selectedCustomer) return;
     
-    // סנכרון נתוני CRM לטופס
     setEditCrm({ 
       comaxId: selectedCustomer.comaxId || '', 
       projectName: selectedCustomer.projectName || '', 
@@ -126,20 +127,18 @@ export default function SabanUnifiedHub() {
     }
   }, [messages, isThinking]);
 
-  // --- לוגיקה עסקית ---
+  // --- לוגיקת שליחה ---
   const handleSend = async () => {
     if (!chatInput.trim() || !selectedCustomer) return;
     const txt = chatInput.trim();
     setChatInput('');
 
-    // שליחה לצינור JONI ב-RTDB
     await push(ref(dbRT, 'saban94/outgoing'), { 
       number: selectedCustomer.id, 
       message: txt, 
       timestamp: Date.now() 
     });
 
-    // תיעוד היסטוריה ב-Firestore
     await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
       text: txt, 
       type: 'out', 
@@ -187,14 +186,14 @@ export default function SabanUnifiedHub() {
     setTimeout(() => setIsSaving(false), 800);
   };
 
-  // --- הגדרות עיצוב ---
+  // --- סגנונות עיצוב ---
   const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
   const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
   const itemBg = theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-slate-100 border-slate-200 hover:bg-slate-200';
   const inputBg = theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200 shadow-inner';
   const chatBg = theme === 'dark' ? 'bg-[#020617]' : 'bg-[#e5ddd5]';
 
-  // --- תצוגת הדפסת הזמנה (תחסין) ---
+  // --- תצוגת הדפסת הזמנה ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
         <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl">
@@ -235,24 +234,13 @@ export default function SabanUnifiedHub() {
             </div>
           </div>
 
-          <div className="mt-10">
-            <p className="font-black text-sm uppercase text-slate-500 mb-4 underline underline-offset-4">צילומי שטח / מוצרים מהשיחה</p>
-            <div className="grid grid-cols-4 gap-4">
-              {messages.filter(m => m.mediaUrl).map((m, i) => (
-                <div key={i} className="border-2 border-black aspect-square overflow-hidden bg-slate-100">
-                  <img src={m.mediaUrl} className="w-full h-full object-cover" alt="product-site" />
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic">
             <div className="text-center space-y-2">
               <div className="w-48 border-b-2 border-black mx-auto h-12"></div>
               <p className="font-black text-sm uppercase">חתימת מנהל (תחסין)</p>
             </div>
             <div className="text-center opacity-60">
-              <p className="text-xs">הופק ע"י Saban OS Unified Command</p>
+              <p className="text-xs">הופק ע"י Saban OS Hub</p>
             </div>
             <div className="text-center space-y-2">
               <div className="w-48 border-b-2 border-black mx-auto h-12"></div>
@@ -272,10 +260,10 @@ export default function SabanUnifiedHub() {
   return (
     <div className={`flex h-screen font-sans overflow-hidden transition-all duration-500 ${themeClass}`} dir="rtl">
       
-      {/* --- 1. סרגל ניווט ראשי (Sidebar) --- */}
+      {/* --- 1. סרגל ניווט ראשי (מבוסס תמונה) --- */}
       {!isMobile && (
         <aside className={`w-24 flex flex-col items-center py-10 border-l gap-10 shrink-0 z-40 ${sidebarBg}`}>
-          <div className="w-16 h-16 bg-emerald-500 rounded-[1.8rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 active:scale-95 transition-transform cursor-pointer overflow-hidden border-2 border-white/20">
+          <div onClick={() => setActiveTab('HUB')} className="w-16 h-16 bg-emerald-500 rounded-[1.8rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 active:scale-95 transition-transform cursor-pointer overflow-hidden border-2 border-white/20">
             <img src={BRAND_LOGO} alt="Bot" className="w-full h-full object-cover" />
           </div>
           
@@ -284,7 +272,7 @@ export default function SabanUnifiedHub() {
               { id: 'HUB', icon: Users, label: 'הזמנות קבוצה' },
               { id: 'CRM', icon: BrainCircuit, label: 'אימון DNA' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
-              { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
+              { id: 'FLOW', icon: GitBranch, label: 'ענפי ה-AI' },
               { id: 'INVENTORY', icon: PackageSearch, label: 'ניהול מלאי' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר ראמי' }
             ].map((btn: any) => (
@@ -325,20 +313,7 @@ export default function SabanUnifiedHub() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-            {activeTab === 'INVENTORY' ? (
-               inventory.map(p => (
-                <button key={p.sku} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all border border-transparent ${itemBg}`}>
-                    <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-amber-500 font-bold border border-white/5 overflow-hidden">
-                      {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : p.sku}
-                    </div>
-                    <div className="text-right flex-1 overflow-hidden">
-                      <div className="text-sm font-black truncate">{p.product_name}</div>
-                      <div className="text-[10px] font-mono text-emerald-500">₪{p.price}</div>
-                    </div>
-                </button>
-               ))
-            ) : (
-                customers.map(c => (
+                {customers.map(c => (
                     <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-[1.8rem] flex items-center gap-4 transition-all border ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-2xl scale-[1.02]' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-sm relative overflow-hidden border-2 ${selectedCustomer?.id === c.id ? 'border-emerald-500 shadow-lg' : 'border-white/10 bg-slate-800 text-slate-400'}`}>
                         {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : (c.name ? c.name[0] : '?')}
@@ -349,18 +324,16 @@ export default function SabanUnifiedHub() {
                         <div className="text-[10px] opacity-40 font-mono mt-1 truncate">{c.id}</div>
                       </div>
                     </button>
-                  ))
-            )}
+                  ))}
           </div>
         </aside>
       )}
 
-      {/* --- 3. אזור העבודה המרכזי (Dynamic Workspace) --- */}
+      {/* --- 3. אזור העבודה המרכזי --- */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         
         {activeTab === 'HUB' && selectedCustomer ? (
             <div className="flex-1 flex flex-col h-full">
-                {/* Header מחוזק */}
                 <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
                     <div className="flex items-center gap-6">
                         <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl relative group border-4 border-emerald-500/20">
@@ -388,7 +361,6 @@ export default function SabanUnifiedHub() {
                     </div>
                 </header>
 
-                {/* תוכן הצ'אט האמיתי */}
                 <div ref={scrollRef} className={`flex-1 overflow-y-auto p-12 flex flex-col gap-10 scroll-smooth no-scrollbar ${chatBg}`}>
                     {messages.map((m, i) => (
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex flex-col max-w-[70%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'}`}>
@@ -413,7 +385,6 @@ export default function SabanUnifiedHub() {
                     )}
                 </div>
 
-                {/* שורת קלט לניהול JONI */}
                 <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
                     <div className={`flex items-center gap-5 p-5 rounded-[2.8rem] border transition-all ${inputBg} shadow-2xl`}>
                         <button className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={28}/></button>
@@ -430,7 +401,6 @@ export default function SabanUnifiedHub() {
                 </footer>
             </div>
         ) : activeTab === 'FLOW' ? (
-            /* --- מצב עורך ענפי ה-AI --- */
             <div className="flex-1 overflow-y-auto p-16 flex flex-col gap-12">
                 <header className="flex justify-between items-center">
                     <div>
@@ -471,7 +441,6 @@ export default function SabanUnifiedHub() {
                 </div>
             </div>
         ) : (
-          /* --- מצב המתנה / שער כניסה --- */
           <div className="m-auto flex flex-col items-center gap-10 opacity-20 group">
              <div className="relative">
                 <MessageCircle size={200} className="group-hover:scale-110 transition-transform duration-700" />
@@ -496,7 +465,7 @@ export default function SabanUnifiedHub() {
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
                 <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all duration-500">
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="p-photo" />
-                   <button onClick={() => { const p = prompt("לינק לתמונה:"); if(p) setEditCrm({...editCrm, photo: p}); }} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3">
+                   <button onClick={() => { const p = prompt("לינק לתמונה:"); if(p) setEditCrm((prev:any) => ({...prev, photo: p})); }} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3">
                      <ImageIcon size={28}/>
                      <span className="text-[11px] font-black uppercase tracking-[0.2em]">Update Identity</span>
                    </button>
@@ -513,39 +482,34 @@ export default function SabanUnifiedHub() {
              <div className="space-y-8">
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מספר לקוח בקומקס</label>
-                   <input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} placeholder="למשל: 10045" />
+                   <input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} placeholder="למשל: 10045" />
                 </div>
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Building size={14} className="text-blue-500"/> שם פרויקט / חברה</label>
-                   <input value={editCrm.projectName} onChange={e => setEditCrm({...editCrm, projectName: e.target.value})} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-xl`} placeholder="אורניל-מהלה" />
+                   <input value={editCrm.projectName} onChange={e => setEditCrm((prev:any)=>({...prev, projectName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-xl`} placeholder="אורניל-מהלה" />
                 </div>
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת מדויקת לאספקה</label>
-                   <input value={editCrm.projectAddress} onChange={e => setEditCrm({...editCrm, projectAddress: e.target.value})} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl`} placeholder="הירקון 12, תל אביב" />
+                   <input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl`} placeholder="הירקון 12, תל אביב" />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                    <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14} className="text-indigo-500"/> שם איש קשר</label>
-                      <input value={editCrm.contactName} onChange={e => setEditCrm({...editCrm, contactName: e.target.value})} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} />
+                      <input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} />
                    </div>
                    <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Phone size={14} className="text-emerald-400"/> נייד ליצירת קשר</label>
-                      <input value={editCrm.contactPhone} onChange={e => setEditCrm({...editCrm, contactPhone: e.target.value})} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} />
+                      <input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} />
                    </div>
                 </div>
              </div>
 
              <button 
-               onClick={saveCrm} disabled={isSaving}
+               onClick={saveCustomerCard} disabled={isSaving}
                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-[0_20px_60px_rgba(37,99,235,0.4)] active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 disabled:opacity-50 text-base uppercase tracking-widest"
              >
                 {isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Update & Sync Card</>}
              </button>
-
-             <div className="p-7 rounded-[3rem] border-4 border-dashed border-amber-500/30 bg-amber-500/5 text-amber-600 text-xs font-black leading-relaxed shadow-inner">
-                <div className="flex items-center gap-3 mb-3 text-sm italic underline decoration-amber-500/30"><Zap size={20}/> JONI SYSTEM LOGIC:</div>
-                נתוני הכרטיס המאוחדים הללו יוזרקו אוטומטית לטופס ההזמנה הדיגיטלי של "תחסין" בכל הפקת מסמך. המערכת תדע לאחד את הפניות מהקבוצה ומהפרטי תחת זהות זו.
-             </div>
           </div>
         </aside>
       )}
