@@ -1,23 +1,22 @@
-// /lib/gemini-worker.ts
-import { database, db } from './firebase';
+import { database } from './firebase'; // RTDB
 import { ref, onChildAdded, push, get, serverTimestamp, set } from 'firebase/database';
-import { doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc } from 'firebase/firestore'; 
+import { app } from './firebase';
 
 /**
- * SABAN HUB - Gemini Realtime Worker (Checkpoint v20.0)
- * מטרת הקובץ: האזנה להודעות נכנסות, עיבוד ב-Gemini ושליחה לתור היציאה.
+ * SABAN HUB - Gemini Realtime Worker (Checkpoint v20.1 - FIXED)
+ * תיקון: הפרדה ברורה בין RTDB ל-Firestore ומניעת שגיאות Type.
  */
 
-const GEMINI_API_ENDPOINT = '/api/gemini'; // שימוש ב-Route הקיים ששלחת
-const MSG_DELAY = 3000; // דיליי מובנה למניעת ספאם (ניתן למשוך מ-config)
+const dbFS = getFirestore(app); // Instance נפרד ל-Firestore
+const GEMINI_API_ENDPOINT = '/api/gemini';
+const MSG_DELAY = 3000;
 
 export function startGeminiWorker() {
     console.log("🚀 Saban Gemini Worker Started - Listening to 'incoming'...");
 
     const incomingRef = ref(database, 'incoming');
-    const processedRef = ref(database, 'processed_messages');
 
-    // מאזין להודעות חדשות ב-RTDB
     onChildAdded(incomingRef, async (snapshot) => {
         const msgId = snapshot.key;
         const msgData = snapshot.val();
@@ -29,7 +28,7 @@ export function startGeminiWorker() {
             const checkProcessed = await get(ref(database, `processed_messages/${msgId}`));
             if (checkProcessed.exists()) return;
 
-            // סימון מיידי כ"בטיפול" למניעת Race Conditions
+            // סימון בטיפול
             await set(ref(database, `processed_messages/${msgId}`), { 
                 status: 'processing', 
                 timestamp: serverTimestamp() 
@@ -37,13 +36,23 @@ export function startGeminiWorker() {
 
             console.log(`📩 הודעה חדשה מ-${msgData.from}: ${msgData.body}`);
 
-            // 2. שליפת DNA אישי מ-Firestore (הקשר לקוח)
+            // 2. שליפת DNA אישי מ-Firestore - שימוש ב-dbFS המתוקן
             const customerPhone = msgData.from.replace('@c.us', '');
-            const customerSnap = await getDoc(doc(db, 'customers', customerPhone));
-            const dnaContext = customerSnap.exists() ? customerSnap.data().dnaContext : "לקוח חדש";
+            let dnaContext = "לקוח חדש";
+            
+            try {
+                const customerSnap = await getDoc(doc(dbFS, 'customers', customerPhone));
+                if (customerSnap.exists()) {
+                    dnaContext = customerSnap.data().dnaContext || "לקוח רגיל";
+                }
+            } catch (fsError) {
+                console.error("Firestore DNA Fetch Error:", fsError);
+            }
 
-            // 3. פנייה ל-Gemini API (שימוש בלוגיקה הקיימת ב-pages/api/gemini.ts)
-            const geminiResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}${GEMINI_API_ENDPOINT}`, {
+            // 3. פנייה ל-Gemini API
+            // הערה: וודא ש-NEXT_PUBLIC_BASE_URL מוגדר ב-Vercel (למשל: https://your-domain.vercel.app)
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+            const geminiResponse = await fetch(`${baseUrl}${GEMINI_API_ENDPOINT}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -53,6 +62,8 @@ export function startGeminiWorker() {
                     state: msgData.currentState || 'MENU'
                 })
             });
+
+            if (!geminiResponse.ok) throw new Error(`Gemini API error: ${geminiResponse.statusText}`);
 
             const result = await geminiResponse.json();
 
@@ -72,11 +83,11 @@ export function startGeminiWorker() {
                     }
                 };
 
-                // 5. הזרקה לתור השליחה (Outgoing) עם Delay
+                // 5. הזרקה לתור השליחה עם הדיליי המבוקש
                 setTimeout(async () => {
-                    await push(ref(database, 'outgoing'), outgoingMessage);
+                    const outgoingRef = ref(database, 'outgoing');
+                    await push(outgoingRef, outgoingMessage);
                     
-                    // עדכון סטטוס סופי ב-Firestore/RTDB לתיעוד
                     await set(ref(database, `processed_messages/${msgId}`), {
                         status: 'completed',
                         replySent: true,
@@ -89,7 +100,11 @@ export function startGeminiWorker() {
 
         } catch (error) {
             console.error(`❌ שגיאה בעיבוד הודעה ${msgId}:`, error);
-            await set(ref(database, `processed_messages/${msgId}/status`), 'error');
+            await set(ref(database, `processed_messages/${msgId}`), {
+                status: 'error',
+                error: error instanceof Error ? error.message : String(error),
+                timestamp: serverTimestamp()
+            });
         }
     });
 }
