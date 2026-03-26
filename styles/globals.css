@@ -10,19 +10,19 @@
   --color-chat-bg: #e5ddd5;
   
   /* Premium Saban AI Theme */
-  --color-primary: #10b981;
-  --color-primary-dark: #059669;
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-foreground: #f8fafc;
-  --color-muted: #94a3b8;
+  --color-saban-dark: #0B141A;
+  --color-saban-emerald: #00A884;
+  --color-saban-blue: #3B82F6;
+  --color-saban-slate: #0F172A;
+  --color-saban-surface: #1E293B;
+  --color-saban-muted: #94A3B8;
 }
 
 @layer base {
   html, body {
     @apply h-full m-0 p-0 overflow-hidden;
     direction: rtl;
-    background-color: var(--color-whatsapp-bg);
+    background-color: var(--color-saban-dark);
   }
 
   * {
@@ -30,10 +30,18 @@
   }
 }
 
+.glass {
+  @apply bg-glass backdrop-blur-glass border border-white/10 shadow-glass;
+}
+
+.terminal {
+  @apply font-mono text-xs leading-relaxed text-saban-emerald;
+}
+
 .chat-container {
   background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
   background-blend-mode: overlay;
-  background-color: rgba(229, 221, 213, 0.9);
+  background-color: rgba(11, 20, 26, 0.95);
 }
 
 input:focus, button:focus {
