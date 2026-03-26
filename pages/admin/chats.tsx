@@ -1,308 +1,430 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, setDoc, limit } from 'firebase/firestore';
-import { getDatabase, ref, push, serverTimestamp as rtdbTimestamp } from 'firebase/database';
-import { Bot, User, Clock, Search, ShieldCheck, MessageCircle, Send, Users, Edit3, Image as ImageIcon, Bell, CheckCircle2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { getDatabase, ref, push, onValue, set, update, remove, onChildAdded } from 'firebase/database';
+import { 
+  Bot, Send, Image as ImageIcon, MessageCircle, Save, Activity, Smartphone, ShieldCheck, 
+  Users, Printer, UserCog, Building, MapPin, Phone, CreditCard, Power, X, Search, 
+  Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, Heart, QrCode, Clock, Trash,
+  Zap, Network, AlertTriangle, ShieldAlert, History, Terminal, Database, ArrowRightLeft, 
+  Loader2, Radio, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, AlertCircle, Settings2, Link2, Globe, Eraser
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// 🔥 אתחול Firebase (כולל Firestore לנתונים ו-RTDB לשיגור הודעות)
+// --- Firebase Config ---
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   databaseURL: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/"
 };
+
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 const dbRT = getDatabase(app);
 
-export default function LiveChatCRM() {
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [activeChat, setActiveChat] = useState<any | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [inputMsg, setInputMsg] = useState('');
+const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'NETWORK'>('HUB');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0, qr: null as string | null, battery: 100 });
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(true); 
   
-  // State לניהול פרופיל הלקוח (DNA ומשימות)
-  const [editName, setEditName] = useState('');
-  const [editDNA, setEditDNA] = useState('');
-  const [editAvatar, setEditAvatar] = useState('');
-  const [newTask, setNewTask] = useState('');
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [incomingLogs, setIncomingLogs] = useState<any[]>([]);
+
+  // הגדרות תשתית
+  const [sysConfig, setSysConfig] = useState({
+    rtDbUrl: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
+    callbackUrl: "",
+    msgDelay: 2,
+    alwaysConnected: true,
+    activePath: 'rami' // ברירת מחדל rami
+  });
+
+  const [editCrm, setEditCrm] = useState<any>({ 
+    name: '', comaxId: '', projectName: '', projectAddress: '', dnaContext: '', photo: '' 
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. שאיבת כל השיחות והקבוצות מ-Firestore
+  const normalizeId = (id: string) => {
+    if (!id) return '';
+    const clean = id.replace(/\D/g, '');
+    return clean.length >= 9 ? clean.slice(-9) : id;
+  };
+
+  const timeDiff = currentTime - (serverStatus.lastSeen || 0);
+  const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
+  const signalQuality = timeDiff < 15000 ? 'EXCELLENT' : timeDiff < 45000 ? 'GOOD' : timeDiff < 90000 ? 'WEAK' : 'DISCONNECTED';
+
   useEffect(() => {
-    const q = query(collection(dbFS, 'customers'), orderBy('lastMessageAt', 'desc'), limit(100));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCustomers(data);
-      
-      // עדכון הצ'אט הפעיל אם השתנה משהו ברקע (כמו שינוי סטטוס)
-      if (activeChat) {
-        const updatedActive = data.find(c => c.id === activeChat.id);
-        if (updatedActive) setActiveChat(updatedActive);
+    const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
+    
+    // 1. סטטוס (saban94/status)
+    onValue(ref(dbRT, 'saban94/status'), (snap) => {
+      const data = snap.val();
+      if (data) {
+        setServerStatus(prev => ({ ...prev, ...data }));
+        if (data.qr && !data.online) setShowQrModal(true);
       }
     });
-    return () => unsub();
-  }, [activeChat?.id]);
 
-  // 2. שאיבת היסטוריית השיחה ללקוח הפעיל
+    // 2. 🔥 מלשינון כפול (Dual Sniffer) - בודק גם rami וגם saban94
+    const pathsToWatch = ['rami/incoming', 'saban94/incoming'];
+    pathsToWatch.forEach(path => {
+        onChildAdded(ref(dbRT, path), (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.sender) {
+                setIncomingLogs(prev => [{
+                    ...data, 
+                    id: snapshot.key, 
+                    time: Date.now(),
+                    path: path, // מציין מאיפה ההודעה הגיעה
+                    status: 'RECEIVED'
+                }, ...prev].slice(0, 30));
+            }
+        });
+    });
+
+    // 3. ניטור תור שליחה (לפי הנתיב הנבחר)
+    onValue(ref(dbRT, `${sysConfig.activePath}/outgoing`), (snap) => {
+        setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+    });
+
+    // 4. טעינת לקוחות
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(150)), (snap) => {
+      const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const unifiedMap = new Map();
+      raw.forEach((curr: any) => {
+          const uid = normalizeId(curr.id);
+          const lastActivity = curr.lastMessageAt?.seconds ? curr.lastMessageAt.seconds * 1000 : 0;
+          const isInactive = (Date.now() - lastActivity) > (12 * 60 * 60 * 1000); 
+          const existing = unifiedMap.get(uid);
+          if (!existing || (!existing.name && curr.name)) {
+            unifiedMap.set(uid, { ...curr, uid, isInactive });
+          }
+      });
+      setCustomers(Array.from(unifiedMap.values()));
+    });
+
+    return () => { clearInterval(timer); unsubCust(); };
+  }, [sysConfig.activePath]);
+
+  // סנכרון צ'אט
   useEffect(() => {
-    if (!activeChat) return;
-    setEditName(activeChat.name || '');
-    setEditDNA(activeChat.dnaContext || '');
-    setEditAvatar(activeChat.avatar || '');
-
-    const q = query(collection(dbFS, 'customers', activeChat.id, 'chat_history'), orderBy('timestamp', 'asc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setTimeout(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }, 100);
+    if (!selectedCustomer) return;
+    setEditCrm({
+      name: selectedCustomer.name || '',
+      comaxId: selectedCustomer.comaxId || '',
+      projectName: selectedCustomer.projectName || '',
+      projectAddress: selectedCustomer.projectAddress || '',
+      dnaContext: selectedCustomer.dnaContext || '',
+      photo: selectedCustomer.photo || ''
     });
-    return () => unsub();
-  }, [activeChat?.id]);
+    const unsubHistory = onSnapshot(query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'), limit(100)), (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubHistory();
+  }, [selectedCustomer?.id]);
 
-  // 🔥 3. שמירת פרופיל הלקוח (DNA)
-  const saveCustomerProfile = async () => {
-    if (!activeChat) return;
-    await setDoc(doc(dbFS, 'customers', activeChat.id), {
-      name: editName,
-      dnaContext: editDNA,
-      avatar: editAvatar
-    }, { merge: true });
-    alert('✅ פרופיל ו-DNA עודכנו בהצלחה!');
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!chatInput.trim() || !selectedCustomer) return;
+    const txt = chatInput.trim();
+    const targetId = selectedCustomer.id; 
+    setChatInput('');
+    try {
+      await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
+      // שליחה לפי הנתיב הפעיל
+      await push(ref(dbRT, `${sysConfig.activePath}/outgoing`), { number: targetId, message: txt, timestamp: Date.now() });
+      await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
+        text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-control' 
+      });
+    } catch (e) { console.error(e); }
   };
 
-  // 🔥 4. כיבוי/הדלקה של ה-AI ללקוח ספציפי (Takeover)
-  const toggleBotState = async () => {
-    if (!activeChat) return;
-    const newState = activeChat.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI';
-    await setDoc(doc(dbFS, 'customers', activeChat.id), { botState: newState }, { merge: true });
-  };
-
-  // 🔥 5. שליחת הודעה ידנית מהממשק (ישר לווצאפ!)
-  const sendManualMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMsg.trim() || !activeChat) return;
-
-    // מכבים את ה-AI אוטומטית ברגע שאתה מתערב
-    if (activeChat.botState !== 'HUMAN_RAMI') {
-        await setDoc(doc(dbFS, 'customers', activeChat.id), { botState: 'HUMAN_RAMI' }, { merge: true });
+  const handleClearQueue = async () => {
+    if (window.confirm(`למחוק את כל ${queueCount} ההודעות בנתיב ${sysConfig.activePath}/outgoing?`)) {
+        await remove(ref(dbRT, `${sysConfig.activePath}/outgoing`));
     }
-
-    // דוחפים לתור השידור של השרת המקומי
-    await push(ref(dbRT, 'saban94/outgoing'), {
-      number: activeChat.id,
-      message: inputMsg.trim(),
-      timestamp: rtdbTimestamp()
-    });
-
-    // שומרים בהיסטוריה המקומית
-    await collection(dbFS, 'customers', activeChat.id, 'chat_history');
-    // Note: The local server will save the history once sent, but we can do optimistic UI if needed.
-    
-    setInputMsg('');
   };
 
-  // 🔥 6. ניהול משימות נודניק
-  const addNagTask = async () => {
-    if (!newTask.trim() || !activeChat) return;
-    const tasks = activeChat.tasks || [];
-    await setDoc(doc(dbFS, 'customers', activeChat.id), {
-      tasks: [...tasks, { id: Date.now(), text: newTask, done: false, date: new Date().toISOString() }]
-    }, { merge: true });
-    setNewTask('');
+  const saveProfile = async () => {
+    if (!selectedCustomer) return;
+    setIsSaving(true);
+    await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, lastUpdated: serverTimestamp() }, { merge: true });
+    setIsSaving(false);
   };
 
-  const toggleTask = async (taskId: number) => {
-    if (!activeChat) return;
-    const updatedTasks = activeChat.tasks.map((t: any) => t.id === taskId ? { ...t, done: !t.done } : t);
-    await setDoc(doc(dbFS, 'customers', activeChat.id), { tasks: updatedTasks }, { merge: true });
-  };
-
-  const filteredCustomers = customers.filter(c => c.id.includes(search) || (c.name && c.name.includes(search)));
+  const filtered = customers.filter(c => (c.projectName || c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || c.id.includes(searchTerm));
 
   return (
-    <div className="flex h-screen bg-[#f0f2f5] font-sans overflow-hidden" dir="rtl">
-      <Head><title>Master Rami | WhatsApp CRM</title></Head>
+    <div className={`flex h-screen overflow-hidden ${theme === 'dark' ? 'bg-[#020617] text-slate-100 font-sans' : 'bg-slate-50 text-slate-900 font-sans'}`} dir="rtl">
+      
+      {/* 1. Sidebar ניווט */}
+      <aside className={`w-20 flex flex-col items-center py-8 border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg mb-10 overflow-hidden cursor-pointer active:scale-95 transition-transform">
+            <img src={BRAND_LOGO} alt="logo" className="w-full h-full object-cover" />
+        </div>
+        <div className="flex flex-col gap-6 flex-1 text-slate-500">
+            {[{id: 'HUB', icon: MessageCircle}, {id: 'CRM', icon: UserCog}, {id: 'NETWORK', icon: Network}].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`p-3 rounded-xl transition-all ${activeTab === tab.id ? 'bg-emerald-500 text-white shadow-xl' : 'hover:bg-emerald-500/10 hover:text-emerald-400'}`}>
+                    <tab.icon size={24} />
+                </button>
+            ))}
+        </div>
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3 text-slate-500 hover:text-emerald-500 transition-colors">
+            {theme === 'dark' ? <Clock size={24} /> : <Terminal size={24}/>}
+        </button>
+      </aside>
 
-      {/* טור ימין: רשימת שיחות */}
-      <aside className="w-80 bg-white border-l shadow-lg flex flex-col shrink-0 z-20">
-        <header className="p-5 bg-slate-900 text-white flex flex-col gap-2">
-          <h1 className="font-black text-xl flex items-center gap-2">
-            <ShieldCheck className="text-emerald-400" /> חמ"ל ווצאפ
-          </h1>
-          <div className="relative">
-            <Search className="absolute right-3 top-2.5 text-slate-400" size={16} />
-            <input 
-              type="text" placeholder="חיפוש איש קשר/קבוצה..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-800 border-none text-white pr-9 pl-4 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-500"
-            />
+      {/* 2. רשימת צ'אטים / ממשק רשת */}
+      <aside className={`w-96 flex flex-col border-l ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200'}`}>
+        <header className="p-6 border-b border-inherit space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-black text-lg flex items-center gap-2 text-emerald-500 uppercase tracking-tighter">
+                {activeTab === 'NETWORK' ? 'תשתית' : 'JONI HUB'}
+            </h2>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-black ${isTrulyOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500 animate-pulse'}`}>
+                {isTrulyOnline ? 'LIVE' : 'OFFLINE'}
+            </div>
           </div>
+          {activeTab !== 'NETWORK' && (
+            <div className="relative">
+                <Search className="absolute right-3 top-3 text-slate-500" size={16}/>
+                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש לקוח..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner focus:ring-1 focus:ring-emerald-500" />
+            </div>
+          )}
         </header>
 
-        <div className="flex-1 overflow-y-auto">
-          {filteredCustomers.map(c => {
-            const isGroup = c.id.includes('@g.us') || c.id.includes('-');
-            return (
-              <div 
-                key={c.id} onClick={() => setActiveChat(c)}
-                className={`p-3 border-b border-slate-50 cursor-pointer flex items-center gap-3 transition-colors ${activeChat?.id === c.id ? 'bg-emerald-50 border-r-4 border-r-emerald-500' : 'hover:bg-slate-50 border-r-4 border-r-transparent'}`}
-              >
-                <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden flex justify-center items-center shrink-0 border border-slate-300">
-                  {c.avatar ? <img src={c.avatar} alt="avatar" className="w-full h-full object-cover" /> : (isGroup ? <Users size={20} className="text-slate-500" /> : <User size={20} className="text-slate-500" />)}
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <div className="font-bold text-slate-800 text-sm truncate flex justify-between">
-                    {c.name || c.id}
-                    {c.botState === 'HUMAN_RAMI' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-black">ידני</span>}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar bg-black/5">
+          {activeTab === 'NETWORK' ? (
+              <div className="space-y-6">
+                  {/* 🔥 בורר נתיבים לדיאגנוסטיקה */}
+                  <div className="p-4 bg-slate-900 rounded-2xl border border-white/5 space-y-4 shadow-xl">
+                      <div className="flex justify-between items-center mb-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">נתיב פעיל בצינור:</label>
+                          <div className="flex bg-black/40 p-1 rounded-lg">
+                              {['rami', 'saban94'].map(p => (
+                                  <button key={p} onClick={() => setSysConfig({...sysConfig, activePath: p})} className={`px-3 py-1 text-[10px] font-black rounded-md transition-all ${sysConfig.activePath === p ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>
+                                      {p.toUpperCase()}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                      <div className="space-y-1 opacity-50">
+                          <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1"><Database size={10}/> Firebase RTDB URL</label>
+                          <input value={sysConfig.rtDbUrl} readOnly className="w-full bg-black/20 p-3 rounded-lg text-[10px] font-mono text-slate-400 outline-none border border-white/5" />
+                      </div>
                   </div>
-                  <div className="text-xs text-slate-500 font-mono mt-0.5 truncate">{c.id.replace('@c.us','').replace('@g.us','')}</div>
-                </div>
+
+                  <div className="p-4 bg-slate-900 rounded-2xl border border-white/5">
+                      <div className="flex justify-between items-center mb-4">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">איכות הצינור</span>
+                          <span className={`text-[10px] font-bold ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{signalQuality}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
+                        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                            <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500' : 'bg-red-500'}`}/>
+                        </div>
+                        <span className="font-mono text-[10px] opacity-50">{(timeDiff/1000).toFixed(1)}s</span>
+                      </div>
+                  </div>
+
+                  <div className="space-y-2">
+                      <p className="text-[10px] font-black text-slate-500 uppercase px-2 flex justify-between">
+                          <span>מלשינון תעבורה (DUAL SNIFFER)</span>
+                          <span className="text-emerald-500 animate-pulse">LIVE</span>
+                      </p>
+                      {incomingLogs.map((log, idx) => (
+                          <div key={idx} className={`p-3 rounded-xl border border-white/5 text-[10px] leading-tight mb-2 ${log.path.includes('saban94') ? 'bg-amber-500/5' : 'bg-black/20'}`}>
+                              <div className="flex justify-between mb-1">
+                                  <span className={`font-black uppercase ${log.path.includes('saban94') ? 'text-amber-400' : 'text-blue-400'}`}>PATH: {log.path}</span>
+                                  <span className="font-mono opacity-60">{new Date(log.time).toLocaleTimeString()}</span>
+                              </div>
+                              <p className="font-bold text-slate-200">מ-{log.sender}: "{log.text?.substring(0,30)}..."</p>
+                          </div>
+                      ))}
+                  </div>
               </div>
-            );
-          })}
+          ) : (
+            filtered.map(c => (
+                <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all border-2 ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg' : 'border-transparent hover:bg-white/5'}`}>
+                  <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative border border-white/5 shadow-sm text-white">
+                    {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-3 text-slate-500" size={20}/>}
+                  </div>
+                  <div className="text-right flex-1 overflow-hidden">
+                    <div className="text-sm font-black truncate text-white">{c.name || "לקוח"}</div>
+                    <div className="text-[10px] opacity-40 font-mono mt-1 italic text-slate-400">{normalizeId(c.id)}</div>
+                  </div>
+                  {c.botState !== 'HUMAN_RAMI' && <Bot size={14} className="text-emerald-500 animate-pulse" />}
+                </button>
+              ))
+          )}
         </div>
       </aside>
 
-      {/* טור אמצע: חלון השיחה */}
-      <main className="flex-1 flex flex-col relative bg-[#e5ddd5]" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: 'overlay' }}>
-        {!activeChat ? (
-          <div className="m-auto flex flex-col items-center gap-4 text-slate-400 opacity-60">
-            <MessageCircle size={80} />
-            <h2 className="text-xl font-bold">בחר שיחה מהחמ"ל כדי להתחיל לנהל</h2>
-          </div>
-        ) : (
+      {/* 3. אזור עבודה מרכזי */}
+      <main className="flex-1 flex flex-col relative" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: 'soft-light' }}>
+        {selectedCustomer ? (
           <>
-            <header className="bg-white p-3 shadow-sm flex items-center gap-4 shrink-0 z-10">
-              <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex justify-center items-center border">
-                 {activeChat.avatar ? <img src={activeChat.avatar} className="w-full h-full object-cover" /> : <User size={20} className="text-slate-500" />}
+            <header className="h-20 bg-[#0f172a]/90 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-8 z-10 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500/50 shadow-lg">
+                    <img src={selectedCustomer.photo || BRAND_LOGO} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                    <h2 className="text-lg font-black italic tracking-tight">{selectedCustomer.name}</h2>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{selectedCustomer.id}</span>
+                </div>
               </div>
-              <div className="flex-1">
-                <h2 className="font-black text-slate-800">{activeChat.name || activeChat.id}</h2>
-                <p className="text-xs font-mono text-slate-500 flex items-center gap-1">
-                    סטטוס AI: 
-                    <span className={`font-bold ${activeChat.botState === 'HUMAN_RAMI' ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {activeChat.botState === 'HUMAN_RAMI' ? 'כבוי (ראמי שולט)' : activeChat.botState || 'MENU (פעיל)'}
-                    </span>
-                </p>
+              <div className="flex items-center gap-4">
+                  <div onClick={handleClearQueue} className={`px-4 py-2 rounded-xl border-2 transition-all cursor-pointer ${queueCount > 0 ? 'bg-red-500/20 border-red-500/40 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500'}`}>
+                      <span className="text-[10px] font-black uppercase flex items-center gap-2">
+                        {queueCount > 0 ? <Eraser size={12}/> : <CheckCircle2 size={12}/>}
+                        {queueCount > 0 ? `חסימה: ${queueCount} (נקה)` : 'צינור נקי'}
+                      </span>
+                  </div>
+                  <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
+                      {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
+                  </button>
               </div>
-              <button 
-                onClick={toggleBotState}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeChat.botState === 'HUMAN_RAMI' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
-              >
-                {activeChat.botState === 'HUMAN_RAMI' ? <ToggleLeft size={20}/> : <ToggleRight size={20}/>}
-                {activeChat.botState === 'HUMAN_RAMI' ? 'הדלק AI' : 'השתלט (כבה AI)'}
-              </button>
             </header>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-              {messages.map((m) => (
-                <div key={m.id} className={`max-w-[75%] p-3 rounded-2xl shadow-sm text-sm relative ${m.type === 'in' ? 'bg-white text-slate-800 rounded-tr-none self-start' : 'bg-[#dcf8c6] text-slate-900 rounded-tl-none self-end'}`}>
-                  <div className={`text-[10px] font-black mb-1 ${m.type === 'in' ? 'text-blue-500' : 'text-emerald-600'}`}>
-                    {m.type === 'in' ? (activeChat.name || 'לקוח') : 'המערכת / ראמי'}
-                  </div>
-                  <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
-                  <div className="text-[9px] text-slate-400 mt-2 flex items-center justify-end gap-1">
-                    <Clock size={10} />
-                    {m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : 'עכשיו'}
+            {/* 🔥 מלשינון תעבורה כפול מעל הצ'אט */}
+            <AnimatePresence>
+                {showDiagnostics && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/95 backdrop-blur-md border-b border-white/10 overflow-hidden z-20 shadow-inner">
+                        <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה כפול (rami + saban94)</p>
+                                <div className="flex gap-2">
+                                    <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-black uppercase">Rami Path</span>
+                                    <span className="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black uppercase">Saban Path</span>
+                                </div>
+                            </div>
+                            {incomingLogs.length === 0 && <p className="text-slate-600 italic">ממתין לתעבורה מכל נתיב אפשרי...</p>}
+                            {incomingLogs.map((log, idx) => (
+                                <div key={log.id || idx} className={`flex gap-4 border-b border-white/5 py-1 hover:bg-white/5 transition-colors ${log.path.includes('saban94') ? 'text-amber-200' : 'text-white'}`}>
+                                    <span className="text-blue-500">[{new Date(log.time).toLocaleTimeString()}]</span>
+                                    <span className={`font-black ${log.path.includes('saban94') ? 'text-amber-500' : 'text-purple-400'}`}>FROM: {log.sender}</span>
+                                    <span className="text-slate-400 truncate italic flex-1">"{log.text}"</span>
+                                    <span className="opacity-50 text-[8px] uppercase">{log.path}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 flex flex-col gap-5 no-scrollbar shadow-inner">
+              {messages.map((m, i) => (
+                <div key={m.id || i} className={`max-w-[75%] p-4 rounded-2xl text-[14px] shadow-xl relative leading-relaxed ${m.type === 'in' ? 'bg-slate-800 text-slate-100 self-start rounded-tr-none border border-white/5' : 'bg-[#005c4b] text-white self-end rounded-tl-none shadow-emerald-950/20'}`}>
+                  <div className="font-bold leading-relaxed">{m.text}</div>
+                  <div className="text-[9px] opacity-40 text-left mt-3 font-mono flex justify-end gap-1 items-center italic">
+                    {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : '...'}
+                    {!m.type && <CheckCircle2 size={10} className="text-emerald-400 ml-1"/>}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* שורת הקלדה לראמי */}
-            <div className="bg-[#f0f2f5] p-3 shrink-0">
-              <form onSubmit={sendManualMessage} className="flex items-center gap-2 bg-white rounded-2xl px-4 py-2 shadow-sm border border-slate-200 focus-within:border-emerald-500">
-                <input 
-                  type="text" 
-                  value={inputMsg}
-                  onChange={e => setInputMsg(e.target.value)}
-                  placeholder="כתוב הודעה אישית ללקוח (יכבה את ה-AI אוטומטית)..." 
-                  className="flex-1 bg-transparent border-none outline-none text-sm"
-                  dir="auto"
-                />
-                <button type="submit" disabled={!inputMsg.trim()} className="text-emerald-600 hover:text-emerald-700 disabled:opacity-50 transition-colors">
-                  <Send size={20} />
-                </button>
-              </form>
-            </div>
+            <footer className="p-6 bg-[#0f172a]/95 border-t border-white/5 flex gap-4 z-10 shadow-2xl">
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={queueCount > 5 ? "⚠️ הצינור סתום!" : "כתוב הודעה..."} className={`flex-1 bg-black/40 p-4 rounded-2xl border outline-none font-bold text-white transition-all shadow-inner ${queueCount > 5 ? 'border-red-500/50' : 'border-white/5'}`} />
+              <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all"><Send className="rotate-180 -mr-1" size={28}/></button>
+            </footer>
           </>
+        ) : (
+          <div className="m-auto opacity-10 flex flex-col items-center gap-8 text-white text-center">
+              <div className="relative">
+                <MessageCircle size={220} className="animate-pulse opacity-20" />
+                <Bot size={80} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" />
+              </div>
+              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none text-slate-400">SABAN HUB<br/><span className="text-2xl text-emerald-500 tracking-[0.2em]">Operational Command Center</span></h1>
+          </div>
         )}
       </main>
 
-      {/* טור שמאל: CRM ו-DNA */}
-      {activeChat && (
-        <aside className="w-80 bg-white border-r shadow-xl flex flex-col shrink-0 z-20 overflow-y-auto">
-          <header className="p-4 border-b bg-slate-50 flex items-center gap-2 text-slate-800">
-            <Edit3 size={18} className="text-blue-500" />
-            <h3 className="font-black">פרופיל CRM ואימון AI</h3>
-          </header>
-
-          <div className="p-4 flex flex-col gap-5">
-            {/* הגדרות DNA */}
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">שם הלקוח / קבוצה</label>
-                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" />
-              </div>
-              
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><ImageIcon size={12}/> קישור לתמונת פרופיל</label>
-                <input type="text" value={editAvatar} onChange={e => setEditAvatar(e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 text-left" dir="ltr" />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Bot size={12}/> הוראות ספציפיות ל-AI (DNA)</label>
-                <textarea 
-                  value={editDNA} onChange={e => setEditDNA(e.target.value)} 
-                  placeholder="למשל: 'לקוח VIP מקבל מחירי קבלן, לדבר איתו בכבוד'..."
-                  className="w-full h-24 bg-blue-50/50 border border-blue-100 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none leading-relaxed"
-                />
-              </div>
-
-              <button onClick={saveCustomerProfile} className="w-full bg-slate-800 text-white font-bold text-sm py-2 rounded-lg hover:bg-slate-900 transition-colors">
-                שמור פרופיל
-              </button>
+      {/* 4. CRM Sidebar */}
+      {selectedCustomer && (
+        <aside className={`w-[450px] flex flex-col p-8 border-r ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white'} overflow-y-auto no-scrollbar`}>
+          <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight mb-10 border-b border-white/5 pb-4 uppercase"><ShieldCheck size={28}/> DNA & CRM</h3>
+          
+          <div className="space-y-10">
+            <div className="flex flex-col items-center gap-6">
+                <div className="w-36 h-36 rounded-[2.5rem] bg-slate-800 overflow-hidden border-4 border-emerald-500/20 shadow-2xl relative group">
+                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
+                  <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer font-black text-xs uppercase text-white">החלף תמונה</div>
+                </div>
+                <input value={editCrm.name} onChange={e => setEditCrm({...editCrm, name: e.target.value})} className="bg-transparent border-none outline-none text-2xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500 rounded transition-all" placeholder="שם הלקוח" />
             </div>
 
-            <hr className="border-slate-100" />
+            <div className="grid gap-6 text-white">
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner text-white transition-all focus:border-blue-500" /></div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><Zap size={14}/> פקודות DNA אישיות</label>
+                    <textarea value={editCrm.dnaContext} onChange={e => setEditCrm({...editCrm, dnaContext: e.target.value})} rows={6} className="w-full bg-purple-500/5 p-4 rounded-2xl outline-none border border-purple-500/10 focus:border-purple-500 font-bold text-xs resize-none leading-relaxed shadow-inner text-slate-100" placeholder="תכנת את הבוט ללקוח זה..." />
+                </div>
+            </div>
 
-            {/* משימות נודניק */}
-            <div className="space-y-3">
-              <h4 className="font-black text-slate-800 flex items-center gap-1 text-sm"><Bell size={16} className="text-amber-500"/> משימות "נודניק"</h4>
-              <div className="flex gap-2">
-                <input 
-                  type="text" value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="הוסף תזכורת ללקוח..."
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-amber-500"
-                  onKeyDown={e => e.key === 'Enter' && addNagTask()}
-                />
-                <button onClick={addNagTask} className="bg-amber-100 text-amber-700 px-3 rounded-lg hover:bg-amber-200 font-bold">+</button>
-              </div>
-
-              <div className="flex flex-col gap-2 mt-2">
-                {activeChat.tasks?.map((task: any) => (
-                  <div key={task.id} className={`flex items-start gap-2 p-2 rounded-lg border text-sm transition-all ${task.done ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-amber-100 shadow-sm'}`}>
-                    <button onClick={() => toggleTask(task.id)} className="mt-0.5">
-                      <CheckCircle2 size={16} className={task.done ? 'text-slate-300' : 'text-amber-500'} />
-                    </button>
-                    <div className="flex-1 leading-tight">
-                        <span className={task.done ? 'line-through text-slate-500' : 'text-slate-700 font-medium'}>{task.text}</span>
-                        <div className="text-[9px] text-slate-400 mt-1">{new Date(task.date).toLocaleDateString('he-IL')}</div>
+            <div className="p-6 bg-slate-900 rounded-3xl border border-white/5 shadow-inner space-y-4 text-[11px]">
+                <div className="flex justify-between items-center text-slate-400 font-black uppercase tracking-widest">
+                    <span>איכות הצינור</span>
+                    <span className={queueCount > 0 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}>{queueCount > 0 ? `QUEUE: ${queueCount} STUCK` : 'Pipeline Clear'}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
+                    <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                        <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}/>
                     </div>
-                  </div>
-                ))}
-                {(!activeChat.tasks || activeChat.tasks.length === 0) && (
-                    <div className="text-xs text-slate-400 text-center py-4">אין משימות פתוחות ללקוח זה.</div>
-                )}
-              </div>
+                    <span className="font-mono opacity-50 font-black">{(timeDiff/1000).toFixed(1)}s LAG</span>
+                </div>
             </div>
 
+            <button onClick={saveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest shadow-blue-900/20">
+                {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync DNA & Profile</>}
+            </button>
           </div>
         </aside>
       )}
+
+      {/* מודל סריקה */}
+      <AnimatePresence>
+        {showQrModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#020617]/98 backdrop-blur-3xl">
+             <div className="bg-white rounded-[4rem] p-12 max-w-md w-full text-center shadow-2xl relative border-4 border-amber-500/30 overflow-hidden">
+                <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
+                <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
+                <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
+                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600 text-center">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
+                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden shadow-inner">
+                    {serverStatus.qr ? (
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
+                    ) : (
+                        <div className="flex flex-col items-center gap-4 text-slate-400">
+                            <Activity size={48} className="animate-spin text-amber-500" />
+                            <span className="text-xs font-black uppercase tracking-widest">Generating Secure QR...</span>
+                        </div>
+                    )}
+                </div>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
