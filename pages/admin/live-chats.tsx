@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
+import { QrCode } from "lucide-react";
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 // תיקון ייבוא: הוספת QrCode לרשימת האייקונים
