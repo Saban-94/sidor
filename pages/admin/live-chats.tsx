@@ -64,8 +64,9 @@ export default function App() {
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // 🔥 חישוב דופק שרת - מוגדר כקבוע למניעת שגיאות בילד
-  const timeDiff = currentTime - (serverStatus.lastSeen || 0);
+  // 🔥 חישוב דופק שרת - הגדרה מפורשת ומוגנת למניעת שגיאות בילד
+  const lastSeenTime = serverStatus.lastSeen || 0;
+  const timeDiff = currentTime - lastSeenTime;
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
   // --- טעינת נתונים ראשונית ---
@@ -258,12 +259,12 @@ export default function App() {
             <div><h1 className="text-6xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2">הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p></div>
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
-          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black">
+          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black shadow-lg">
             <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">יעד פרויקט</p><p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={18}/> {editCrm.projectAddress || "נא להזין כתובת"}</p></div>
             <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">פרטי זיהוי</p><p className="text-2xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
-          <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner text-lg">
-            <div className="bg-black text-white p-4 flex justify-between font-black uppercase tracking-widest"><span>תיאור מהצ'אט (JONI)</span><span className="w-32 text-center">כמות</span></div>
+          <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
+            <div className="bg-black text-white p-4 flex justify-between font-black text-xl uppercase tracking-widest"><span>תיאור מהצ'אט (JONI)</span><span className="w-32 text-center">כמות</span></div>
             <div className="p-8 space-y-8 flex-1">
               {messages.filter(m => selectedMsgIds.includes(m.id)).map((m, i) => (
                 <div key={i} className="flex justify-between border-b-2 border-slate-200 pb-4 last:border-0 items-center">
@@ -274,8 +275,8 @@ export default function App() {
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print z-50">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl">חזור</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl transition-all hover:scale-105 active:scale-95">חזור</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl transition-all hover:scale-105 active:scale-95 flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -298,7 +299,7 @@ export default function App() {
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
-              <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-50 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10'}`}>
+              <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-500 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10'}`}>
                 <btn.icon size={26} />
                 <span className="absolute right-20 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">{btn.label}</span>
               </button>
@@ -354,10 +355,11 @@ export default function App() {
           <div className="flex-1 flex flex-col h-full">
             <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBgStyle}`}>
               <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20">
+                <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20 relative group">
                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
+                  <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-3xl"><ImageIcon className="text-white" size={20}/></div>
                 </div>
-                <div><h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{selectedCustomer.id} | JONI PIPE ACTIVE</p></div>
+                <div><h2 className="font-black text-2xl italic tracking-tighter leading-none text-slate-800 dark:text-slate-100">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{selectedCustomer.id} | JONI PIPE ACTIVE</p></div>
               </div>
               <div className="flex items-center gap-5">
                 <button onClick={() => setIsSelectionMode(!isSelectionMode)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all border-2 ${isSelectionMode ? 'bg-orange-500 border-orange-400 text-white shadow-xl shadow-orange-500/20' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><CheckCircle2 size={18} /> {isSelectionMode ? 'סימון פעיל' : 'בחירת הודעות'}</button>
@@ -386,7 +388,7 @@ export default function App() {
                   <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase animate-pulse"><WifiOff size={18}/> JONI Bridge Dead - Office Computer Needs Attention</div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[3rem] border transition-all ${theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner'} shadow-2xl`}>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה ללקוח (יכבה AI אוטומטית)..." className="flex-1 bg-transparent border-none outline-none text-lg px-4 font-bold placeholder:text-slate-600" />
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה ללקוח (יכבה AI אוטומטית)..." className="flex-1 bg-transparent border-none outline-none text-lg px-4 font-bold placeholder:text-slate-600 text-slate-800 dark:text-slate-200" />
                 <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
@@ -399,7 +401,7 @@ export default function App() {
       {/* 4. CRM Sidebar - Identity & DNA Management */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[500px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBgStyle}`}>
-          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3 text-slate-800 dark:text-slate-100"><UserCog size={26} className="text-blue-500"/> כרטיס זהות מאוחד</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20"><Merge size={16}/> איחוד ומחיקה</button></header>
+          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center text-slate-800 dark:text-slate-100"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={26} className="text-blue-500"/> כרטיס זהות מאוחד</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20"><Merge size={16}/> איחוד ומחיקה</button></header>
           <div className="flex-1 overflow-y-auto p-10 space-y-10 no-scrollbar bg-white dark:bg-transparent text-slate-800 dark:text-slate-100">
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
                 <div className="w-44 h-44 rounded-[4rem] bg-slate-800 overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.6)] border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all duration-500">
