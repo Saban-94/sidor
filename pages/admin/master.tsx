@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit } from 'firebase/firestore';
 import { 
-  Send, Crown, Map, Truck, ClipboardList, 
-  Settings, Sun, Moon, Activity, PackageSearch,
-  MessageSquare, Route, CalendarPlus, Calculator,
-  Tags, X, Plus
+  Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
+  Sparkles, Smile, MessageCircle, Save, Activity,
+  Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, BrainCircuit, Plus, Trash2, Settings, Clock, Play
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// 1. אתחול Firebase לשמירת היסטוריית פקודות והגדרות מערכת
+// אתחול Firebase
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -18,288 +17,330 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const dbFS = getFirestore(app);
 
-export default function MasterBrainPWA() {
-  const [messages, setMessages] = useState<{role: 'system'|'master', text: string, type?: string}[]>([
-    { role: 'system', text: 'אהלן ראמי. מערכת המאסטר מחוברת. סנכרון למלאי, צי רכבים, יומן פגישות וגוגל מפות הופעל בהצלחה. מה הפקודה להיום?' }
-  ]);
-  const [input, setInput] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-  const [theme, setTheme] = useState<'dark'|'light'>('dark');
+const EMOJIS = ["✨", "🏗️", "💎", "🚚", "📞", "🤝", "🔥", "🚀", "✅", "⚠️", "📊"];
+const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<'DNA' | 'FLOW'>('DNA');
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  const [simMessages, setSimMessages] = useState<any[]>([]);
+  const [simInput, setSimInput] = useState<string>('');
+  const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+  
+  // States לניהול העץ (Flow)
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [globalDNA, setGlobalDNA] = useState<string>('');
+  const [isSavingFlow, setIsSavingFlow] = useState<boolean>(false);
+  const [dnaDraft, setDnaDraft] = useState<string>('');
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // סטייטים לניהול דינאמי של מילות הסינון (Stop Words)
-  const [stopWords, setStopWords] = useState<string[]>([]);
-  const [newStopWord, setNewStopWord] = useState('');
-
-  // גלילה אוטומטית
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, isThinking]);
+    document.title = "Master Rami | Studio Pro";
+    
+    // טעינת לקוחות - תיקון TypeScript על ידי הגדרת generic type
+    const qCust = query(collection(dbFS, 'customers'), limit(20));
+    const unsubCust = onSnapshot(qCust, (snap) => {
+      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-  // האזנה בלייב למילות הסינון ב-Firestore
-  useEffect(() => {
-    const unsub = onSnapshot(doc(dbFS, "system", "search_config"), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().stopWords) {
-        setStopWords(docSnap.data().stopWords);
-      } else {
-        // רשימת ברירת מחדל אם טרם הוגדר במסד הנתונים
-        const defaults = ['רוצה', 'להזמין', 'לקנות', 'יש', 'לכם', 'אני', 'צריך', 'מחפש', 'האם', 'איפה', 'מה', 'כמה', 'איך', 'לי', 'לו', 'את', 'של', 'על', 'עם', 'ב', 'ל', 'ה', 'ו', 'תביא', 'תארגן', 'מקט', 'מק"ט'];
-        setStopWords(defaults);
-        setDoc(doc(dbFS, "system", "search_config"), { stopWords: defaults }, { merge: true });
+    // טעינת עץ התפריטים
+    const unsubFlow = onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setNodes(data.nodes || []);
+        setGlobalDNA(data.globalDNA || '');
       }
     });
-    return () => unsub();
+
+    return () => {
+      unsubCust();
+      unsubFlow();
+    };
   }, []);
 
-  const handleAddStopWord = async () => {
-    if (!newStopWord.trim()) return;
-    const updated = [...new Set([...stopWords, newStopWord.trim()])];
-    await setDoc(doc(dbFS, "system", "search_config"), { stopWords: updated }, { merge: true });
-    setNewStopWord('');
-  };
-
-  const handleRemoveStopWord = async (word: string) => {
-    const updated = stopWords.filter(w => w !== word);
-    await setDoc(doc(dbFS, "system", "search_config"), { stopWords: updated }, { merge: true });
-  };
-
-  // פקודות קסם (Quick Actions)
-  const magicCommands = [
-    {
-      id: 'create-dispatch',
-      icon: <Truck size={18} />,
-      label: 'דחוף הזמנה לסידור',
-      prompt: 'צור הזמנה חדשה למחר בבוקר: 5 משטחי מלט לכתובת הרצל 10 תל אביב, לקוח: יוסי קבלנות. דחוף את ההזמנה ישירות ללוח הסידור (טבלת saban_dispatch) ושבץ את חכמת.'
-    },
-    {
-      id: 'schedule-meeting',
-      icon: <CalendarPlus size={18} />,
-      label: 'קבע פגישה + לינק',
-      prompt: 'קבע פגישה עם הראל המנכ"ל לשעה 16:00. שלח לו אוטומטית לינק קסם לווצאפ שיכניס אותו ישירות לחדר הצ\'אט המאובטח שלנו, ושים לי תזכורת.'
-    },
-    {
-      id: 'analyze-boq',
-      icon: <Calculator size={18} />,
-      label: 'ניתוח כתב כמויות',
-      prompt: 'נתח את כתב הכמויות הבא שהלקוח המזדמן הדביק בלינק הקסם. חשב כמויות לפי המלאי שלנו (Supabase), תמחר הכל, ותוציא לי רשימה מעוצבת ומוכנה לאישור הלקוח: \n[הדבק כתב כמויות כאן]'
-    },
-    {
-      id: 'morning-report',
-      icon: <ClipboardList size={18} />,
-      label: 'דוח בוקר לנהגים',
-      prompt: 'הכן דוח בוקר מסודר לווצאפ עבור הנהגים עלי וחכמת. חלק להם את ההובלות לפי אזורים והוסף אזהרה לעלי לגבי הגבלות משקל באיילון.'
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  ];
+  }, [simMessages, isThinking]);
 
-  const handleCommandClick = (prompt: string) => {
-    setInput(prompt);
+  const saveFlow = async () => {
+    setIsSavingFlow(true);
+    try {
+      await setDoc(doc(dbFS, 'system', 'bot_flow_config'), { nodes, globalDNA }, { merge: true });
+    } catch (e) {
+      console.error("Save error:", e);
+    } finally {
+      setTimeout(() => setIsSavingFlow(false), 800);
+    }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isThinking) return;
+  const addBranch = () => {
+    const newNode = { 
+      id: `BRANCH_${Date.now()}`, 
+      title: 'ענף חדש', 
+      trigger: '', 
+      prompt: 'תאר מה ה-AI עונה כאן (למשל: בירור מלאי מול סופאבייס)...' 
+    };
+    setNodes([...nodes, newNode]);
+  };
+
+  const deleteBranch = (id: string) => {
+    setNodes(nodes.filter(n => n.id !== id));
+  };
+
+  const updateNode = (id: string, key: string, val: string) => {
+    setNodes(nodes.map(n => n.id === id ? { ...n, [key]: val } : n));
+  };
+
+  const triggerSimulation = async (manualData: any = null) => {
+    if (isThinking || (!simInput.trim() && !manualData)) return;
     
-    const cmd = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'master', text: cmd }]);
+    const userText = manualData ? `[הזרקת ${manualData.type}]` : simInput.trim();
+    if (!manualData) {
+      setSimMessages(prev => [...prev, { role: 'user', text: userText }]);
+      setSimInput('');
+    }
+    
     setIsThinking(true);
-
     try {
-      // 2. שמירת היסטוריית הפקודות של המאסטר ב-Firebase
-      await addDoc(collection(dbFS, "master_history"), {
-        command: cmd,
-        timestamp: serverTimestamp(),
-        executor: "Rami",
-        status: "processing"
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: manualData ? "" : userText,
+          name: selectedCustomer?.name || 'אורח',
+          senderPhone: selectedCustomer?.id || 'simulator',
+          state: 'MENU',
+          manualInjection: manualData || null
+        })
       });
-
-      // סימולציה של פעולות ה-API המורכבות
-      setTimeout(() => {
-        let reply = '';
-        
-        if (cmd.includes('צור הזמנה') || cmd.includes('סידור')) {
-          reply = `✅ *הזמנה נוצרה ונדחפה בהצלחה!*\nהלקוח: יוסי קבלנות\nכתובת: הרצל 10, ת"א\nנהג משובץ: חכמת (מנוף)\n\nההזמנה הוזרקה בהצלחה לטבלת \`saban_dispatch\` ומופיעה עכשיו במסך ה-LIVE של הסידור.`;
-        } else if (cmd.includes('פגישה') || cmd.includes('הראל')) {
-          reply = `📅 *פגישה נקבעה - 16:00*\nלינק קסם מאובטח נשלח כרגע להראל לווצאפ:\n\`https://sidor.vercel.app/start?ref=harel_ceo\`\n\nשמתי לך תזכורת למערכת ל-15:55 לקפוץ לחדר הצ'אט איתו.`;
-        } else if (cmd.includes('כתב כמויות') || cmd.includes('נתח')) {
-          reply = `📊 *ניתוח כתב כמויות אוטומטי*\nסרקתי את הטקסט והצלבתי עם מלאי \`Supabase\`:\n\n1. **פלסטומר 603 (מק"ט 11511)** - נדרשים 40 שקים. (₪1,200)\n2. **סיקה טופ סיל 107** - נדרשות 5 ערכות. (₪850)\n3. **רשת אינטרגלס** - 2 גלילים. (₪300)\n\n*סה"כ הצעת מחיר:* ₪2,350 לפני מע"מ.\nהעברתי את זה לפורמט PDF מעוצב. לשלוח ללקוח המזדמן ללינק הקסם שלו?`;
-        } else {
-          reply = "הפקודה נרשמה בהיסטוריה, מעדכן את המערכת ורץ על הנתונים. משהו נוסף?";
-        }
-
-        setMessages(prev => [...prev, { role: 'system', text: reply }]);
-        setIsThinking(false);
-      }, 2500);
-
+      const data = await res.json();
+      setSimMessages(prev => [...prev, { 
+        role: 'ai', 
+        text: data.reply, 
+        mediaUrl: data.mediaUrl, 
+        pdfUrl: data.pdfUrl, 
+        actionButton: data.actionButton 
+      }]);
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'system', text: 'שגיאת מערכת בשמירת ההיסטוריה. השרת לא הגיב.' }]);
+      setSimMessages(prev => [...prev, { role: 'ai', text: '⚠️ שגיאת תקשורת עם המוח המרכזי' }]);
+    } finally {
       setIsThinking(false);
     }
   };
 
-  const bgClass = theme === 'dark' ? 'bg-[#09090b]' : 'bg-slate-100';
-  const textClass = theme === 'dark' ? 'text-slate-200' : 'text-slate-800';
-  const panelClass = theme === 'dark' ? 'bg-[#18181b] border-white/5' : 'bg-white border-slate-200';
-
   return (
-    <div className={`min-h-screen h-screen flex flex-col md:flex-row font-sans transition-colors duration-300 ${bgClass} ${textClass}`} dir="rtl">
-      <Head>
-        <title>Saban Master Command</title>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-      </Head>
-
-      {/* תפריט צד */}
-      <aside className={`w-full md:w-80 flex flex-col shrink-0 border-b md:border-b-0 md:border-l z-10 ${panelClass}`}>
-        <header className="p-6 flex items-center justify-between border-b border-inherit">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-white">
-              <Crown size={24} />
-            </div>
-            <div>
-              <h1 className="font-black text-xl tracking-tight">SABAN <span className="text-amber-500">MASTER</span></h1>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                System Online
-              </div>
-            </div>
+    <div className="flex h-screen bg-[#020617] font-sans text-slate-200 overflow-hidden" dir="rtl">
+      
+      {/* Sidebar: בחירת לקוחות ואימון */}
+      <aside className="w-72 bg-[#0f172a] border-l border-white/5 flex flex-col shrink-0 z-20 shadow-2xl">
+        <header className="p-6 bg-[#020617] border-b border-white/5 flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <Cpu size={24} />
+            <h1 className="font-black text-xl italic tracking-tighter">SABAN PRO</h1>
           </div>
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-xl hover:bg-white/10 transition">
-            {theme === 'dark' ? <Sun size={20} className="text-slate-400" /> : <Moon size={20} className="text-slate-600" />}
-          </button>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-60">מעבדת אימון וניהול ענפים</p>
         </header>
 
-        {/* פקודות מהירות (Quick Actions) */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <h2 className={`text-xs font-black uppercase tracking-widest mb-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>פקודות מאסטר מהירות</h2>
-          
-          {magicCommands.map(cmd => (
+          <label className="text-[10px] font-black text-slate-500 block uppercase tracking-wider">בחר לקוח לאימון DNA</label>
+          {customers.length > 0 ? customers.map(c => (
             <button 
-              key={cmd.id}
-              onClick={() => handleCommandClick(cmd.prompt)}
-              className={`w-full flex flex-col gap-2 p-4 rounded-2xl text-right transition-all group ${
-                theme === 'dark' 
-                  ? 'bg-white/5 hover:bg-white/10 border border-white/5 hover:border-amber-500/30' 
-                  : 'bg-slate-50 hover:bg-white border border-slate-200 hover:border-amber-500/30 hover:shadow-md'
-              }`}
+              key={c.id} onClick={() => setSelectedCustomer(c)}
+              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all border ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-500/5' : 'bg-white/5 border-transparent hover:bg-white/10'}`}
             >
-              <div className="flex items-center gap-2 font-bold text-amber-500">
-                {cmd.icon} {cmd.label}
+              <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold border border-white/5 uppercase text-emerald-400">
+                {c.name ? c.name[0] : '?'}
               </div>
-              <p className={`text-xs leading-relaxed line-clamp-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-                {cmd.prompt}
-              </p>
+              <div className="text-right flex-1 overflow-hidden">
+                <div className="text-xs font-bold truncate">{c.name || 'אורח'}</div>
+                <div className="text-[9px] text-slate-500 font-mono truncate">{c.id}</div>
+              </div>
             </button>
-          ))}
-          
-          {/* 🔥 ניהול דינאמי של מילות סינון (Stop Words) */}
-          <div className={`mt-8 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-[#1e1e24] border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 font-bold text-blue-500 text-sm">
-                <Tags size={16} /> מילות סינון למוח AI
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-4 max-h-32 overflow-y-auto pr-1">
-              {stopWords.map(w => (
-                <span key={w} className={`px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
-                  {w} 
-                  <button onClick={() => handleRemoveStopWord(w)} className="hover:text-red-500 transition-colors">
-                    <X size={10}/>
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={newStopWord} 
-                onChange={e => setNewStopWord(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddStopWord()}
-                placeholder="הוסף מילת התעלמות..."
-                className={`flex-1 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 ${theme === 'dark' ? 'bg-black/40 border border-white/10 text-white' : 'bg-slate-50 border border-slate-200 text-slate-800'}`}
-              />
-              <button 
-                onClick={handleAddStopWord} 
-                className="bg-blue-500 text-white p-2 rounded-xl hover:bg-blue-600 active:scale-95 transition-all"
-                title="הוסף מילה"
-              >
-                <Plus size={16}/>
-              </button>
-            </div>
-          </div>
-
-          {/* סטטוס חיבורים */}
-          <div className={`mt-4 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-emerald-900/20 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-            <div className="flex items-center gap-2 font-bold text-emerald-500 mb-2">
-              <Activity size={18} /> סנכרון חי (Live Sync)
-            </div>
-            <ul className={`text-xs space-y-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              <li className="flex justify-between"><span>Firebase (הגדרות סינון)</span> <span className="text-emerald-500">מחובר</span></li>
-              <li className="flex justify-between"><span>Supabase (לוח סידור)</span> <span className="text-emerald-500">מחובר</span></li>
-              <li className="flex justify-between"><span>מערכת לינקים (Magic Links)</span> <span className="text-emerald-500">פעיל</span></li>
-            </ul>
-          </div>
+          )) : (
+            <div className="p-4 text-center text-slate-600 text-[10px] italic">טוען לקוחות מהמאגר...</div>
+          )}
         </div>
       </aside>
 
-      {/* אזור הצ'אט הראשי */}
-      <main className="flex-1 flex flex-col h-[calc(100vh-100px)] md:h-screen relative">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex max-w-[85%] md:max-w-[70%] ${m.role === 'master' ? 'mr-auto flex-row-reverse' : 'ml-auto'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${
-                m.role === 'master' ? 'bg-amber-500 text-white ml-3 shadow-lg shadow-amber-500/20' : 'bg-slate-800 text-emerald-400 border border-emerald-500/30 mr-3'
-              }`}>
-                {m.role === 'master' ? <Crown size={16} /> : <Activity size={16} />}
-              </div>
-              
-              <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
-                m.role === 'master' 
-                  ? 'bg-amber-500 text-slate-900 font-medium rounded-tl-none' 
-                  : theme === 'dark' 
-                    ? 'bg-[#27272a] text-slate-200 border border-white/5 rounded-tr-none' 
-                    : 'bg-white text-slate-800 border border-slate-200 rounded-tr-none'
-              }`}>
-                {m.text}
+      {/* Main Area: סימולטור iPhone יוקרתי */}
+      <main className="flex-1 relative flex flex-col items-center justify-center bg-[#020617]" style={{ backgroundImage: 'radial-gradient(#1e293b 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="w-[360px] h-[740px] bg-[#0f172a] rounded-[3.5rem] border-[12px] border-[#1e293b] shadow-[0_0_80px_rgba(16,185,129,0.1)] relative flex flex-col overflow-hidden ring-1 ring-white/5"
+        >
+          {/* Notch Area */}
+          <div className="bg-[#1e293b] h-7 w-full flex justify-center items-end shrink-0">
+            <div className="w-24 h-4 bg-[#0f172a] rounded-b-2xl border-x border-b border-white/5"></div>
+          </div>
+          
+          <header className="bg-[#0f172a] p-4 border-b border-white/5 flex items-center gap-3 shrink-0 z-10">
+            <div className="w-10 h-10 rounded-full bg-emerald-500 overflow-hidden border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+              <img src={BRAND_LOGO} alt="AI" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-100 italic">ראמי (JONI AI)</h2>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Live Mode</span>
               </div>
             </div>
-          ))}
-          
-          {isThinking && (
-            <div className="flex max-w-[85%] ml-auto">
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-emerald-400 border border-emerald-500/30 mr-3 flex items-center justify-center shrink-0">
-                <Activity size={16} className="animate-spin" />
+          </header>
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 bg-[#020617] scroll-smooth no-scrollbar" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/carbon-fibre.png')", backgroundBlendMode: 'overlay' }}>
+            <AnimatePresence initial={false}>
+              {simMessages.map((m, i) => (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                  key={i} className={`max-w-[85%] p-3.5 rounded-2xl shadow-xl text-xs relative leading-relaxed ${m.role === 'ai' ? 'bg-[#1e293b] text-slate-200 self-start rounded-tr-none border border-white/5' : 'bg-emerald-600 text-white self-end rounded-tl-none'}`}
+                >
+                  {m.mediaUrl && <img src={m.mediaUrl} className="mb-3 rounded-xl border border-white/10 max-h-48 w-full object-cover shadow-lg" alt="media" />}
+                  <div className="whitespace-pre-wrap">{m.text}</div>
+                  {m.pdfUrl && (
+                    <div className="mt-3 bg-black/40 p-2.5 rounded-xl flex items-center gap-3 border border-white/10 hover:bg-black/60 transition-all cursor-pointer">
+                      <FileText size={16} className="text-red-500"/>
+                      <span className="text-[9px] font-bold text-slate-300 truncate">SABAN_DOC_2026.pdf</span>
+                    </div>
+                  )}
+                  {m.actionButton && (
+                    <button className="w-full bg-white text-black font-black py-2.5 rounded-xl mt-3 text-[10px] shadow-lg active:scale-95 transition-transform">
+                      {m.actionButton.text}
+                    </button>
+                  )}
+                  <div className={`text-[8px] mt-2 opacity-30 font-mono ${m.role === 'ai' ? 'text-right' : 'text-left'}`}>
+                    {new Date().toLocaleTimeString('he-IL', {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {isThinking && (
+              <div className="self-start bg-[#1e293b] p-3 rounded-2xl rounded-tr-none flex items-center gap-3 border border-white/5">
+                <Cpu size={14} className="text-emerald-400 animate-spin"/>
+                <span className="text-[10px] font-bold text-slate-400">המוח מנתח ומעצב...</span>
               </div>
-              <div className={`p-4 rounded-2xl text-sm ${theme === 'dark' ? 'bg-[#27272a] text-slate-400 border border-white/5' : 'bg-white text-slate-500 border border-slate-200'} rounded-tr-none flex items-center gap-2`}>
-                מנתח פקודה, מתחבר לטבלאות ושומר היסטוריה...
+            )}
+          </div>
+
+          <div className="p-4 bg-[#0f172a] border-t border-white/5 shrink-0 pb-10">
+            <div className="flex items-center gap-2.5 bg-black/40 p-2.5 rounded-[1.5rem] border border-white/5 focus-within:border-emerald-500/50 transition-all">
+              <input 
+                type="text" 
+                value={simInput} 
+                onChange={e => setSimInput(e.target.value)} 
+                onKeyDown={e => e.key === 'Enter' && triggerSimulation()} 
+                placeholder="כתוב שאלה לראמי..." 
+                className="flex-1 bg-transparent border-none outline-none text-[13px] px-2 text-slate-100" 
+              />
+              <button onClick={() => triggerSimulation()} className="w-10 h-10 bg-emerald-600 text-white rounded-[1.1rem] flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                <Send size={18} className="transform rotate-180" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </main>
+
+      {/* Right Sidebar: ניהול מרכזי (Tabs) */}
+      <aside className="w-[450px] bg-[#0f172a] border-r border-white/5 flex flex-col shrink-0 z-20 shadow-2xl">
+        <header className="bg-[#020617] border-b border-white/5 flex shrink-0">
+          <button 
+            onClick={() => setActiveTab('DNA')}
+            className={`flex-1 p-5 flex items-center justify-center gap-3 font-black text-xs transition-all ${activeTab === 'DNA' ? 'text-emerald-400 border-b-2 border-emerald-500 bg-white/5' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <BrainCircuit size={20} /> אימון DNA
+          </button>
+          <button 
+            onClick={() => setActiveTab('FLOW')}
+            className={`flex-1 p-5 flex items-center justify-center gap-3 font-black text-xs transition-all ${activeTab === 'FLOW' ? 'text-blue-400 border-b-2 border-blue-500 bg-white/5' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Network size={20} /> ניהול ענפים
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+          {activeTab === 'DNA' ? (
+            <div className="space-y-8">
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Sparkles size={14} className="text-emerald-400"/> הזרקת DNA ידנית
+                  </label>
+                  <div className="flex items-center gap-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                     <span className="text-[9px] text-emerald-500 font-black">PROACTIVE</span>
+                  </div>
+                </div>
+                <textarea 
+                  value={dnaDraft} onChange={e => setDnaDraft(e.target.value)}
+                  placeholder="כתוב פקודה ספציפית שה-AI יטמיע בשיחה הבאה..."
+                  className="w-full h-48 bg-black/40 border border-white/10 rounded-[1.5rem] p-5 text-sm outline-none focus:border-emerald-500/50 transition-all resize-none leading-relaxed shadow-inner"
+                />
+                <button 
+                  onClick={() => triggerSimulation({ type: 'DNA', reply: dnaDraft || "פקודה הוזרקה בהצלחה." })}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-sm flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
+                >
+                  <Zap size={18} /> הזרק ואימן מוח
+                </button>
+              </section>
+
+              <div className="h-px bg-white/5" />
+              
+              <section className="bg-white/5 p-5 rounded-[1.5rem] border border-white/5 space-y-4 shadow-inner">
+                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ארגז כלים לדיבוג</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => triggerSimulation({ type: 'IMAGE', reply: "שלום אחי, הנה התמונה שביקשת:", mediaUrl: BRAND_LOGO })} className="p-3 bg-slate-800 rounded-xl text-[10px] font-bold hover:bg-slate-700 transition flex items-center gap-2 border border-white/5"><ImageIcon size={16}/> תמונה לווצאפ</button>
+                  <button onClick={() => triggerSimulation({ type: 'PDF', reply: "מצרף לך מחירון ב-PDF:", pdfUrl: "https://example.com" })} className="p-3 bg-slate-800 rounded-xl text-[10px] font-bold hover:bg-slate-700 transition flex items-center gap-2 border border-white/5"><FileText size={16}/> קובץ PDF</button>
+                  <button onClick={() => triggerSimulation({ type: 'LINK', reply: "כנס להצעת המחיר שלך כאן:", actionButton: { text: "צפייה בהצעה 💎", link: "https://sidor.vercel.app/start" } })} className="p-3 bg-slate-800 rounded-xl text-[10px] font-bold hover:bg-slate-700 transition flex items-center gap-2 border border-white/5 col-span-2 justify-center"><LinkIcon size={16}/> כפתור לינק קסם</button>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">מבנה ענפים (Real-Time)</label>
+                <button onClick={addBranch} className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition shadow-lg"><Plus size={20}/></button>
               </div>
+
+              <div className="space-y-5">
+                 <div className="p-5 bg-blue-500/5 rounded-2xl border border-blue-500/20 space-y-3 shadow-inner">
+                    <label className="text-[10px] font-black text-blue-400 block uppercase">DNA גלובלי (אישיות הבוט)</label>
+                    <textarea value={globalDNA} onChange={e => setGlobalDNA(e.target.value)} className="w-full h-28 bg-black/40 border border-white/10 rounded-xl p-4 text-xs outline-none focus:border-blue-500 leading-relaxed" placeholder="אתה ראמי, המוח הלוגיסטי..." />
+                 </div>
+
+                 {nodes.map(node => (
+                   <div key={node.id} className="bg-slate-800/40 p-5 rounded-[1.5rem] border border-white/5 relative group hover:border-blue-500/40 transition-all shadow-lg">
+                      <button onClick={() => deleteBranch(node.id)} className="absolute -left-2 -top-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:scale-110 z-10"><Trash2 size={12}/></button>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                         <div className="space-y-1.5">
+                            <span className="text-[9px] font-black text-slate-500 uppercase">שם הענף</span>
+                            <input value={node.title} onChange={e => updateNode(node.id, 'title', e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-[11px] font-black focus:border-blue-500 outline-none" />
+                         </div>
+                         <div className="space-y-1.5">
+                            <span className="text-[9px] font-black text-slate-500 uppercase">פקודת כפתור (Trigger)</span>
+                            <input value={node.trigger} onChange={e => updateNode(node.id, 'trigger', e.target.value)} placeholder="למשל: 1" className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-[11px] font-mono text-blue-400 focus:border-blue-500 outline-none" />
+                         </div>
+                      </div>
+                      <div className="space-y-1.5">
+                         <span className="text-[9px] font-black text-slate-500 uppercase">הנחיית המוח לשלב זה</span>
+                         <textarea value={node.prompt} onChange={e => updateNode(node.id, 'prompt', e.target.value)} className="w-full h-32 bg-black/50 border border-white/10 rounded-xl p-4 text-[10px] leading-relaxed resize-none focus:border-blue-500 outline-none" />
+                      </div>
+                   </div>
+                 ))}
+              </div>
+
+              <button 
+                onClick={saveFlow} disabled={isSavingFlow}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-3xl text-sm flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all mt-8 sticky bottom-0"
+              >
+                {isSavingFlow ? <Activity size={20} className="animate-spin" /> : <><Save size={20} /> שמור עץ ועדכן לקוחות (LIVE)</>}
+              </button>
             </div>
           )}
         </div>
-
-        {/* שורת פקודה תחתונה */}
-        <div className={`p-4 shrink-0 border-t ${panelClass} pb-8 md:pb-4`}>
-          <div className="max-w-4xl mx-auto flex items-end gap-2 relative">
-            <textarea 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder="הכנס פקודת מאסטר (למשל: נתח כתב כמויות או דחוף הזמנה)..."
-              disabled={isThinking}
-              className={`flex-1 min-h-[60px] max-h-[200px] p-4 pr-12 rounded-2xl resize-none outline-none font-medium text-sm transition-all shadow-inner focus:ring-2 focus:ring-amber-500/50 ${
-                theme === 'dark' ? 'bg-black/50 text-white border-white/10' : 'bg-slate-100 text-slate-900 border-slate-200'
-              } border`}
-            />
-            <button 
-              onClick={handleSend}
-              disabled={!input.trim() || isThinking}
-              className="absolute right-4 bottom-4 w-10 h-10 bg-amber-500 text-slate-900 rounded-xl flex items-center justify-center shadow-lg hover:bg-amber-400 active:scale-95 disabled:opacity-50 disabled:bg-slate-700 disabled:text-slate-500 transition-all"
-            >
-              <Send size={18} className="rotate-180 -ml-1" />
-            </button>
-          </div>
-        </div>
-      </main>
+      </aside>
     </div>
   );
 }
