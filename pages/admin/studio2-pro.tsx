@@ -57,14 +57,16 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 פונקציית נורמליזציה: הופכת כל ID (קבוצה או טלפון) לזהות של 9 ספרות אחרונות
+  // --- 🔥 לוגיקת נורמליזציה ---
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  const isTrulyOnline = serverStatus.online && (currentTime - serverStatus.lastSeen < 90000);
+  // חישוב דופק שרת
+  const timeDiff = currentTime - serverStatus.lastSeen;
+  const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
   // --- טעינת נתונים ראשונית ---
   useEffect(() => {
@@ -80,37 +82,33 @@ export default function App() {
     const unsubStatus = onValue(statusRef, (snap) => {
       const data = snap.val();
       if (data) {
-        setServerStatus({ online: data.online, lastSeen: data.lastSeen, qr: data.qr || null });
+        setServerStatus({ online: data.online || false, lastSeen: data.lastSeen || 0, qr: data.qr || null });
         if (data.qr && !data.online) setShowQrModal(true);
         if (data.online) setShowQrModal(false);
       }
     });
 
-    // 🔥 שליפת לקוחות עם איחוד זהויות לוגי (Client-side Merging)
+    // שליפת לקוחות עם איחוד זהויות
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(200)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
-      
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
-          
-          // אסטרטגיה: אם מצאנו כפילות, נשמור את הכרטיס עם השם או התמונה (הכרטיס ה"עשיר")
-          if (!existing) {
-            unifiedMap.set(uid, { ...curr, uid, originalIds: [curr.id] });
-          } else {
-            const merged = {
-              ...existing,
-              ...curr,
-              id: curr.id.length < existing.id.length ? curr.id : existing.id, // העדפת טלפון על קבוצה
-              name: curr.name || existing.name,
-              photo: curr.photo || existing.photo,
-              originalIds: [...existing.originalIds, curr.id]
-            };
-            unifiedMap.set(uid, merged);
+          if (!existing || (!existing.projectName && curr.projectName) || (!existing.photo && curr.photo)) {
+              unifiedMap.set(uid, { ...curr, uid });
           }
       });
       setCustomers(Array.from(unifiedMap.values()));
+    });
+
+    // טעינת הגדרות AI
+    const unsubFlow = onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setNodes(data.nodes || []);
+          setGlobalDNA(data.globalDNA || '');
+        }
     });
 
     return () => {
@@ -118,13 +116,13 @@ export default function App() {
       clearInterval(timer);
       unsubStatus();
       unsubCust();
+      unsubFlow();
     };
   }, []);
 
-  // טעינת היסטוריה לקוח
+  // טעינת היסטוריה
   useEffect(() => {
     if (!selectedCustomer) return;
-    
     setEditCrm({ 
       comaxId: selectedCustomer.comaxId || '', 
       projectName: selectedCustomer.projectName || '', 
@@ -133,12 +131,10 @@ export default function App() {
       contactPhone: selectedCustomer.id || '', 
       photo: selectedCustomer.photo || '' 
     });
-
     const q = query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'));
     const unsubHistory = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-
     return () => unsubHistory();
   }, [selectedCustomer?.id]);
 
@@ -146,46 +142,48 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // --- פעולות איחוד וניהול ---
+  // --- פונקציות לוגיקה שתוקנו ---
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  const handleResetConnection = async () => {
+    if (window.confirm("זה יבצע ריסטרט לשרת במשרד ויאלץ סריקת ברקוד חדשה. להמשיך?")) {
+      setIsSaving(true);
+      try {
+        await update(ref(dbRT, 'saban94/status'), { online: false, qr: null, reset_command: true, lastSeen: Date.now() });
+        alert("פקודת איפוס נשלחה. המתן 20 שניות לברקוד חדש.");
+        setShowQrModal(true);
+      } catch (e) { console.error(e); } finally { setIsSaving(false); }
+    }
+  };
+
   const saveCustomerCard = async () => {
     if (!selectedCustomer) return;
     setIsSaving(true);
     try {
-      await setDoc(doc(dbFS, 'customers', selectedCustomer.id), {
-        ...editCrm,
-        name: editCrm.contactName || selectedCustomer.name,
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, name: editCrm.contactName || selectedCustomer.name, lastUpdated: serverTimestamp() }, { merge: true });
     } catch (e: any) { console.error(e.message); } finally { setTimeout(() => setIsSaving(false), 800); }
   };
 
-  // 🔥 פונקציית האיחוד המוחלט (מעבירה היסטוריה ומוחקת כפילויות)
   const handleMergeManual = async () => {
-    const targetPhone = prompt("הכנס את מספר הטלפון המדויק לאיחוד (למשל: 972542276631):");
+    const targetPhone = prompt("הכנס מספר טלפון לאיחוד (למשל: 972542276631):");
     if (!targetPhone || !selectedCustomer || targetPhone === selectedCustomer.id) return;
-    
-    if (window.confirm(`איחוד סופי: מעביר את כל ההיסטוריה של ${selectedCustomer.id} ל-${targetPhone} ומוחק את המסמך הישן. לאשר?`)) {
+    if (window.confirm(`להעביר היסטוריה מ-${selectedCustomer.id} ל-${targetPhone} ולמחוק כפילות?`)) {
       setIsSaving(true);
       try {
         const oldId = selectedCustomer.id;
         const historySnap = await getDocs(collection(dbFS, 'customers', oldId, 'chat_history'));
         const batch = writeBatch(dbFS);
-        
         historySnap.forEach((msgDoc) => {
           const newMsgDoc = doc(collection(dbFS, 'customers', targetPhone, 'chat_history'));
           batch.set(newMsgDoc, msgDoc.data());
           batch.delete(msgDoc.ref);
         });
-
-        batch.set(doc(dbFS, 'customers', targetPhone), {
-          ...selectedCustomer, id: targetPhone, lastUpdated: serverTimestamp(), identityUnified: true
-        }, { merge: true });
-
+        batch.set(doc(dbFS, 'customers', targetPhone), { ...selectedCustomer, id: targetPhone, lastUpdated: serverTimestamp(), identityUnified: true }, { merge: true });
         batch.delete(doc(dbFS, 'customers', oldId));
         await batch.commit();
-        alert("איחוד הזהויות הושלם.");
+        alert("האיחוד הושלם.");
         setSelectedCustomer(null);
-      } catch (err: any) { alert("שגיאה: " + err.message); } finally { setIsSaving(false); }
+      } catch (err: any) { console.error(err.message); } finally { setIsSaving(false); }
     }
   };
 
@@ -194,12 +192,9 @@ export default function App() {
     const txt = chatInput.trim();
     setChatInput('');
     if (isAiActive) setIsAiActive(false);
-
     try {
       await push(ref(dbRT, 'saban94/outgoing'), { number: selectedCustomer.id, message: txt, timestamp: Date.now() });
-      await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
-        text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami'
-      });
+      await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami' });
     } catch (err: any) { console.error(err.message); }
   };
 
@@ -214,37 +209,40 @@ export default function App() {
     (c.id || '').includes(searchTerm)
   );
 
-  // --- סגנונות עיצוב ---
   const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
   const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
-  const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
+  const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none shadow-inner' : 'bg-white border-slate-200 shadow-inner';
   const chatAreaBg = theme === 'dark' ? 'bg-[#0b141a]' : 'bg-[#efeae2]';
 
   if (isPrinting) return (
-    <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto shadow-inner" dir="rtl">
-        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl bg-white">
+    <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
+        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 bg-white">
           <div className="flex justify-between items-center border-b-4 border-black pb-8 mb-8">
-            <div><h1 className="text-5xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2">הזמנת עבודה - {new Date().toLocaleDateString('he-IL')}</p></div>
-            <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover" alt="logo" />
+            <div><h1 className="text-5xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2 text-slate-700">הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p></div>
+            <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
-          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-6 border-2 border-black shadow-lg">
-            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרויקט</p><p className="text-2xl font-black">{editCrm.projectName || "פרויקט כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={16}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
-            <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרטי לקוח</p><p className="text-xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
+          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black shadow-lg text-lg">
+            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">יעד פרויקט</p><p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={18}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
+            <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרטי זיהוי</p><p className="text-2xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
-          <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner text-lg">
-            <div className="bg-black text-white p-3 flex justify-between font-black"><span>פריטים מהצ'אט שנבחרו</span><span className="w-32 text-center">כמות</span></div>
-            <div className="p-6 space-y-6 flex-1">
+          <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
+            <div className="bg-black text-white p-4 flex justify-between font-black text-xl uppercase tracking-widest"><span>תיאור מהצ'אט (JONI)</span><span className="w-32 text-center">כמות</span></div>
+            <div className="p-8 space-y-8 flex-1">
               {messages.filter(m => selectedMsgIds.includes(m.id)).map((m, i) => (
                 <div key={i} className="flex justify-between border-b-2 border-slate-200 pb-4 last:border-0 items-center">
-                  <span className="flex-1 font-medium">{m.text}</span><span className="w-40 border-b-2 border-black h-10"></span>
+                  <span className="flex-1 font-bold text-lg">{m.text}</span><span className="w-40 border-b-2 border-black h-10"></span>
                 </div>
               ))}
             </div>
           </div>
+          <div className="mt-20 flex justify-between items-end pt-12 border-t-4 border-black font-black uppercase italic opacity-80">
+            <div className="text-center space-y-4"><div className="w-64 border-b-2 border-black mx-auto h-16"></div><p>חתימת מנהל פרויקט</p></div>
+            <div className="text-center space-y-4"><div className="w-64 border-b-2 border-black mx-auto h-16"></div><p>אישור מחסן ח. סבן</p></div>
+          </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print z-50">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all">חזרה</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2"><Printer size={22}/> הדפס</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all">ביטול</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -263,19 +261,21 @@ export default function App() {
               { id: 'HUB', icon: MessageCircle, label: 'JONI HUB' },
               { id: 'CRM', icon: Users, label: 'זהויות ואיחוד' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
+              { id: 'INVENTORY', icon: PackageSearch, label: 'מלאי טכני' },
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
               <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-500 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10'}`}>
                 <btn.icon size={26} />
+                <span className="absolute right-20 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">{btn.label}</span>
               </button>
             ))}
           </nav>
           <div className="flex flex-col items-center gap-4 mt-auto">
              <button onClick={() => setShowQrModal(true)} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${serverStatus.qr ? 'bg-amber-500 text-white animate-bounce shadow-xl' : 'text-slate-500'}`}><QrCode size={24} /></button>
-             <div className="flex flex-col items-center gap-1">
+             <div onClick={handleResetConnection} className="flex flex-col items-center gap-1 group cursor-pointer hover:scale-110 transition-all">
                 <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_15px_#ef4444]'}`} />
-                <span className={`text-[8px] font-black ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{isTrulyOnline ? 'LIVE' : 'DEAD'}</span>
+                <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{isTrulyOnline ? 'LIVE' : 'DEAD'}</span>
              </div>
              <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
@@ -284,24 +284,24 @@ export default function App() {
         </aside>
       )}
 
-      {/* 2. רשימת זהויות מאוחדת */}
+      {/* 2. רשימת פניות */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
-        <aside className={`w-85 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
+        <aside className={`w-96 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-4">
-            <div className="flex justify-between items-center text-slate-800 dark:text-slate-100">
-                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-500"/> זהויות JONI</h2>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${isTrulyOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{isTrulyOnline ? 'Sync OK' : 'Offline'}</span>
+            <div className="flex justify-between items-center">
+                <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2 text-slate-800 dark:text-slate-200"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
-                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חיפוש מנהל פרויקט..." className="w-full bg-transparent p-3.5 pr-12 text-xs border-none outline-none font-bold text-slate-800 dark:text-slate-200" />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חיפוש מנהל פרויקט..." className="w-full bg-transparent p-4 pr-12 text-xs border-none outline-none font-bold text-slate-800 dark:text-slate-200" />
             </div>
           </header>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-slate-50/20">
             {filteredCustomers.map(c => (
               <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-[1.8rem] flex items-center gap-4 transition-all border ${selectedCustomer?.uid === c.uid ? 'bg-emerald-500/10 border-emerald-500/30 shadow-2xl scale-[1.02]' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-sm relative overflow-hidden border-2 ${selectedCustomer?.uid === c.uid ? 'border-emerald-500 shadow-lg' : 'border-white/10 bg-slate-800 text-slate-400'}`}>
-                  {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : (c.name ? c.name[0] : '?')}
+                  {c.photo ? <img src={c.photo} className="w-full h-full object-cover" alt="avatar" /> : (c.name ? c.name[0] : '?')}
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#0f172a] rounded-full"></div>
                 </div>
                 <div className="text-right flex-1 overflow-hidden">
@@ -314,7 +314,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* 3. Main Operational Hub */}
+      {/* 3. Main Workspace */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         {selectedCustomer && activeTab === 'HUB' ? (
           <div className="flex-1 flex flex-col h-full">
@@ -334,12 +334,12 @@ export default function App() {
 
             <div ref={scrollRef} className={`flex-1 overflow-y-auto p-12 flex flex-col gap-8 scroll-smooth no-scrollbar ${chatAreaBg}`} style={{backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: theme === 'dark' ? 'soft-light' : 'overlay'}}>
               {messages.map((m, i) => (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={m.id || i} onClick={() => isSelectionMode && toggleMsgSelection(m.id)} className={`flex flex-col max-w-[70%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'} ${isSelectionMode ? 'cursor-pointer hover:scale-[1.02]' : ''} transition-transform`}>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={m.id || i} onClick={() => toggleSelection(m.id)} className={`flex flex-col max-w-[70%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'} ${isSelectionMode ? 'cursor-pointer hover:scale-[1.02]' : ''} transition-transform`}>
                   <div className={`p-6 rounded-[2.2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none shadow-black/20' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-500/40'}`}>
-                    {isSelectionMode && (<div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white scale-110' : 'bg-slate-700 text-slate-400'}`}><CheckCircle2 size={16}/></div>)}
+                    {isSelectionMode && (<div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white scale-110' : 'bg-slate-700 text-slate-400 opacity-60'}`}><CheckCircle2 size={16}/></div>)}
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">{m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצה' : 'אישי'}</div>
-                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="prod" />}
-                    <div className="whitespace-pre-wrap font-bold">{m.text}</div>
+                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="product" />}
+                    <div className="whitespace-pre-wrap font-bold leading-relaxed">{m.text}</div>
                     <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}</div>
                   </div>
                 </motion.div>
@@ -352,7 +352,7 @@ export default function App() {
                   <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase">JONI Bridge Dead - Rescan QR in office computer</div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[3rem] border transition-all ${inputBg} shadow-2xl`}>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט (יכבה AI)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600 text-slate-800 dark:text-slate-200" />
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה ללקוח..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600 text-slate-800 dark:text-slate-200" />
                 <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
@@ -362,7 +362,7 @@ export default function App() {
         )}
       </main>
 
-      {/* 4. CRM Sidebar - Identity Management */}
+      {/* 4. CRM Sidebar */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[480px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3 text-slate-800 dark:text-slate-100"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button></header>
@@ -389,7 +389,7 @@ export default function App() {
                 </div>
              </div>
              <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 uppercase tracking-widest text-base">{isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Unify Card</>}</button>
-             <div className={`mt-6 p-6 rounded-3xl border-2 border-dashed flex items-center justify-between ${isTrulyOnline ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600' : 'border-red-500/20 bg-red-500/5 text-red-600 animate-pulse'}`}>
+             <div className={`mt-6 p-6 rounded-3xl border-2 border-dashed flex items-center justify-between ${isTrulyOnline ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 shadow-inner' : 'border-red-500/20 bg-red-500/5 text-red-600 animate-pulse'}`}>
                 <div className="flex items-center gap-3"><Heart size={20} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} /><div className="text-xs font-black uppercase tracking-widest">JONI PULSE</div></div>
                 <div className="text-right flex flex-col text-[10px] font-mono font-bold italic">נראה: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'} | {(timeDiff/1000).toFixed(1)}s</div>
              </div>
