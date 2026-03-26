@@ -6,7 +6,7 @@ import {
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
-  BrainCircuit, Plus, Trash2, Settings, Clock, Play, Sun, Moon,
+  BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
   MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2
 } from 'lucide-react';
@@ -337,37 +337,59 @@ export default function App() {
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">{m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצה' : 'אישי'}</div>
                     {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" />}
                     <div className="whitespace-pre-wrap font-bold">{m.text}</div>
-                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}</div>
+                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'ממש עכשיו'}</div>
                   </div>
                 </motion.div>
               ))}
-              {isThinking && <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl animate-pulse"><Activity size={24} className="animate-spin" /><span className="text-sm font-black uppercase tracking-widest">JONI AI FORMULATING...</span></div>}
+              {isThinking && (
+                <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl animate-pulse">
+                  <Activity size={24} className="animate-spin" />
+                  <span className="text-sm font-black uppercase tracking-widest">JONI AI FORMULATING...</span>
+                </div>
+              )}
             </div>
 
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
               <div className={`flex items-center gap-5 p-5 rounded-[2.8rem] border transition-all ${inputBg} shadow-2xl`}>
                 <button onClick={handlePhotoUpdate} className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={28}/></button>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב למנהל הפרויקט (השתלטות ידנית)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
-                <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
+                <input 
+                  type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && handleSend()} 
+                  placeholder="הקש הודעה לניהול פרויקט (יכבה AI אוטומטית)..." 
+                  className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" 
+                />
+                <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500">
+                  <Send size={28} className="transform rotate-180" />
+                </button>
               </div>
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group">
+             <div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div>
+             <h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2>
+             <p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v5.4</p>
+          </div>
         )}
       </main>
 
       {/* 4. CRM Sidebar */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[480px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
-          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button></header>
+          <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center">
+             <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2>
+             <button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button>
+          </header>
           <div className="flex-1 overflow-y-auto p-10 space-y-10 no-scrollbar">
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
                 <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-2xl border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all">
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
                    <button onClick={handlePhotoUpdate} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3"><ImageIcon size={28}/><span className="text-[11px] font-black uppercase tracking-[0.2em]">החלף תמונה</span></button>
                 </div>
-                <div className="text-center space-y-3"><h3 className="text-3xl font-black italic tracking-tighter">{editCrm.contactName || selectedCustomer.name}</h3><span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">זהות מאוחדת: {normalizeId(selectedCustomer.id)}</span></div>
+                <div className="text-center space-y-3">
+                   <h3 className="text-3xl font-black italic tracking-tighter">{editCrm.contactName || selectedCustomer.name}</h3>
+                   <div className="flex justify-center gap-3"><span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">זהות מאוחדת: {normalizeId(selectedCustomer.id)}</span></div>
+                </div>
              </div>
              <div className="space-y-8">
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מספר לקוח בקומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} /></div>
@@ -375,13 +397,12 @@ export default function App() {
                 <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת אספקה</label><input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl`} /></div>
                 <div className="grid grid-cols-2 gap-6"><div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14}/> שם איש קשר</label><input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} /></div><div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Phone size={14}/> נייד</label><input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} /></div></div>
              </div>
-             {/* 🔥 תיקון שגיאת בילד: שימוש ב-saveCustomerCard במקום saveCrm */}
-             <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 uppercase tracking-widest text-base">{isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Unify Identity</>}</button>
+             <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 uppercase tracking-widest text-base">{isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Sync Unified Card</>}</button>
           </div>
         </aside>
       )}
 
-      {theme === 'dark' && <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[180px]"></div><div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[180px]"></div></div>}
+      {theme === 'dark' && <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[180px]"></div><div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px]"></div></div>}
     </div>
   );
 }
