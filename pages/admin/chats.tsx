@@ -12,7 +12,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Firebase Configuration ---
-// הערה: משתני הסביבה חייבים להיות מוגדרים ב-Vercel
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -27,7 +26,7 @@ const dbRT = getDatabase(app);
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default function SabanMasterHub() {
-  // ניווט ומצב ממשק
+  // Navigation & UI State
   const [activeTab, setActiveTab] = useState<'CHATS' | 'CRM' | 'FLOW' | 'NETWORK'>('CHATS');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,7 +34,7 @@ export default function SabanMasterHub() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   
-  // נתוני ליבה
+  // Core Data State
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -44,7 +43,7 @@ export default function SabanMasterHub() {
   const [queueCount, setQueueCount] = useState(0);
   const [incomingLogs, setIncomingLogs] = useState<any[]>([]);
 
-  // הגדרות תשתית (לפי בקשתך)
+  // Infrastructure Config
   const [sysConfig, setSysConfig] = useState({
     rtDbUrl: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
     fbStore: "Firebase Firestore",
@@ -56,28 +55,26 @@ export default function SabanMasterHub() {
   const [editCrm, setEditCrm] = useState<any>({ name: '', comaxId: '', dnaContext: '', photo: '' });
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // פונקציות עזר
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // חישוב חיווי חיבור
   const timeDiff = currentTime - (serverStatus.lastSeen || 0);
-  const isTrulyOnline = serverStatus.online && (timeDiff < 120000); // הגמשנו ל-2 דקות
+  const isTrulyOnline = serverStatus.online && (timeDiff < 90000); 
   const signalQuality = timeDiff < 20000 ? 'EXCELLENT' : timeDiff < 60000 ? 'GOOD' : 'WEAK';
 
-  // --- מאזינים בזמן אמת ---
+  // --- Realtime Listeners ---
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. האזנה לדופק השרת (saban94/status)
+    // 1. Status & Heartbeat
     const statusUnsub = onValue(ref(dbRT, 'saban94/status'), (snap) => {
       if (snap.exists()) setServerStatus(prev => ({ ...prev, ...snap.val() }));
     });
 
-    // 2. המלשינון (Dual Path Sniffer) - rami/incoming
+    // 2. Incoming Sniffer
     const incomingUnsub = onChildAdded(ref(dbRT, 'rami/incoming'), (snapshot) => {
         const data = snapshot.val();
         if (data?.sender) {
@@ -85,19 +82,14 @@ export default function SabanMasterHub() {
         }
     });
 
-    // 3. ניטור תור שליחה (rami/outgoing)
+    // 3. Queue Monitor
     const queueUnsub = onValue(ref(dbRT, 'rami/outgoing'), (snap) => {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
 
-    // 4. טעינת לקוחות מ-Firestore
+    // 4. CRM Customers
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(100)), (snap) => {
       setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // 5. טעינת הגדרות מערכת
-    getDoc(doc(dbFS, 'system', 'config')).then(snap => {
-        if (snap.exists()) setSysConfig(prev => ({ ...prev, ...snap.data() }));
     });
 
     return () => { 
@@ -108,7 +100,6 @@ export default function SabanMasterHub() {
     };
   }, []);
 
-  // סנכרון צ'אט לקוח
   useEffect(() => {
     if (!selectedCustomer) return;
     setEditCrm({
@@ -125,7 +116,6 @@ export default function SabanMasterHub() {
     return () => unsubChat();
   }, [selectedCustomer?.id]);
 
-  // שליחה לצינור השליחה של JONI
   const handleSend = async () => {
     if (!chatInput.trim() || !selectedCustomer) return;
     const txt = chatInput.trim();
@@ -133,28 +123,35 @@ export default function SabanMasterHub() {
     setChatInput('');
 
     try {
-      // עדכון סטטוס השתלטות ידנית
       await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
-      
-      // דחיפה לצינור השליחה האמיתי rami/outgoing
-      await push(ref(dbRT, 'rami/outgoing'), { 
-        number: targetId, 
-        message: txt, 
-        timestamp: Date.now() 
-      });
-      
-      // תיעוד בהיסטוריה
+      await push(ref(dbRT, 'rami/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
       await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami' 
       });
-    } catch (e) { console.error("שגיאת שליחה:", e); }
+    } catch (e) { console.error(e); }
+  };
+
+  // 🔥 פונקציית איפוס השרת - תגרום לברקוד להופיע מחדש
+  const handleHardReset = async () => {
+    if (window.confirm("בטוח שברצונך לבצע ריסטרט קשיח לשרת? זה ינתק את החיבור הנוכחי ויחולל ברקוד סריקה חדש.")) {
+        try {
+            await update(ref(dbRT, 'saban94/status'), { 
+                reset_command: true,
+                online: false,
+                qr: null 
+            });
+            alert("פקודת ריסטרט נשלחה. המתן להופעת הברקוד על המסך.");
+        } catch (e) {
+            alert("שגיאה בשליחת פקודת האיפוס.");
+        }
+    }
   };
 
   const handleSaveConfig = async () => {
     setIsSaving(true);
     await setDoc(doc(dbFS, 'system', 'config'), sysConfig, { merge: true });
     setIsSaving(false);
-    alert("הגדרות תשתית סונכרנו בהצלחה!");
+    alert("הגדרות תשתית נשמרו!");
   };
 
   const handleSaveProfile = async () => {
@@ -203,7 +200,7 @@ export default function SabanMasterHub() {
         <header className="p-6 border-b border-white/5 space-y-4">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-black italic tracking-tighter text-slate-200 uppercase">Saban Hub</h1>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ${isTrulyOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ${isTrulyOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500 animate-pulse'}`}>
               <div className={`w-1.5 h-1.5 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
               {isTrulyOnline ? 'JONI LIVE' : 'OFFLINE'}
             </div>
@@ -219,19 +216,19 @@ export default function SabanMasterHub() {
         <div className="flex-1 overflow-y-auto no-scrollbar py-2">
             {activeTab === 'NETWORK' ? (
                 <div className="p-6 space-y-6">
+                    {/* 🔥 כפתור איפוס מהיר */}
+                    <button 
+                      onClick={handleHardReset}
+                      className="w-full p-4 bg-red-600/10 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase flex items-center justify-center gap-3 hover:bg-red-600 hover:text-white transition-all shadow-lg active:scale-95"
+                    >
+                      <Power size={18}/> ריסטרט קשיח לשרת
+                    </button>
+
                     <div className="p-4 bg-slate-900 rounded-2xl border border-white/5 space-y-4">
                         <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Settings2 size={14}/> הגדרות JONI</h3>
                         <div className="space-y-1">
                             <label className="text-[10px] font-bold opacity-50">Firebase Realtime Url:</label>
-                            <input value={sysConfig.rtDbUrl} onChange={e => setSysConfig({...sysConfig, rtDbUrl: e.target.value})} className="w-full bg-black/40 p-2.5 rounded-lg text-[10px] font-mono outline-none border border-white/5 text-white" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold opacity-50">Firebase Store:</label>
-                            <input value={sysConfig.fbStore} readOnly className="w-full bg-black/40 p-2.5 rounded-lg text-[10px] font-mono opacity-50 outline-none border border-white/5" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold opacity-50">Callback Url (optional):</label>
-                            <input value={sysConfig.callbackUrl} onChange={e => setSysConfig({...sysConfig, callbackUrl: e.target.value})} className="w-full bg-black/40 p-2.5 rounded-lg text-[10px] font-mono outline-none border border-white/5" />
+                            <input value={sysConfig.rtDbUrl} onChange={e => setSysConfig({...sysConfig, rtDbUrl: e.target.value})} className="w-full bg-black/40 p-2.5 rounded-lg text-[10px] font-mono outline-none border border-white/5 text-white shadow-inner" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
@@ -239,7 +236,7 @@ export default function SabanMasterHub() {
                                 <input type="number" value={sysConfig.msgDelay} onChange={e => setSysConfig({...sysConfig, msgDelay: Number(e.target.value)})} className="w-full bg-black/40 p-2.5 rounded-lg text-xs font-black outline-none border border-white/5 text-emerald-500" />
                             </div>
                             <button onClick={() => setSysConfig({...sysConfig, alwaysConnected: !sysConfig.alwaysConnected})} className={`mt-5 p-2 rounded-lg text-[10px] font-black border transition-all ${sysConfig.alwaysConnected ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' : 'bg-slate-800 border-white/5 text-slate-500'}`}>
-                                {sysConfig.alwaysConnected ? 'תמיד מחובר' : 'חיבור גמיש'}
+                                {sysConfig.alwaysConnected ? <Wifi size={14}/> : <WifiOff size={14}/>} תמיד מחובר
                             </button>
                         </div>
                         <button onClick={handleSaveConfig} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-xs uppercase shadow-lg active:scale-95 transition-all">
@@ -247,17 +244,18 @@ export default function SabanMasterHub() {
                         </button>
                     </div>
                     
-                    <div className="space-y-2">
-                        <p className="text-[10px] font-black text-slate-500 uppercase px-1">יומן אירועי רשת</p>
-                        {incomingLogs.map((log, idx) => (
-                            <div key={idx} className="p-3 bg-black/20 rounded-xl border border-white/5 text-[10px] leading-tight">
-                                <div className="flex justify-between mb-1 opacity-60 italic">
-                                    <span className="font-black text-blue-400">INCOMING</span>
-                                    <span>{new Date(log.time).toLocaleTimeString()}</span>
-                                </div>
-                                <p className="font-bold text-slate-300 truncate">מ-{log.sender}: "{log.text}"</p>
-                            </div>
-                        ))}
+                    <div className="p-4 bg-slate-900 rounded-2xl border border-white/5">
+                      <div className="flex justify-between items-center mb-4">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">איכות הצינור</span>
+                          <span className={`text-[10px] font-bold ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{signalQuality}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Heart size={20} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
+                        <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                            <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500' : 'bg-red-500'}`}/>
+                        </div>
+                        <span className="font-mono text-[10px] opacity-50">{(timeDiff/1000).toFixed(1)}s</span>
+                      </div>
                     </div>
                 </div>
             ) : (
@@ -265,7 +263,7 @@ export default function SabanMasterHub() {
                     <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 flex items-center gap-4 transition-all relative ${selectedCustomer?.id === c.id ? 'bg-[#2A3942] border-r-4 border-emerald-500' : 'hover:bg-[#202C33] border-r-4 border-transparent'}`}>
                         <div className="w-14 h-14 rounded-full bg-slate-800 overflow-hidden shrink-0 border border-white/5 relative">
                             {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-4 text-slate-600" size={24}/>}
-                            {c.botState === 'HUMAN_RAMI' && <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-[#111B21] rounded-full"></div>}
+                            {c.botState === 'HUMAN_RAMI' && <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-[#111B21] rounded-full shadow-sm"></div>}
                         </div>
                         <div className="text-right flex-1 overflow-hidden">
                             <div className="text-[15px] font-bold text-slate-200 truncate">{c.name || "לקוח ללא שם"}</div>
@@ -292,7 +290,7 @@ export default function SabanMasterHub() {
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${selectedCustomer.botState === 'HUMAN_RAMI' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></span>
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      {selectedCustomer.botState === 'HUMAN_RAMI' ? 'שליטה ידנית של ראמי' : 'מנוע AI פעיל'}
+                      {selectedCustomer.botState === 'HUMAN_RAMI' ? 'שליטה ידנית' : 'AI פעיל'}
                     </span>
                   </div>
                 </div>
@@ -301,7 +299,7 @@ export default function SabanMasterHub() {
                 <div className={`px-4 py-2 rounded-xl border-2 transition-all ${queueCount > 0 ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'}`}>
                   <span className="text-[10px] font-black uppercase flex items-center gap-2">
                     {queueCount > 0 ? <AlertCircle size={14}/> : <CheckCircle2 size={14}/>}
-                    תור: {queueCount} {queueCount > 0 ? '(חסום)' : '(נקי)'}
+                    תור: {queueCount}
                   </span>
                 </div>
                 <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-2xl border-2 transition-all shadow-lg ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
@@ -310,14 +308,14 @@ export default function SabanMasterHub() {
               </div>
             </header>
 
-            {/* Malshinan Sniffer Terminal */}
+            {/* Malshinan Sniffer */}
             <AnimatePresence>
               {showDiagnostics && (
                 <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/95 backdrop-blur-md border-b border-emerald-500/20 overflow-hidden z-20 shadow-2xl">
                   <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
                     <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2 text-emerald-500 font-black">
-                      <p className="uppercase flex items-center gap-2 tracking-[0.2em]"><Terminal size={14}/> מלשינון תעבורה (DUAL PATH SNIFFER)</p>
-                      <div className="flex gap-2 text-[8px] uppercase">
+                      <p className="uppercase flex items-center gap-2 tracking-[0.2em]"><Terminal size={14}/> מלשינון תעבורה (DUAL SNIFFER)</p>
+                      <div className="flex gap-2">
                          <span className="bg-emerald-500/20 px-1 rounded">RAMI_PATH</span>
                          <span className="bg-blue-500/20 px-1 rounded text-blue-400">JONI_BRIDGE</span>
                       </div>
@@ -336,11 +334,10 @@ export default function SabanMasterHub() {
               )}
             </AnimatePresence>
 
-            {/* Chat Body */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 flex flex-col gap-5 no-scrollbar shadow-inner">
               {messages.map((m, i) => (
-                <div key={m.id || i} className={`max-w-[75%] p-4 rounded-[1.5rem] text-[15px] shadow-xl relative leading-relaxed transition-all ${m.type === 'in' ? 'bg-[#202C33] text-slate-100 self-start rounded-tr-none border border-white/5 shadow-black/20' : 'bg-[#005C4B] text-white self-end rounded-tl-none shadow-emerald-950/20 border border-emerald-400/10'}`}>
-                  {m.source === 'manual-rami' && <div className="text-[9px] font-black uppercase text-emerald-300 mb-1 tracking-widest border-b border-white/10 pb-1">ראמי שלח</div>}
+                <div key={m.id || i} className={`max-w-[75%] p-4 rounded-[1.5rem] text-[15px] shadow-xl relative leading-relaxed transition-all ${m.type === 'in' ? 'bg-[#202C33] text-slate-100 self-start rounded-tr-none border border-white/5' : 'bg-[#005C4B] text-white self-end rounded-tl-none shadow-emerald-950/20 border border-emerald-400/10'}`}>
+                  {m.source === 'manual-rami' && <div className="text-[9px] font-black uppercase text-emerald-300 mb-1 tracking-widest border-b border-white/10 pb-1 text-right">ראמי שלח</div>}
                   <div className="font-medium whitespace-pre-wrap">{m.text}</div>
                   <div className="text-[10px] opacity-40 text-left mt-3 font-mono flex justify-end gap-1 items-center italic">
                     {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'שולח...'}
@@ -350,13 +347,12 @@ export default function SabanMasterHub() {
               ))}
             </div>
 
-            {/* Footer Input */}
             <footer className="p-6 bg-[#202C33] border-t border-white/5 flex gap-4 z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
               <input 
                 value={chatInput} 
                 onChange={e => setChatInput(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                placeholder={queueCount > 3 ? "⚠️ הצינור עמוס, הודעות עשויות להתעכב..." : "כתוב הודעה לצינור..."} 
+                placeholder="כתוב הודעה לצינור..." 
                 className={`flex-1 bg-[#2A3942] p-4 rounded-2xl border outline-none font-bold text-slate-100 focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner ${queueCount > 3 ? 'border-red-500/50' : 'border-white/5'}`} 
               />
               <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-[#111B21] rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all">
@@ -376,8 +372,8 @@ export default function SabanMasterHub() {
       {selectedCustomer && ( activeTab === 'CRM' || activeTab === 'CHATS' ) && (
         <aside className="w-[450px] flex flex-col bg-[#111B21] border-r border-white/5 p-8 overflow-y-auto no-scrollbar shadow-2xl z-30">
           <header className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
-            <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight uppercase"><ShieldCheck size={28}/> DNA & IDENTITY</h3>
-            <button onClick={() => remove(ref(dbRT, 'rami/outgoing'))} title="נקה תור" className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 transition-all shadow-sm"><Eraser size={18}/></button>
+            <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight uppercase"><ShieldCheck size={28}/> DNA & CRM</h3>
+            <button onClick={() => remove(ref(dbRT, 'rami/outgoing'))} title="נקה תור" className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-600 transition-all shadow-sm"><Eraser size={18}/></button>
           </header>
           
           <div className="space-y-10 text-right">
@@ -397,7 +393,7 @@ export default function SabanMasterHub() {
 
             <div className="grid gap-6">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14}/> קומקס</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14}/> קומקס</label>
                 <input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-[#202C33] p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner focus:border-blue-500/50" />
               </div>
               <div className="space-y-1">
@@ -412,20 +408,6 @@ export default function SabanMasterHub() {
               </div>
             </div>
 
-            <div className="p-6 bg-black/40 rounded-[2rem] border border-white/5 shadow-inner space-y-5">
-              <div className="flex justify-between items-center text-slate-400 font-black uppercase text-[10px]">
-                <span>איכות צינור</span>
-                <span className={queueCount > 0 ? 'text-red-500' : 'text-emerald-500'}>{signalQuality}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Heart size={24} className={isTrulyOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}/>
-                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                  <motion.div animate={{width: isTrulyOnline ? '100%' : '10%'}} className={`h-full ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}/>
-                </div>
-                <span className="font-mono text-xs opacity-50 font-black">{(timeDiff/1000).toFixed(1)}s LAG</span>
-              </div>
-            </div>
-
             <button onClick={handleSaveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-xl active:scale-95 transition-all text-xl uppercase tracking-widest flex items-center justify-center gap-4">
               {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Commit DNA</>}
             </button>
@@ -433,19 +415,19 @@ export default function SabanMasterHub() {
         </aside>
       )}
 
-      {/* --- 5. Global QR Overlay --- */}
+      {/* --- 5. Global QR Overlay (Persistent Scan) --- */}
       <AnimatePresence>
-        {!isTrulyOnline && serverStatus.qr && (
+        {(!isTrulyOnline && serverStatus.qr) && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0B141A]/98 backdrop-blur-3xl">
              <div className="bg-white rounded-[4rem] p-12 max-w-md w-full text-center shadow-[0_50px_100px_rgba(0,0,0,0.8)] relative border-4 border-amber-500/30 overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-2 bg-amber-500 animate-pulse"></div>
                 <div className="w-24 h-24 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-2xl text-white animate-bounce"><QrCode size={56} /></div>
-                <h2 className="text-4xl font-black text-slate-900 italic mb-3 tracking-tighter uppercase leading-none">Pipe Sync Error</h2>
-                <p className="text-slate-500 font-bold mb-10 text-base leading-relaxed">השרת במשרד נותק. סרוק כדי לחבר מחדש את צינור הנתונים של סבן.</p>
-                <div className="bg-slate-50 p-8 rounded-[3rem] border-4 border-dashed border-slate-200 mb-10 aspect-square flex items-center justify-center overflow-hidden shadow-inner relative group">
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-3xl border-8 border-white" alt="QR" />
+                <h2 className="text-4xl font-black text-slate-900 italic mb-3 tracking-tighter uppercase leading-none text-center">Scan Required</h2>
+                <p className="text-slate-500 font-bold mb-10 text-base leading-relaxed text-center">השרת במשרד ממתין לחיבור. סרוק את הברקוד כדי לפתוח את הצינור מחדש.</p>
+                <div className="bg-white p-6 rounded-[3rem] border-4 border-dashed border-slate-200 mb-10 aspect-square flex items-center justify-center overflow-hidden shadow-inner relative group">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-3xl border-4 border-white" alt="QR" />
                 </div>
-                <button onClick={() => update(ref(dbRT, 'saban94/status'), { reset_command: true })} className="w-full bg-red-600 text-white py-6 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-red-700 transition-all shadow-lg active:scale-95 border border-red-700/20">ביצוע ריסטרט קשיח למשרד</button>
+                <button onClick={handleHardReset} className="w-full bg-red-600 text-white py-6 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-red-700 transition-all shadow-lg active:scale-95 border border-red-700/20">ביצוע ריסטרט קשיח למשרד</button>
              </div>
           </motion.div>
         )}
