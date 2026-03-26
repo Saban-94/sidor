@@ -5,7 +5,7 @@ import { getDatabase, ref, push, onValue, set, update, remove, onChildAdded } fr
 import { 
   Bot, Send, Image as ImageIcon, MessageCircle, Save, Activity, Smartphone, ShieldCheck, 
   Users, Printer, UserCog, Building, MapPin, Phone, CreditCard, Power, X, Search, 
-  Truck, Crown, PackageSearch, Merge, CheckCircle2, WifiOff, Heart, QrCode, Clock, Trash,
+  Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, Heart, QrCode, Clock, Trash,
   Zap, Network, AlertTriangle, ShieldAlert, History, Terminal, Database, ArrowRightLeft, 
   Loader2, Radio, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, AlertCircle, Settings2, Link2, Globe
 } from 'lucide-react';
@@ -229,7 +229,7 @@ export default function App() {
                               </button>
                           </div>
                       </div>
-                      <button onClick={saveConfig} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+                      <button onClick={saveConfig} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
                           {isSaving ? <Loader2 size={14} className="animate-spin"/> : <><Save size={14}/> שמור הגדרות תשתית</>}
                       </button>
                   </div>
@@ -280,7 +280,7 @@ export default function App() {
                 </div>
               </div>
               <div className="flex gap-3">
-                  <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                  <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
                       {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
                   </button>
               </div>
@@ -376,7 +376,7 @@ export default function App() {
                 </div>
             </div>
 
-            <button onClick={saveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest">
+            <button onClick={saveProfile} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4 text-xl tracking-widest">
                 {isSaving ? <Loader2 size={24} className="animate-spin"/> : <><Save size={24}/> Sync DNA & Profile</>}
             </button>
           </div>
@@ -391,7 +391,7 @@ export default function App() {
                 <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
-                <p className="text-slate-500 font-bold mb-8 text-sm">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
+                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
