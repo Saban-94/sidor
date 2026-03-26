@@ -64,7 +64,7 @@ export default function App() {
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // 🔥 חישוב דופק שרת - מוגדר כקבוע בתוך הרינדור למניעת שגיאות בילד
+  // 🔥 חישוב דופק שרת - הגדרה מפורשת למניעת שגיאות בילד
   const timeDiff = currentTime - serverStatus.lastSeen;
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
@@ -128,7 +128,7 @@ export default function App() {
     };
   }, []);
 
-  // טעינת היסטוריה
+  // טעינת היסטוריה וסינכרון פרופיל
   useEffect(() => {
     if (!selectedCustomer) return;
     
@@ -173,11 +173,19 @@ export default function App() {
     setChatInput('');
     if (isAiActive) setIsAiActive(false);
 
+    // 🔥 סינכרון מהיר (Optimistic UI)
     const tempId = "temp-" + Date.now();
     setMessages(prev => [...prev, { id: tempId, text: txt, type: 'out', isSending: true, timestamp: { seconds: Date.now()/1000 } }]);
 
     try {
-      await push(ref(dbRT, 'saban94/outgoing'), { number: selectedCustomer.id, message: txt, timestamp: Date.now() });
+      // שליחה לצינור RTDB - שימוש ב-Real-ID
+      await push(ref(dbRT, 'saban94/outgoing'), { 
+        number: selectedCustomer.id, 
+        message: txt, 
+        timestamp: Date.now() 
+      });
+
+      // תיעוד ב-Firestore
       await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'command-hub' 
       });
@@ -194,7 +202,7 @@ export default function App() {
         name: editCrm.contactName || selectedCustomer.name,
         lastUpdated: serverTimestamp()
       }, { merge: true });
-      alert("✅ כרטיס זהות סונכרן בהצלחה.");
+      alert("✅ כרטיס זהות ו-DNA סונכרנו בהצלחה.");
     } catch (e: any) { console.error(e.message); } finally { setTimeout(() => setIsSaving(false), 800); }
   };
 
@@ -248,7 +256,7 @@ export default function App() {
             <div><h1 className="text-6xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2">הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p></div>
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
-          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black">
+          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black shadow-lg">
             <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">יעד פרויקט</p><p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={18}/> {editCrm.projectAddress || "נא להזין כתובת"}</p></div>
             <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">פרטי זיהוי</p><p className="text-2xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
@@ -264,8 +272,8 @@ export default function App() {
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print z-50">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all">ביטול</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl">חזור</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -282,9 +290,8 @@ export default function App() {
           <nav className="flex flex-col gap-8 flex-1">
             {[
               { id: 'HUB', icon: MessageCircle, label: 'JONI HUB' },
-              { id: 'CRM', icon: Users, label: 'זהויות ואיחוד' },
+              { id: 'CRM', icon: Users, label: 'זהויות ו-DNA' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
-              { id: 'INVENTORY', icon: PackageSearch, label: 'מלאי טכני' },
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
@@ -331,7 +338,7 @@ export default function App() {
                   <div className="text-sm font-black truncate leading-tight text-slate-800 dark:text-slate-100">{c.projectName || c.name || "אורח"}</div>
                   <div className="text-[10px] opacity-40 font-mono mt-1.5 truncate text-slate-500 dark:text-slate-400">Identity: {normalizeId(c.id)}</div>
                 </div>
-                {c.allIds?.length > 1 && <div className="bg-blue-500/10 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase border border-blue-500/20">Merged</div>}
+                {c.allIds?.length > 1 && <div className="bg-blue-500/10 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase border border-blue-500/20 shadow-sm">Merged</div>}
               </button>
             ))}
           </div>
@@ -347,7 +354,7 @@ export default function App() {
                 <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20">
                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                 </div>
-                <div><h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{selectedCustomer.id} | JONI PIPE ACTIVE</p></div>
+                <div><h2 className="font-black text-2xl italic tracking-tighter leading-none text-slate-800 dark:text-slate-100">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{selectedCustomer.id} | JONI PIPE ACTIVE</p></div>
               </div>
               <div className="flex items-center gap-5">
                 <button onClick={() => setIsSelectionMode(!isSelectionMode)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all border-2 ${isSelectionMode ? 'bg-orange-500 border-orange-400 text-white shadow-xl shadow-orange-500/20' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}><CheckCircle2 size={18} /> {isSelectionMode ? 'סימון פעיל' : 'בחירת הודעות'}</button>
@@ -382,7 +389,7 @@ export default function App() {
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-12 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={250} className="group-hover:scale-110 transition-transform duration-700" /><Bot size={80} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-7xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
+          <div className="m-auto flex flex-col items-center gap-12 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={250} className="group-hover:scale-110 transition-transform duration-700" /><Bot size={80} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-7xl font-black italic tracking-tighter uppercase text-center leading-tight text-slate-800 dark:text-slate-200">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
         )}
       </main>
 
@@ -425,7 +432,7 @@ export default function App() {
                      <p className="text-[10px] font-black text-amber-600 uppercase flex items-center gap-2"><AlertCircle size={14}/> זהות מולחמת (Merged Identity)</p>
                      <div className="flex flex-wrap gap-2">
                          {selectedCustomer.allIds.map((id: string) => (
-                             <span key={id} className={`text-[9px] ${id === selectedCustomer.id ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400'} px-2 py-1 rounded-md font-mono`}>{id}</span>
+                             <span key={id} className={`text-[9px] ${id === selectedCustomer.id ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400'} px-2 py-1 rounded-md font-mono shadow-sm`}>{id}</span>
                          ))}
                      </div>
                  </div>
@@ -443,13 +450,13 @@ export default function App() {
                 <div className="w-24 h-24 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-2xl text-white animate-pulse"><QrCode size={64} /></div>
                 <h2 className="text-4xl font-black text-slate-900 italic tracking-tighter mb-4">צינור JONI מאובטח</h2>
                 <p className="text-slate-500 font-bold mb-10 leading-relaxed text-base text-slate-600">השרת במשרד ממתין לסריקת ברקוד חדש.<br/><span className="text-amber-600">סרוק מהטלפון לחיבור הצינור.</span></p>
-                <div className="bg-slate-50 p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-10 aspect-square flex items-center justify-center min-h-[300px] shadow-inner relative">
+                <div className="bg-slate-50 p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-10 aspect-square flex items-center justify-center min-h-[300px] shadow-inner relative text-slate-400">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-3xl border-8 border-white transform transition-transform hover:scale-105" alt="QR" />
                     ) : (
-                        <div className="flex flex-col items-center gap-6 text-slate-400">
+                        <div className="flex flex-col items-center gap-6">
                             <Activity size={60} className="animate-spin text-amber-500" />
-                            <span className="text-sm font-black uppercase tracking-widest animate-pulse">מייצר ברקוד מאובטח...</span>
+                            <span className="text-sm font-black uppercase tracking-widest animate-pulse text-slate-500">מייצר ברקוד מאובטח...</span>
                         </div>
                     )}
                 </div>
