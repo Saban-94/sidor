@@ -55,3 +55,56 @@ export interface JoniCommand {
   timestamp: number;
   status: 'pending' | 'sent' | 'error';
 }
+
+// SABAN HUB Extended Types
+export interface CustomerIdentity {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  profilePicture?: string;
+  joinedAt: number;
+  lastActive: number;
+  tags?: string[];
+}
+
+export interface AIBehaviorRules {
+  id: string;
+  customerId: string;
+  systemPrompt: string;
+  dnaRules: string;  // DNA Rules for AI behavior injection
+  temperature: number;
+  maxTokens: number;
+  responseStyle: 'formal' | 'casual' | 'professional' | 'creative';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PipelinePacket {
+  id: string;
+  timestamp: number;
+  direction: 'incoming' | 'outgoing';
+  source: string;
+  destination: string;
+  payload: Record<string, any>;
+  status: 'processed' | 'pending' | 'failed';
+  latency: number;  // in milliseconds
+}
+
+export interface InfrastructureConfig {
+  rtdbUrl: string;
+  callbackUrls: string[];
+  messageThrottle: number;  // milliseconds between messages
+  heartbeatInterval: number;  // milliseconds
+  enableMonitoring: boolean;
+  logLevel: 'error' | 'warn' | 'info' | 'debug';
+}
+
+export interface SuccessMetrics {
+  totalMessages: number;
+  deliveredMessages: number;
+  responseTime: number;  // average in ms
+  customerSatisfaction: number;  // 0-100
+  automationRate: number;  // percentage of AI-handled messages
+  peakHourActivity: Array<{ hour: number; count: number }>;
+}
