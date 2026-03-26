@@ -8,7 +8,7 @@ import {
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
   BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart, RefreshCw, PowerOff
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,7 +27,7 @@ const dbRT = getDatabase(app);
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default function App() {
-  // --- ניהול תצוגה ומערכת ---
+  // --- ניהול מערכת ---
   const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'FLOW' | 'INVENTORY' | 'DISPATCH' | 'MASTER'>('HUB');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isMobile, setIsMobile] = useState(false);
@@ -59,7 +59,7 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 חישוב "חי באמת" - מרווח ביטחון של 90 שניות
+  // 🔥 חישוב דופק חי: 90 שניות מרווח ביטחון
   const timeDiff = currentTime - serverStatus.lastSeen;
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
@@ -83,21 +83,17 @@ export default function App() {
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // עדכון זמן מקומי כל 5 שניות
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
 
-    // סטטוס שרת JONI
     const statusRef = ref(dbRT, 'saban94/status');
     const unsubStatus = onValue(statusRef, (snap) => {
       const data = snap.val();
       if (data) setServerStatus({ online: data.online, lastSeen: data.lastSeen });
     });
 
-    // טעינת לקוחות מאוחדים
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
-      
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
@@ -155,7 +151,6 @@ export default function App() {
     if (!chatInput.trim() || !selectedCustomer) return;
     const txt = chatInput.trim();
     setChatInput('');
-
     if (isAiActive) setIsAiActive(false);
 
     try {
@@ -168,9 +163,17 @@ export default function App() {
       await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami'
       });
-    } catch (err: any) {
-      console.error(err.message);
-    }
+    } catch (err: any) { console.error(err.message); }
+  };
+
+  const handlePhotoUpdate = async () => {
+    const newUrl = prompt("הכנס לינק לתמונה (URL):", editCrm.photo);
+    if (!newUrl || !selectedCustomer) return;
+    setIsSaving(true);
+    try {
+      await updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { photo: newUrl });
+      setEditCrm((prev: any) => ({ ...prev, photo: newUrl }));
+    } catch (e: any) { console.error(e.message); } finally { setIsSaving(false); }
   };
 
   const saveCustomerCard = async () => {
@@ -182,11 +185,7 @@ export default function App() {
         name: editCrm.contactName || selectedCustomer.name,
         lastUpdated: serverTimestamp()
       }, { merge: true });
-    } catch (e: any) {
-      console.error(e.message);
-    } finally {
-      setTimeout(() => setIsSaving(false), 800);
-    }
+    } catch (e: any) { console.error(e.message); } finally { setTimeout(() => setIsSaving(false), 800); }
   };
 
   const handleMergeManual = async () => {
@@ -229,16 +228,15 @@ export default function App() {
     (c.id || '').includes(searchTerm)
   );
 
-  // --- תצוגת הדפסה ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto shadow-inner" dir="rtl">
         <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl bg-white">
           <div className="flex justify-between items-center border-b-4 border-black pb-8 mb-8">
-            <div><h1 className="text-5xl font-black italic tracking-tighter text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2">טופס הזמנת עבודה - {new Date().toLocaleDateString('he-IL')}</p></div>
+            <div><h1 className="text-5xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2">טופס הזמנת עבודה - {new Date().toLocaleDateString('he-IL')}</p></div>
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover" alt="logo" />
           </div>
           <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-6 border-2 border-black shadow-lg">
-            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרויקט</p><p className="text-2xl font-black">{editCrm.projectName || "פרויקט כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={16}/> {editCrm.projectAddress || "נא להזין כתובת"}</p></div>
+            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרויקט</p><p className="text-2xl font-black">{editCrm.projectName || "פרויקט כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={16}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
             <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרטי לקוח</p><p className="text-xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
           <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
@@ -249,16 +247,17 @@ export default function App() {
                   <span className="flex-1 font-medium">{m.text}</span><span className="w-40 border-b-2 border-black h-8"></span>
                 </div>
               ))}
+              {selectedMsgIds.length === 0 && <p className="m-auto opacity-30 italic">לא נבחרו הודעות להדפסה.</p>}
             </div>
           </div>
-          <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic text-sm text-slate-600 uppercase font-black">
+          <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black font-black uppercase italic opacity-80 text-sm">
             <div>חתימת מנהל פרויקט</div>
             <div>אישור מחסן ח. סבן</div>
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black">חזור</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl flex items-center gap-2"><Printer size={22}/> הדפס</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all">חזור</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2"><Printer size={22}/> הדפס</button>
         </div>
     </div>
   );
@@ -283,35 +282,30 @@ export default function App() {
             ].map((btn: any) => (
               <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-500 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10 hover:text-emerald-400'}`}>
                 <btn.icon size={26} />
-                <span className="absolute right-20 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">{btn.label}</span>
               </button>
             ))}
           </nav>
           <div className="flex flex-col items-center gap-4 mt-auto">
-             {/* חיווי סטטוס שרת עם דופק חי */}
              <div onClick={forceSync} className="flex flex-col items-center gap-1 group cursor-pointer hover:scale-110 transition-all">
                 <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]'}`} />
                 <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>
                    {isTrulyOnline ? 'LIVE' : 'DEAD'}
                 </span>
              </div>
-             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
              </button>
           </div>
         </aside>
       )}
 
-      {/* 2. רשימת פניות עם חיפוש */}
+      {/* 2. רשימת פניות */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-85 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
                 <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                <div className="flex items-center gap-2">
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white animate-pulse shadow-md'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
-                    <button onClick={forceSync} className="text-slate-400 hover:text-emerald-500 transition-colors"><RefreshCw size={14}/></button>
-                </div>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -335,7 +329,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* 3. Main Operational Workspace */}
+      {/* 3. Main Workspace */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         {selectedCustomer && activeTab === 'HUB' ? (
           <div className="flex-1 flex flex-col h-full">
@@ -371,17 +365,17 @@ export default function App() {
 
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
               {!isTrulyOnline && (
-                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl"><AlertCircle size={20}/> שרת ה-Bridge במשרד לא מגיב. דופק אחרון: {new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL')}</div>
+                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase">JONI Bridge Error - Check your office computer</div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[2.8rem] border transition-all ${inputBg} shadow-2xl`}>
                 <button onClick={handlePhotoUpdate} className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={28}/></button>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט (יכבה AI אוטומטית)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
                 <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2><p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v5.7</p></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2><p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v6.0</p></div>
         )}
       </main>
 
@@ -412,6 +406,20 @@ export default function App() {
                 </div>
              </div>
              <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 uppercase tracking-widest text-base">{isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Unify Card</>}</button>
+             <div className={`mt-6 p-6 rounded-3xl border-2 border-dashed flex items-center justify-between ${isTrulyOnline ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600' : 'border-red-500/20 bg-red-500/5 text-red-600 animate-pulse'}`}>
+                <div className="flex items-center gap-3">
+                   <Heart size={20} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} />
+                   <div className="text-xs font-black uppercase tracking-widest">JONI PULSE</div>
+                </div>
+                <div className="text-right flex flex-col">
+                   <div className="text-[10px] font-mono font-bold">
+                      נראה: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'}
+                   </div>
+                   <div className="text-[8px] opacity-60">
+                      איחור: {(timeDiff/1000).toFixed(1)}s
+                   </div>
+                </div>
+             </div>
           </div>
         </aside>
       )}
