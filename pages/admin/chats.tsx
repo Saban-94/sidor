@@ -32,7 +32,7 @@ export default function App() {
   const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0, qr: null as string | null });
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showQrModal, setShowQrModal] = useState(false);
-  const [showDiagnostics, setShowDiagnostics] = useState(true); // תמיד דלוק כשיש תקלות
+  const [showDiagnostics, setShowDiagnostics] = useState(true); 
   
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -61,7 +61,7 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. האזנה לסטטוס שרת
+    // 1. 🔥 יישור נתיב סטטוס (לפי הצילום מסך שלך - saban94/status)
     onValue(ref(dbRT, 'saban94/status'), (snap) => {
       const data = snap.val();
       if (data) {
@@ -70,8 +70,8 @@ export default function App() {
       }
     });
 
-    // 2. 🔥 מלשינון תעבורה אגרסיבי (מאזין לכל הוספת ילד ב-Incoming)
-    const incomingRef = ref(dbRT, 'saban94/incoming');
+    // 2. 🔥 מלשינון תעבורה - נתיב מתוקן ל-rami/incoming
+    const incomingRef = ref(dbRT, 'rami/incoming');
     const unsubIncoming = onChildAdded(incomingRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -79,24 +79,23 @@ export default function App() {
                 ...data, 
                 id: snapshot.key, 
                 time: Date.now(),
-                status: 'DETECTED'
+                status: 'RECEIVED'
             }, ...prev].slice(0, 20));
         }
     });
 
-    // 3. מד עומס בצינור השליחה
-    onValue(ref(dbRT, 'saban94/outgoing'), (snap) => {
+    // 3. 🔥 מד עומס שליחה - נתיב מתוקן ל-rami/outgoing
+    onValue(ref(dbRT, 'rami/outgoing'), (snap) => {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
 
-    // 4. טעינת לקוחות עם לוגיקת "זיהוי רדומים"
+    // 4. טעינת לקוחות מ-Firestore
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), orderBy('lastUpdated', 'desc'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
       
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
-          // חישוב שקט (Inactivity) - מעל 12 שעות לצרכי טסט
           const lastActivity = curr.lastMessageAt?.seconds ? curr.lastMessageAt.seconds * 1000 : 0;
           const isInactive = (Date.now() - lastActivity) > (12 * 60 * 60 * 1000); 
           
@@ -114,7 +113,7 @@ export default function App() {
     };
   }, []);
 
-  // סנכרון צ'אט וכרטיס לקוח
+  // סנכרון צ'אט
   useEffect(() => {
     if (!selectedCustomer) return;
 
@@ -127,7 +126,6 @@ export default function App() {
       photo: selectedCustomer.photo || ''
     });
 
-    // האזנה להיסטוריה ב-Firestore (כל הודעה שתגיע מהשרת ל-Firestore תופיע כאן)
     const unsubHistory = onSnapshot(query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'), limit(100)), (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -145,10 +143,10 @@ export default function App() {
     setChatInput('');
 
     try {
-      // השתלטות ידנית
       await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
       
-      await push(ref(dbRT, 'saban94/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
+      // 🔥 שליחה לנתיב rami/outgoing
+      await push(ref(dbRT, 'rami/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
 
       await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-control' 
@@ -159,9 +157,9 @@ export default function App() {
   const resetToAiMenu = async () => {
     if (!selectedCustomer) return;
     await updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: 'MENU', lastUpdated: serverTimestamp() });
-    await push(ref(dbRT, 'saban94/outgoing'), { 
+    await push(ref(dbRT, 'rami/outgoing'), { 
         number: selectedCustomer.id, 
-        message: "סנכרון תפריט הופעל. ה-AI חזר להאזנה...",
+        message: "איתחול תפריט AI בוצע. המערכת חוזרת למענה אוטומטי...",
         timestamp: Date.now() 
     });
   };
@@ -206,22 +204,22 @@ export default function App() {
           </div>
           <div className="relative">
             <Search className="absolute right-3 top-3 text-slate-500" size={16}/>
-            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש מנהל פרויקט..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="חיפוש לקוח..." className="w-full bg-black/20 p-3 pr-10 rounded-xl border-none outline-none text-sm font-bold shadow-inner" />
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar bg-black/5">
           {filtered.map(c => (
               <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all border-2 ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg' : 'border-transparent hover:bg-white/5'}`}>
-                <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative border border-white/5">
+                <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative">
                   {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-3 text-slate-500" size={20}/>}
-                  {c.isInactive && <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-slate-500 rounded-full border-2 border-[#0f172a] shadow-sm" title="רדום"></div>}
-                  {c.botState === 'HUMAN_RAMI' && <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-[#0f172a] shadow-sm" title="שליטה ידנית"></div>}
+                  {c.isInactive && <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-slate-500 rounded-full border-2 border-[#0f172a]" title="רדום"></div>}
+                  {c.botState === 'HUMAN_RAMI' && <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-[#0f172a]" title="ידני"></div>}
                 </div>
                 <div className="text-right flex-1 overflow-hidden">
                   <div className="text-sm font-black truncate">{c.name || "לקוח"}</div>
                   <div className="text-[10px] opacity-40 font-mono mt-1 flex items-center gap-2 italic">
-                      {c.isInactive ? 'רדום' : <span className="text-emerald-500">פעיל</span>} | {normalizeId(c.id)}
+                      {c.isInactive ? 'רדום' : <span className="text-emerald-500 font-bold">פעיל</span>} | {normalizeId(c.id)}
                   </div>
                 </div>
                 {c.botState !== 'HUMAN_RAMI' && <Bot size={14} className="text-emerald-500 animate-pulse" />}
@@ -244,14 +242,14 @@ export default function App() {
                     <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${selectedCustomer.botState === 'HUMAN_RAMI' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></span>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                            {selectedCustomer.botState === 'HUMAN_RAMI' ? 'Manual Takeover' : 'AI Active Engine'}
+                            {selectedCustomer.botState === 'HUMAN_RAMI' ? 'Manual Control' : 'AI Active Engine'}
                         </span>
                     </div>
                 </div>
               </div>
               <div className="flex gap-3">
                   <button onClick={resetToAiMenu} className="flex items-center gap-2 px-4 py-2 bg-purple-600/10 text-purple-400 border border-purple-500/20 rounded-xl text-xs font-black hover:bg-purple-600 hover:text-white transition-all shadow-sm">
-                      <RefreshCw size={14}/> איתחול תפריט AI
+                      <RefreshCw size={14}/> איתחול תפריט
                   </button>
                   <button onClick={() => updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { botState: selectedCustomer.botState === 'HUMAN_RAMI' ? 'MENU' : 'HUMAN_RAMI' })} className={`p-3 rounded-xl border-2 transition-all ${selectedCustomer.botState !== 'HUMAN_RAMI' ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
                       {selectedCustomer.botState !== 'HUMAN_RAMI' ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
@@ -259,23 +257,22 @@ export default function App() {
               </div>
             </header>
 
-            {/* 🕵️ מלשינון תעבורה גולמי (Terminal Mode) */}
+            {/* 🕵️ מלשינון תעבורה גולמי - נתיב rami/incoming */}
             <AnimatePresence>
                 {showDiagnostics && (
                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/90 backdrop-blur-md border-b border-white/10 overflow-hidden z-20 shadow-inner">
-                        <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                        <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
                             <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה נכנסת (Real-Time Raw Traffic)</p>
-                                <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black">SNIFFER ON</span>
+                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה (PATH: rami/incoming)</p>
+                                <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black">ACTIVE MONITOR</span>
                             </div>
-                            {incomingLogs.length === 0 && <p className="text-slate-600 italic animate-pulse">ממתין לתקשורת משרת הווצאפ (סריקה אחת)...</p>}
+                            {incomingLogs.length === 0 && <p className="text-slate-600 italic animate-pulse">ממתין לתעבורה בנתיב rami/incoming...</p>}
                             {incomingLogs.map((log, idx) => (
                                 <div key={log.id || idx} className="flex gap-4 border-b border-white/5 py-1 hover:bg-white/5 transition-colors">
                                     <span className="text-blue-500 font-bold">[{new Date(log.time).toLocaleTimeString()}]</span>
-                                    <span className="text-purple-400 font-black">FROM: {log.sender}</span>
-                                    <span className="text-emerald-500 font-bold">STATUS: {log.status}</span>
+                                    <span className="text-purple-400 font-black">SENDER: {log.sender}</span>
                                     <span className="text-slate-300 truncate italic flex-1">"{log.text}"</span>
-                                    <span className="text-slate-500 text-[8px]">{log.id}</span>
+                                    <span className="text-emerald-500 font-bold">{log.status}</span>
                                 </div>
                             ))}
                         </div>
@@ -297,7 +294,7 @@ export default function App() {
             </div>
 
             <footer className="p-6 bg-[#0f172a]/95 border-t border-white/5 flex gap-4 z-10 shadow-2xl">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה ללקוח (יכבה בוט אוטומטית)..." className="flex-1 bg-black/40 p-4 rounded-2xl border border-white/5 outline-none font-bold text-white focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner" />
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה לצינור..." className="flex-1 bg-black/40 p-4 rounded-2xl border border-white/5 outline-none font-bold text-white focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-inner" />
               <button onClick={handleSend} className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 hover:bg-emerald-500 shadow-emerald-500/20 transition-all"><Send className="rotate-180 -mr-1" size={28}/></button>
             </footer>
           </>
@@ -307,12 +304,12 @@ export default function App() {
                 <MessageCircle size={220} className="animate-pulse" />
                 <Bot size={80} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" />
               </div>
-              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">SABAN COMMAND<br/><span className="text-2xl text-emerald-500 tracking-[0.3em]">Operational Watchtower</span></h1>
+              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none text-slate-400">SABAN COMMAND<br/><span className="text-2xl text-emerald-500 tracking-[0.3em]">Operational Watchtower</span></h1>
           </div>
         )}
       </main>
 
-      {/* 4. CRM Sidebar - DNA LAB */}
+      {/* 4. CRM Sidebar */}
       {selectedCustomer && (
         <aside className={`w-[450px] flex flex-col p-8 border-r ${theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white'} overflow-y-auto no-scrollbar`}>
           <h3 className="font-black flex items-center gap-3 text-blue-400 text-xl tracking-tight mb-10 border-b border-white/5 pb-4 uppercase"><ShieldCheck size={28}/> DNA & CRM</h3>
@@ -323,15 +320,15 @@ export default function App() {
                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
                   <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer font-black text-xs uppercase text-white">החלף תמונה</div>
                 </div>
-                <input value={editCrm.name} onChange={e => setEditCrm({...editCrm, name: e.target.value})} className="bg-transparent border-none outline-none text-2xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500 rounded" placeholder="שם הלקוח" />
+                <input value={editCrm.name} onChange={e => setEditCrm({...editCrm, name: e.target.value})} className="bg-transparent border-none outline-none text-2xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500 rounded transition-all" placeholder="שם הלקוח" />
             </div>
 
-            <div className="grid gap-6">
-                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold text-white shadow-inner" /></div>
+            <div className="grid gap-6 text-white">
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner" /></div>
                 
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><Zap size={14}/> פקודות AI אישיות (DNA)</label>
-                    <textarea value={editCrm.dnaContext} onChange={e => setEditCrm({...editCrm, dnaContext: e.target.value})} rows={6} className="w-full bg-purple-500/5 p-4 rounded-2xl outline-none border border-purple-500/10 focus:border-purple-500 font-bold text-xs resize-none leading-relaxed text-slate-200 shadow-inner" placeholder="תכנת את הבוט ללקוח זה..." />
+                    <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><Zap size={14}/> פקודות DNA אישיות</label>
+                    <textarea value={editCrm.dnaContext} onChange={e => setEditCrm({...editCrm, dnaContext: e.target.value})} rows={6} className="w-full bg-purple-500/5 p-4 rounded-2xl outline-none border border-purple-500/10 focus:border-purple-500 font-bold text-xs resize-none leading-relaxed shadow-inner" placeholder="תכנת את הבוט ללקוח זה..." />
                 </div>
             </div>
 
@@ -352,7 +349,7 @@ export default function App() {
             {selectedCustomer.isInactive && (
                 <div className="p-4 bg-amber-500/10 border-2 border-dashed border-amber-500/30 rounded-2xl flex items-center gap-4 text-amber-500">
                     <AlertCircle size={24} className="shrink-0"/>
-                    <div className="text-xs font-bold leading-tight">לקוח רדום (מעל 12 שעות). הודעה נכנסת תקפיץ תפריט AI אוטומטי.</div>
+                    <div className="text-xs font-bold leading-tight">לקוח רדום (12+ שעות). הודעה נכנסת תקפיץ תפריט AI אוטומטי.</div>
                 </div>
             )}
 
@@ -371,14 +368,13 @@ export default function App() {
                 <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
-                <p className="text-slate-500 font-bold mb-8 text-sm">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden shadow-inner">
+                <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
                     ) : (
                         <div className="flex flex-col items-center gap-4 text-slate-400">
                             <Activity size={48} className="animate-spin text-amber-500" />
-                            <span className="text-xs font-black uppercase">Generating...</span>
+                            <span className="text-xs font-black uppercase tracking-widest">Generating Secure QR...</span>
                         </div>
                     )}
                 </div>
