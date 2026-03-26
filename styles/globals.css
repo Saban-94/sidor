@@ -22,7 +22,7 @@
   html, body {
     @apply h-full m-0 p-0 overflow-hidden;
     direction: rtl;
-    background-color: var(--color-saban-dark);
+    background-color: #0B141A;
   }
 
   * {
@@ -30,20 +30,27 @@
   }
 }
 
-.glass {
-  @apply bg-glass backdrop-blur-glass border border-white/10 shadow-glass;
+@layer components {
+  .glass {
+    @apply border border-white/10;
+    background-color: rgba(11, 20, 26, 0.5);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+
+  .terminal {
+    @apply font-mono text-xs leading-relaxed text-saban-emerald;
+  }
+
+  .chat-container {
+    background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+    background-blend-mode: overlay;
+    background-color: rgba(11, 20, 26, 0.95);
+  }
 }
 
-.terminal {
-  @apply font-mono text-xs leading-relaxed text-saban-emerald;
-}
-
-.chat-container {
-  background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
-  background-blend-mode: overlay;
-  background-color: rgba(11, 20, 26, 0.95);
-}
-
-input:focus, button:focus {
-  outline: none;
+@layer utilities {
+  input:focus, button:focus {
+    outline: none;
+  }
 }
