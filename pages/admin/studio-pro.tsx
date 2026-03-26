@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { getDatabase, ref, push, onValue } from 'firebase/database';
+import { getDatabase, ref, push, onValue, set } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
   BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,14 +27,15 @@ const dbRT = getDatabase(app);
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default function App() {
-  // --- ניהול תצוגה ומערכת ---
+  // --- ניהול מערכת ---
   const [activeTab, setActiveTab] = useState<'HUB' | 'CRM' | 'FLOW' | 'INVENTORY' | 'DISPATCH' | 'MASTER'>('HUB');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isMobile, setIsMobile] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isServerOnline, setIsServerOnline] = useState(false);
+  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0 });
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   // --- נתוני ליבה ---
   const [customers, setCustomers] = useState<any[]>([]);
@@ -57,11 +58,13 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- 🔥 לוגיקת נורמליזציה (המפתח לאיחוד משתמשים) ---
+  // 🔥 חישוב "חי באמת" - אם השרת שלח Heartbeat בדקה האחרונה
+  const isTrulyOnline = serverStatus.online && (currentTime - serverStatus.lastSeen < 65000);
+
+  // --- עזר: איחוד זהויות (UID) ---
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
-    // זיהוי לפי 9 ספרות אחרונות (ה-DNA של עלי)
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
@@ -72,22 +75,24 @@ export default function App() {
     checkSize();
     window.addEventListener('resize', checkSize);
 
+    // עדכון זמן מקומי כל 10 שניות לבדיקת הדופק
+    const timer = setInterval(() => setCurrentTime(Date.now()), 10000);
+
     // סטטוס שרת JONI בלייב מה-RTDB
     const statusRef = ref(dbRT, 'saban94/status');
     const unsubStatus = onValue(statusRef, (snap) => {
-      setIsServerOnline(snap.val()?.online || false);
+      const data = snap.val();
+      if (data) setServerStatus({ online: data.online, lastSeen: data.lastSeen });
     });
 
     // טעינת לקוחות מאוחדים (זהויות) מ-Firestore
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(200)), (snap) => {
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const unifiedMap = new Map();
       
       raw.forEach((curr: any) => {
           const uid = normalizeId(curr.id);
           const existing = unifiedMap.get(uid);
-          
-          // אסטרטגיית איחוד: נשמור את הכרטיס עם השם או הפרויקט המפורט יותר
           if (!existing || (!existing.projectName && curr.projectName) || (!existing.photo && curr.photo)) {
               unifiedMap.set(uid, { ...curr, uid });
           }
@@ -106,6 +111,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('resize', checkSize);
+      clearInterval(timer);
       unsubStatus();
       unsubCust();
       unsubFlow();
@@ -151,14 +157,12 @@ export default function App() {
     if (isAiActive) setIsAiActive(false);
 
     try {
-      // שליחה לצינור RTDB של JONI
       await push(ref(dbRT, 'saban94/outgoing'), { 
         number: selectedCustomer.id, 
         message: txt, 
         timestamp: Date.now() 
       });
 
-      // תיעוד ב-Firestore תחת הזהות הנבחרת
       await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
         text: txt, 
         type: 'out', 
@@ -248,7 +252,7 @@ export default function App() {
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
 
-          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black">
+          <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black shadow-lg">
             <div className="space-y-2">
               <p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">יעד פרויקט</p>
               <p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p>
@@ -334,8 +338,15 @@ export default function App() {
           </nav>
 
           <div className="flex flex-col items-center gap-4 mt-auto">
-             <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isServerOnline ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]'}`} title={isServerOnline ? "Server Live" : "Server Dead"}></div>
-             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all">
+             {/* 🔥 חיווי סטטוס שרת חכם (דופק אמיתי) */}
+             <div className="flex flex-col items-center gap-1 group cursor-help">
+                <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_15px_#ef4444]'}`} />
+                <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>
+                   {isTrulyOnline ? 'LIVE' : 'DEAD'}
+                </span>
+             </div>
+             
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
              </button>
           </div>
@@ -348,7 +359,7 @@ export default function App() {
           <header className="p-7 border-b border-inherit bg-emerald-500/5 flex flex-col gap-5">
             <div className="flex justify-between items-center">
                 <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><MessageCircle size={18} className="text-emerald-500"/> צ'אט JONI</h2>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isServerOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{isServerOnline ? 'Live' : 'Offline'}</span>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isTrulyOnline ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white animate-pulse shadow-md'}`}>{isTrulyOnline ? 'Live' : 'Sync-Error'}</span>
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
@@ -390,7 +401,7 @@ export default function App() {
                 <div>
                   <h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2>
                   <p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
                     {normalizeId(selectedCustomer.id)} | UNIFIED CONTROL
                   </p>
                 </div>
@@ -413,10 +424,10 @@ export default function App() {
 
             <div ref={scrollRef} className={`flex-1 overflow-y-auto p-12 flex flex-col gap-6 scroll-smooth no-scrollbar ${chatAreaBg}`} style={{backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: theme === 'dark' ? 'soft-light' : 'overlay'}}>
               {messages.map((m, i) => (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={m.id || i} 
+                <motion.div initial={{ opacity: 0, x: m.type === 'in' ? 20 : -20 }} animate={{ opacity: 1, x: 0 }} key={m.id || i} 
                     onClick={() => isSelectionMode && toggleSelection(m.id)}
                     className={`flex flex-col max-w-[75%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'} ${isSelectionMode ? 'cursor-pointer hover:scale-[1.02]' : ''} transition-transform`}>
-                  <div className={`p-6 rounded-[2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-950/20'}`}>
+                  <div className={`p-6 rounded-[2rem] shadow-2xl text-[14px] relative border leading-relaxed ${m.type === 'in' ? (theme === 'dark' ? 'bg-[#202c33] border-none text-slate-200 rounded-tr-none shadow-black/20' : 'bg-white border-none text-slate-800 rounded-tr-none') : 'bg-[#005c4b] text-white border-none rounded-tl-none shadow-emerald-950/20'}`}>
                     {isSelectionMode && (
                       <div className={`absolute -top-3 -right-3 w-7 h-7 rounded-full flex items-center justify-center shadow-2xl border-4 border-[#0b141a] ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white scale-110' : 'bg-slate-700 text-slate-400 opacity-50'}`}>
                         <CheckCircle2 size={16}/>
@@ -425,7 +436,7 @@ export default function App() {
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">
                       {m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצת הזמנות' : 'פרטי'}
                     </div>
-                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="img" />}
+                    {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl border border-white/5" alt="img" />}
                     <div className="whitespace-pre-wrap font-bold tracking-tight">{m.text}</div>
                     <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}>
                       <Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}
@@ -441,9 +452,10 @@ export default function App() {
               )}
             </div>
 
+            {/* Input Bar */}
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
-              {!isServerOnline && (
-                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3"><AlertCircle size={20}/> שרת ה-Bridge במחשב שלך למטה. וודא ש-PM2 רץ ו-whatsapp-server מחובר.</div>
+              {!isTrulyOnline && (
+                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl"><AlertCircle size={20}/> שרת ה-Bridge במשרד לא מגיב. דופק אחרון: {new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL')}</div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[3rem] border transition-all ${inputBg} shadow-2xl`}>
                 <button className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={30}/></button>
@@ -470,7 +482,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- 4. CRM Sidebar - ניהול זהות מאוחדת --- */}
+      {/* --- 4. CRM Sidebar - Identity Management --- */}
       {!isMobile && selectedCustomer && (activeTab === 'CRM' || activeTab === 'HUB') && (
         <aside className={`w-[500px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center">
@@ -498,10 +510,19 @@ export default function App() {
                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest"><Phone size={14}/> נייד</label><input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-6 rounded-[2rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} /></div>
                 </div>
              </div>
-             {/* 🔥 תיקון שגיאת ה-Build: שם הפונקציה המדויק הוא saveCustomerCard */}
              <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-8 rounded-[3rem] shadow-[0_30px_80px_rgba(37,99,235,0.5)] active:scale-95 transition-all flex items-center justify-center gap-6 mt-8 uppercase tracking-widest text-xl">
                 {isSaving ? <Activity size={32} className="animate-spin"/> : <><Save size={32}/> Sync Supreme Card</>}
              </button>
+             {/* 🔥 דופק שרת JONI LIVE אמיתי */}
+             <div className={`mt-6 p-6 rounded-3xl border-2 border-dashed flex items-center justify-between ${isTrulyOnline ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 shadow-inner' : 'border-red-500/20 bg-red-500/5 text-red-600 animate-pulse'}`}>
+                <div className="flex items-center gap-3">
+                   <Heart size={20} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} />
+                   <div className="text-xs font-black uppercase tracking-widest">JONI PULSE: {isTrulyOnline ? 'STABLE' : 'ERROR'}</div>
+                </div>
+                <div className="text-[10px] font-mono font-bold">
+                   דופק אחרון: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'}
+                </div>
+             </div>
           </div>
         </aside>
       )}
