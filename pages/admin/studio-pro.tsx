@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { getDatabase, ref, push, onValue, set, off } from 'firebase/database';
+import { getDatabase, ref, push, onValue, set, off, remove } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
   Sparkles, Smile, MessageCircle, Save, Activity,
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
   BrainCircuit, Plus, Trash2, Settings, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart, RefreshCw
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge, CheckCircle2, Wifi, WifiOff, AlertCircle, Heart, RefreshCw, QrCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,25 +34,20 @@ export default function App() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0 });
+  const [serverStatus, setServerStatus] = useState({ online: false, lastSeen: 0, qr: null as string | null });
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [syncRetryCount, setSyncRetryCount] = useState(0);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // --- נתוני ליבה ---
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [globalDNA, setGlobalDNA] = useState<string>('');
   
-  // --- צ'אט וניהול AI ---
-  const [chatInput, setChatInput] = useState<string>('');
   const [isAiActive, setIsAiActive] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- CRM States ---
   const [editCrm, setEditCrm] = useState<any>({ 
     comaxId: '', projectName: '', projectAddress: '', contactName: '', contactPhone: '', photo: '' 
   });
@@ -70,12 +65,6 @@ export default function App() {
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // --- עיצובים דינמיים ---
-  const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
-  const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
-  const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
-  const chatAreaBg = theme === 'dark' ? 'bg-[#0b141a]' : 'bg-[#efeae2]';
-
   // --- טעינת נתונים ראשונית ---
   useEffect(() => {
     document.title = "Saban Hub Command | JONI Pipe";
@@ -85,10 +74,15 @@ export default function App() {
 
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
 
+    // סטטוס שרת JONI + הברקוד
     const statusRef = ref(dbRT, 'saban94/status');
     const unsubStatus = onValue(statusRef, (snap) => {
       const data = snap.val();
-      if (data) setServerStatus({ online: data.online, lastSeen: data.lastSeen });
+      if (data) {
+        setServerStatus({ online: data.online, lastSeen: data.lastSeen, qr: data.qr || null });
+        if (data.qr && !isTrulyOnline) setShowQrModal(true);
+        if (data.online) setShowQrModal(false);
+      }
     });
 
     const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
@@ -110,7 +104,7 @@ export default function App() {
       unsubStatus();
       unsubCust();
     };
-  }, [syncRetryCount]);
+  }, []);
 
   // טעינת היסטוריה
   useEffect(() => {
@@ -131,7 +125,7 @@ export default function App() {
     }, (err) => console.error("Sync Error:", err));
 
     return () => unsubHistory();
-  }, [selectedCustomer?.id, syncRetryCount]);
+  }, [selectedCustomer?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -142,9 +136,16 @@ export default function App() {
   // --- פונקציות ביצוע ---
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  const forceSync = () => {
-    setSyncRetryCount(prev => prev + 1);
-    alert("מרענן מאזיני נתונים מול JONI...");
+  const handleResetConnection = async () => {
+      if (window.confirm("זה ינתק את המכשיר הנוכחי וידרוש סריקה מחדש. להמשיך?")) {
+          await set(ref(dbRT, 'saban94/status'), { 
+              online: false, 
+              lastSeen: Date.now(), 
+              qr: null,
+              reset_command: true 
+          });
+          alert("פקודת איפוס נשלחה למשרד. המתן להופעת ברקוד חדש.");
+      }
   };
 
   const handleSend = async () => {
@@ -154,26 +155,11 @@ export default function App() {
     if (isAiActive) setIsAiActive(false);
 
     try {
-      await push(ref(dbRT, 'saban94/outgoing'), { 
-        number: selectedCustomer.id, 
-        message: txt, 
-        timestamp: Date.now() 
-      });
-
+      await push(ref(dbRT, 'saban94/outgoing'), { number: selectedCustomer.id, message: txt, timestamp: Date.now() });
       await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-rami'
       });
     } catch (err: any) { console.error(err.message); }
-  };
-
-  const handlePhotoUpdate = async () => {
-    const newUrl = prompt("הכנס לינק לתמונה (URL):", editCrm.photo);
-    if (!newUrl || !selectedCustomer) return;
-    setIsSaving(true);
-    try {
-      await updateDoc(doc(dbFS, 'customers', selectedCustomer.id), { photo: newUrl });
-      setEditCrm((prev: any) => ({ ...prev, photo: newUrl }));
-    } catch (e: any) { console.error(e.message); } finally { setIsSaving(false); }
   };
 
   const saveCustomerCard = async () => {
@@ -217,16 +203,16 @@ export default function App() {
     }
   };
 
-  const toggleMessageSelection = (id: string) => {
-    if (!isSelectionMode) return;
-    setSelectedMsgIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  };
-
   const filteredCustomers = customers.filter(c => 
     (c.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (c.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (c.id || '').includes(searchTerm)
   );
+
+  const themeClass = theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-800';
+  const sidebarBg = theme === 'dark' ? 'bg-[#0f172a] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl';
+  const inputBg = theme === 'dark' ? 'bg-[#2a3942] border-none' : 'bg-white border-slate-200 shadow-inner';
+  const chatAreaBg = theme === 'dark' ? 'bg-[#0b141a]' : 'bg-[#efeae2]';
 
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto shadow-inner" dir="rtl">
@@ -247,7 +233,6 @@ export default function App() {
                   <span className="flex-1 font-medium">{m.text}</span><span className="w-40 border-b-2 border-black h-8"></span>
                 </div>
               ))}
-              {selectedMsgIds.length === 0 && <p className="m-auto opacity-30 italic">לא נבחרו הודעות להדפסה.</p>}
             </div>
           </div>
           <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black font-black uppercase italic opacity-80 text-sm">
@@ -276,7 +261,6 @@ export default function App() {
               { id: 'HUB', icon: MessageCircle, label: 'JONI HUB' },
               { id: 'CRM', icon: Users, label: 'זהויות ואיחוד' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
-              { id: 'INVENTORY', icon: PackageSearch, label: 'מלאי טכני' },
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
@@ -286,13 +270,21 @@ export default function App() {
             ))}
           </nav>
           <div className="flex flex-col items-center gap-4 mt-auto">
-             <div onClick={forceSync} className="flex flex-col items-center gap-1 group cursor-pointer hover:scale-110 transition-all">
+             {/* כפתור ברקוד דיגיטלי */}
+             <button 
+                onClick={() => setShowQrModal(true)} 
+                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${serverStatus.qr ? 'bg-amber-500 text-white animate-bounce shadow-lg shadow-amber-500/20' : 'text-slate-500'}`}
+                title="סריקת ברקוד"
+             >
+                <QrCode size={24} />
+             </button>
+             <div onClick={handleResetConnection} className="flex flex-col items-center gap-1 group cursor-pointer hover:scale-110 transition-all">
                 <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_12px_#ef4444]'}`} />
                 <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>
                    {isTrulyOnline ? 'LIVE' : 'DEAD'}
                 </span>
              </div>
-             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all">
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
              </button>
           </div>
@@ -336,8 +328,7 @@ export default function App() {
             <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20 relative group">
-                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
-                  <div onClick={handlePhotoUpdate} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"><ImageIcon className="text-white" size={20}/></div>
+                  <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                 </div>
                 <div><h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{normalizeId(selectedCustomer.id)} | UNIFIED HUB</p></div>
               </div>
@@ -368,14 +359,13 @@ export default function App() {
                   <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase">JONI Bridge Error - Check your office computer</div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[2.8rem] border transition-all ${inputBg} shadow-2xl`}>
-                <button onClick={handlePhotoUpdate} className="p-3 text-slate-500 hover:text-emerald-500 transition-all hover:scale-125"><ImageIcon size={28}/></button>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="הקש הודעה לניהול פרויקט (השתלטות ידנית)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" />
                 <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2><p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v6.0</p></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
         )}
       </main>
 
@@ -385,9 +375,9 @@ export default function App() {
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center"><h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת</h2><button onClick={handleMergeManual} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg"><Merge size={14}/> איחוד ומחיקה</button></header>
           <div className="flex-1 overflow-y-auto p-10 space-y-10 no-scrollbar">
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
-                <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all">
+                <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-2xl border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all">
                    <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
-                   <button onClick={handlePhotoUpdate} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3"><ImageIcon size={28}/><span className="text-[11px] font-black uppercase tracking-[0.2em]">החלף תמונה</span></button>
+                   <button onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3"><ImageIcon size={28}/><span className="text-[11px] font-black uppercase tracking-[0.2em]">החלף תמונה</span></button>
                 </div>
                 <div className="text-center space-y-3">
                    <h3 className="text-3xl font-black italic tracking-tighter leading-none">{editCrm.contactName || selectedCustomer.name}</h3>
@@ -411,18 +401,38 @@ export default function App() {
                    <Heart size={20} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} />
                    <div className="text-xs font-black uppercase tracking-widest">JONI PULSE</div>
                 </div>
-                <div className="text-right flex flex-col">
-                   <div className="text-[10px] font-mono font-bold">
-                      נראה: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'}
-                   </div>
-                   <div className="text-[8px] opacity-60">
-                      איחור: {(timeDiff/1000).toFixed(1)}s
-                   </div>
+                <div className="text-right flex flex-col text-[10px] font-mono font-bold italic">
+                   נראה: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'} | {(timeDiff/1000).toFixed(1)}s
                 </div>
              </div>
           </div>
         </aside>
       )}
+
+      {/* --- QR MODAL --- */}
+      <AnimatePresence>
+        {showQrModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#020617]/90 backdrop-blur-xl">
+             <div className="bg-white rounded-[3rem] p-12 max-w-md w-full text-center shadow-2xl border-4 border-amber-500/30 relative">
+                <button onClick={() => setShowQrModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
+                <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-xl text-white animate-pulse"><QrCode size={48} /></div>
+                <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter mb-4">סנכרון ברקוד JONI</h2>
+                <p className="text-slate-500 font-bold mb-8 leading-relaxed">השרת במשרד ממתין לסריקת הברקוד החדש שלך. סרוק עכשיו כדי לחבר את הצינור חזרה.</p>
+                <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center">
+                    {serverStatus.qr ? (
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-lg rounded-xl border-4 border-white" alt="QR" />
+                    ) : (
+                        <div className="flex flex-col items-center gap-4 text-slate-400">
+                            <Activity size={40} className="animate-spin" />
+                            <span className="text-xs font-black uppercase">מייצר ברקוד חדש...</span>
+                        </div>
+                    )}
+                </div>
+                <button onClick={handleResetConnection} className="text-xs font-black text-red-500 uppercase tracking-widest hover:underline">לחץ כאן אם הברקוד לא משתנה</button>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {theme === 'dark' && <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[180px]"></div><div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px]"></div></div>}
     </div>
