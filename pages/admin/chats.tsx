@@ -46,7 +46,7 @@ export default function App() {
   const [sysConfig, setSysConfig] = useState({
     rtDbUrl: "https://whatsapp-8ffd1-default-rtdb.europe-west1.firebasedatabase.app/",
     callbackUrl: "",
-    msgDelay: 2, // שניות המתנה
+    msgDelay: 2,
     alwaysConnected: true
   });
 
@@ -63,13 +63,13 @@ export default function App() {
   };
 
   const timeDiff = currentTime - (serverStatus.lastSeen || 0);
-  const isTrulyOnline = serverStatus.online && (timeDiff < 60000);
+  const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
   const signalQuality = timeDiff < 10000 ? 'EXCELLENT' : timeDiff < 30000 ? 'GOOD' : timeDiff < 60000 ? 'WEAK' : 'DISCONNECTED';
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
     
-    // 1. סטטוס שרת (saban94/status)
+    // 1. 🔥 יישור נתיב סטטוס (לפי rtdb-saban94)
     onValue(ref(dbRT, 'saban94/status'), (snap) => {
       const data = snap.val();
       if (data) {
@@ -83,7 +83,7 @@ export default function App() {
         if (snap.exists()) setSysConfig(prev => ({ ...prev, ...snap.data() }));
     });
 
-    // 3. מלשינון תעבורה (rami/incoming)
+    // 3. 🔥 יישור מלשינון תעבורה נכנסת (נתיב: rami/incoming)
     const incomingRef = ref(dbRT, 'rami/incoming');
     const unsubIncoming = onChildAdded(incomingRef, (snapshot) => {
         const data = snapshot.val();
@@ -97,7 +97,7 @@ export default function App() {
         }
     });
 
-    // 4. תור שליחה (rami/outgoing)
+    // 4. 🔥 יישור תור שליחה (נתיב: rami/outgoing)
     onValue(ref(dbRT, 'rami/outgoing'), (snap) => {
         setQueueCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
@@ -149,14 +149,16 @@ export default function App() {
     setChatInput('');
     try {
       await updateDoc(doc(dbFS, 'customers', targetId), { botState: 'HUMAN_RAMI', lastUpdated: serverTimestamp() });
+      
+      // 🔥 שליחה לנתיב rami/outgoing
       await push(ref(dbRT, 'rami/outgoing'), { number: targetId, message: txt, timestamp: Date.now() });
+      
       await setDoc(doc(collection(dbFS, 'customers', targetId, 'chat_history')), { 
         text: txt, type: 'out', timestamp: serverTimestamp(), source: 'manual-control' 
       });
     } catch (e) { console.error(e); }
   };
 
-  // 🔥 תיקון השגיאה: הוספת פונקציית saveProfile החסרה
   const saveProfile = async () => {
     if (!selectedCustomer) return;
     setIsSaving(true);
@@ -170,7 +172,6 @@ export default function App() {
     } catch (e) {
       console.error(e);
       setIsSaving(false);
-      alert("שגיאה בסנכרון הפרופיל.");
     }
   };
 
@@ -230,16 +231,12 @@ export default function App() {
                   <div className="p-4 bg-slate-900 rounded-2xl border border-white/5 space-y-4">
                       <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1"><Database size={10}/> Realtime Database URL</label>
-                          <input value={sysConfig.rtDbUrl} onChange={e => setSysConfig({...sysConfig, rtDbUrl: e.target.value})} className="w-full bg-black/40 p-3 rounded-lg text-[11px] font-mono outline-none border border-white/5 focus:border-blue-500" />
-                      </div>
-                      <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1"><Link2 size={10}/> Callback URL (Optional)</label>
-                          <input value={sysConfig.callbackUrl} onChange={e => setSysConfig({...sysConfig, callbackUrl: e.target.value})} placeholder="https://..." className="w-full bg-black/40 p-3 rounded-lg text-[11px] font-mono outline-none border border-white/5 focus:border-emerald-500" />
+                          <input value={sysConfig.rtDbUrl} onChange={e => setSysConfig({...sysConfig, rtDbUrl: e.target.value})} className="w-full bg-black/40 p-3 rounded-lg text-[11px] font-mono outline-none border border-white/5 focus:border-blue-500 text-white" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                               <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1"><Clock size={10}/> המתן (שניות)</label>
-                              <input type="number" value={sysConfig.msgDelay} onChange={e => setSysConfig({...sysConfig, msgDelay: Number(e.target.value)})} className="w-full bg-black/40 p-3 rounded-lg text-xs font-black outline-none border border-white/5 focus:border-amber-500" />
+                              <input type="number" value={sysConfig.msgDelay} onChange={e => setSysConfig({...sysConfig, msgDelay: Number(e.target.value)})} className="w-full bg-black/40 p-3 rounded-lg text-xs font-black outline-none border border-white/5 focus:border-amber-500 text-white" />
                           </div>
                           <div className="flex flex-col justify-end pb-1">
                               <button onClick={() => setSysConfig({...sysConfig, alwaysConnected: !sysConfig.alwaysConnected})} className={`p-3 rounded-lg text-[10px] font-black flex items-center justify-center gap-2 border transition-all ${sysConfig.alwaysConnected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500' : 'bg-slate-800 border-white/10 text-slate-400'}`}>
@@ -252,16 +249,15 @@ export default function App() {
                       </button>
                   </div>
 
-                  {/* לוג אירועי רשת */}
                   <div className="space-y-2">
-                      <p className="text-[10px] font-black text-slate-500 uppercase px-2">יומן אירועים אחרון</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase px-2">יומן אירועי רשת</p>
                       {incomingLogs.map((log, idx) => (
                           <div key={idx} className="p-3 bg-black/20 rounded-xl border border-white/5 text-[10px] leading-tight">
                               <div className="flex justify-between mb-1 opacity-60">
                                   <span className="font-black text-blue-400 uppercase">{log.status}</span>
                                   <span className="font-mono">{new Date(log.time).toLocaleTimeString()}</span>
                               </div>
-                              <p className="font-bold text-slate-300">הודעה מ-{log.sender}: "{log.text?.substring(0, 20)}..."</p>
+                              <p className="font-bold text-slate-300 truncate">מ-{log.sender}: "{log.text}"</p>
                           </div>
                       ))}
                   </div>
@@ -269,12 +265,12 @@ export default function App() {
           ) : (
             filtered.map(c => (
                 <button key={c.id} onClick={() => setSelectedCustomer(c)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all border-2 ${selectedCustomer?.id === c.id ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg' : 'border-transparent hover:bg-white/5'}`}>
-                  <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative border border-white/5 shadow-sm">
+                  <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 relative border border-white/5 shadow-sm text-white">
                     {c.photo ? <img src={c.photo} className="w-full h-full object-cover" /> : <Users className="m-auto mt-3 text-slate-500" size={20}/>}
                   </div>
                   <div className="text-right flex-1 overflow-hidden">
-                    <div className="text-sm font-black truncate">{c.name || "לקוח"}</div>
-                    <div className="text-[10px] opacity-40 font-mono mt-1 italic">{normalizeId(c.id)}</div>
+                    <div className="text-sm font-black truncate text-white">{c.name || "לקוח"}</div>
+                    <div className="text-[10px] opacity-40 font-mono mt-1 italic text-slate-400">{normalizeId(c.id)}</div>
                   </div>
                   {c.botState !== 'HUMAN_RAMI' && <Bot size={14} className="text-emerald-500 animate-pulse" />}
                 </button>
@@ -304,22 +300,19 @@ export default function App() {
               </div>
             </header>
 
-            {/* מלשינון תעבורה מעל הצ'אט */}
+            {/* 🔥 מלשינון תעבורה מעל הצ'אט - נתיב rami/incoming */}
             <AnimatePresence>
                 {showDiagnostics && (
                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-black/90 backdrop-blur-md border-b border-white/10 overflow-hidden z-20 shadow-inner">
                         <div className="p-4 font-mono text-[10px] space-y-1 max-h-48 overflow-y-auto">
                             <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה (rami/incoming)</p>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-slate-500">DELAY: {sysConfig.msgDelay}s</span>
-                                    <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black">SNIFFER ACTIVE</span>
-                                </div>
+                                <p className="text-amber-500 font-black uppercase flex items-center gap-2 tracking-widest"><Terminal size={14}/> מלשינון תעבורה (PATH: rami/incoming)</p>
+                                <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-black tracking-widest">LIVE SNIFFER</span>
                             </div>
                             {incomingLogs.map((log, idx) => (
                                 <div key={log.id || idx} className="flex gap-4 border-b border-white/5 py-1 hover:bg-white/5 transition-colors">
                                     <span className="text-blue-500">[{new Date(log.time).toLocaleTimeString()}]</span>
-                                    <span className="text-purple-400 font-black">SENDER: {log.sender}</span>
+                                    <span className="text-purple-400 font-black">FROM: {log.sender}</span>
                                     <span className="text-slate-300 truncate italic flex-1">"{log.text}"</span>
                                     <span className="text-emerald-500 font-bold">{log.status}</span>
                                 </div>
@@ -366,13 +359,13 @@ export default function App() {
             <div className="flex flex-col items-center gap-6">
                 <div className="w-36 h-36 rounded-[2.5rem] bg-slate-800 overflow-hidden border-4 border-emerald-500/20 shadow-2xl relative group">
                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
-                  <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer font-black text-xs uppercase text-white">החלף תמונה</div>
+                  <div onClick={() => {const u = prompt("URL?"); if(u) setEditCrm({...editCrm, photo: u})}} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center cursor-pointer font-black text-xs uppercase text-white">החלף תמונה</div>
                 </div>
                 <input value={editCrm.name} onChange={e => setEditCrm({...editCrm, name: e.target.value})} className="bg-transparent border-none outline-none text-2xl font-black text-white italic text-center w-full focus:ring-1 focus:ring-emerald-500 rounded transition-all" placeholder="שם הלקוח" />
             </div>
 
             <div className="grid gap-6 text-white">
-                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner" /></div>
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1"><CreditCard size={12}/> מספר קומקס</label><input value={editCrm.comaxId} onChange={e => setEditCrm({...editCrm, comaxId: e.target.value})} className="w-full bg-black/20 p-4 rounded-2xl outline-none border border-white/5 font-bold shadow-inner text-white" /></div>
                 
                 <div className="space-y-1">
                     <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><Zap size={14}/> פקודות DNA אישיות</label>
@@ -409,7 +402,7 @@ export default function App() {
                 <button onClick={() => setShowQrModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"><X size={32}/></button>
                 <div className="w-20 h-20 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl text-white"><QrCode size={40} /></div>
                 <h2 className="text-3xl font-black text-slate-900 italic mb-2 tracking-tighter uppercase">Connection Required</h2>
-                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
+                <p className="text-slate-500 font-bold mb-8 text-sm text-slate-600 text-center">השרת במשרד נותק. סרוק כדי לחבר את הצינור.</p>
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border-4 border-dashed border-slate-200 mb-8 aspect-square flex items-center justify-center overflow-hidden">
                     {serverStatus.qr ? (
                         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(serverStatus.qr)}`} className="w-full h-full shadow-2xl rounded-2xl transform hover:scale-105 transition-transform border-4 border-white" alt="QR" />
