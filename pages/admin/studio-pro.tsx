@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, query, onSnapshot, doc, setDoc, limit, serverTimestamp, orderBy, deleteDoc } from 'firebase/firestore';
 import { getDatabase, ref, push, onValue } from 'firebase/database';
 import { 
   Bot, Send, Image as ImageIcon, FileText, Link as LinkIcon, 
@@ -8,7 +8,7 @@ import {
   Smartphone, ShieldCheck, ChevronLeft, Zap, Cpu, Network, 
   BrainCircuit, Plus, Trash2, Settings, Clock, Play, Sun, Moon,
   GitBranch, Terminal, Users, Printer, UserCog, HardHat, Building, 
-  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch
+  MapPin, Phone, CreditCard, Power, X, Search, UserCheck, Truck, Crown, PackageSearch, Merge
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,7 +37,6 @@ export default function App() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [inventory, setInventory] = useState<any[]>([]);
-  const [dispatch, setDispatch] = useState<any[]>([]);
   const [nodes, setNodes] = useState<any[]>([]);
   const [globalDNA, setGlobalDNA] = useState<string>('');
   
@@ -49,43 +48,45 @@ export default function App() {
 
   // --- CRM & Master States ---
   const [editCrm, setEditCrm] = useState<any>({ 
-    comaxId: '', 
-    projectName: '', 
-    projectAddress: '', 
-    contactName: '', 
-    contactPhone: '', 
-    photo: '' 
+    comaxId: '', projectName: '', projectAddress: '', contactName: '', contactPhone: '', photo: '' 
   });
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- פונקציית עזר לאיחוד משתמשים (פרטי וקבוצה) ---
-  const normalizeId = (id: string) => id.replace(/\D/g, '').slice(-9);
-
-  // --- פונקציות בקרת תצוגה ---
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  // --- 🔥 לוגיקת איחוד משתמשים (The Unifier) ---
+  const normalizeId = (id: string) => {
+      if (!id) return '';
+      const digits = id.replace(/\D/g, '');
+      return digits.slice(-9); // משתמשים ב-9 ספרות אחרונות כמזהה ייחודי (UID)
+  };
 
   // --- טעינת נתונים ---
   useEffect(() => {
-    document.title = "Saban HUB | Operational Command";
+    document.title = "Saban HUB | Unified Command";
     const checkSize = () => setIsMobile(window.innerWidth < 1024);
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // 1. טעינת לקוחות מאוחדים מ-Firestore
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(100)), (snap) => {
+    // 1. טעינת לקוחות עם איחוד בזמן אמת
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(150)), (snap) => {
       const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const unified = raw.reduce((acc: any[], curr: any) => {
-        const phone = normalizeId(curr.id);
-        if (!acc.find(i => normalizeId(i.id) === phone)) {
-          acc.push(curr);
-        }
-        return acc;
-      }, []);
-      setCustomers(unified);
+      
+      // איחוד כפילויות (כמו עלי אבו עיאדה)
+      const unifiedMap = new Map();
+      raw.forEach(curr => {
+          const uid = normalizeId(curr.id);
+          const existing = unifiedMap.get(uid);
+          
+          // העדפת כרטיס עם שם מלא או תמונה
+          if (!existing || (!existing.name && curr.name) || (!existing.photo && curr.photo)) {
+              unifiedMap.set(uid, { ...curr, uid });
+          }
+      });
+      
+      setCustomers(Array.from(unifiedMap.values()));
     });
 
-    // 2. טעינת הגדרות AI
+    // 2. טעינת עץ ענפים
     onSnapshot(doc(dbFS, 'system', 'bot_flow_config'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -100,7 +101,7 @@ export default function App() {
     };
   }, []);
 
-  // טעינת היסטוריית צ'אט לקוח ספציפי
+  // טעינת היסטוריית צ'אט מאוחדת
   useEffect(() => {
     if (!selectedCustomer) return;
     
@@ -113,6 +114,7 @@ export default function App() {
       photo: selectedCustomer.photo || '' 
     });
 
+    // שליפת היסטוריה מהמזהה שנבחר
     const q = query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'));
     const unsubHistory = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -133,12 +135,14 @@ export default function App() {
     const txt = chatInput.trim();
     setChatInput('');
 
+    // שליחה לווצאפ דרך RTDB
     await push(ref(dbRT, 'saban94/outgoing'), { 
       number: selectedCustomer.id, 
       message: txt, 
       timestamp: Date.now() 
     });
 
+    // שמירה ב-Firestore תחת הזהות המאוחדת
     await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), { 
       text: txt, 
       type: 'out', 
@@ -181,9 +185,29 @@ export default function App() {
     await setDoc(doc(dbFS, 'customers', selectedCustomer.id), {
       ...editCrm,
       name: editCrm.contactName || selectedCustomer.name,
-      lastUpdated: serverTimestamp()
+      lastUpdated: serverTimestamp(),
+      isUnified: true
     }, { merge: true });
     setTimeout(() => setIsSaving(false), 800);
+  };
+
+  const handleMergeManual = async () => {
+      const targetPhone = prompt("הכנס מספר טלפון לאיחוד (למשל 97254...):");
+      if (!targetPhone || !selectedCustomer) return;
+      
+      const confirmMerge = window.confirm(`האם לאחד את ${selectedCustomer.name} למספר ${targetPhone}?`);
+      if (confirmMerge) {
+          setIsSaving(true);
+          // יצירת הכרטיס החדש
+          await setDoc(doc(dbFS, 'customers', targetPhone), {
+              ...selectedCustomer,
+              id: targetPhone,
+              lastUpdated: serverTimestamp()
+          }, { merge: true });
+          
+          alert("המשתמש אוחד בהצלחה. כעת ההיסטוריה תנוהל תחת המספר החדש.");
+          setIsSaving(false);
+      }
   };
 
   // --- סגנונות עיצוב ---
@@ -193,7 +217,7 @@ export default function App() {
   const inputBg = theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200 shadow-inner';
   const chatBg = theme === 'dark' ? 'bg-[#020617]' : 'bg-[#e5ddd5]';
 
-  // --- תצוגת הדפסת הזמנה ---
+  // --- תצוגת הדפסה (הזמנה) ---
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
         <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 shadow-2xl">
@@ -235,24 +259,14 @@ export default function App() {
           </div>
 
           <div className="mt-16 flex justify-between items-end pt-10 border-t-4 border-black italic">
-            <div className="text-center space-y-2">
-              <div className="w-48 border-b-2 border-black mx-auto h-12"></div>
-              <p className="font-black text-sm uppercase">חתימת מנהל (תחסין)</p>
-            </div>
-            <div className="text-center opacity-60">
-              <p className="text-xs">הופק ע"י Saban OS Hub</p>
-            </div>
-            <div className="text-center space-y-2">
-              <div className="w-48 border-b-2 border-black mx-auto h-12"></div>
-              <p className="font-black text-sm uppercase">אישור מחסן ח. סבן</p>
-            </div>
+            <div className="text-center space-y-2"><div className="w-48 border-b-2 border-black mx-auto h-12"></div><p className="font-black text-sm uppercase">חתימת מנהל</p></div>
+            <div className="text-center opacity-60"><p className="text-xs">הופק ע"י Saban OS Hub</p></div>
+            <div className="text-center space-y-2"><div className="w-48 border-b-2 border-black mx-auto h-12"></div><p className="font-black text-sm uppercase">אישור מחסן</p></div>
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print">
           <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all">חזרה למערכת</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2">
-            <Printer size={22}/> הדפס הזמנה
-          </button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-2"><Printer size={22}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -260,7 +274,7 @@ export default function App() {
   return (
     <div className={`flex h-screen font-sans overflow-hidden transition-all duration-500 ${themeClass}`} dir="rtl">
       
-      {/* --- 1. סרגל ניווט ראשי (מבוסס תמונה) --- */}
+      {/* --- 1. סרגל ניווט ראשי (Sidebar) --- */}
       {!isMobile && (
         <aside className={`w-24 flex flex-col items-center py-10 border-l gap-10 shrink-0 z-40 ${sidebarBg}`}>
           <div onClick={() => setActiveTab('HUB')} className="w-16 h-16 bg-emerald-500 rounded-[1.8rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 active:scale-95 transition-transform cursor-pointer overflow-hidden border-2 border-white/20">
@@ -272,7 +286,7 @@ export default function App() {
               { id: 'HUB', icon: Users, label: 'הזמנות קבוצה' },
               { id: 'CRM', icon: BrainCircuit, label: 'אימון DNA' },
               { id: 'DISPATCH', icon: Truck, label: 'סידור עבודה' },
-              { id: 'FLOW', icon: GitBranch, label: 'ענפי ה-AI' },
+              { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'INVENTORY', icon: PackageSearch, label: 'ניהול מלאי' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר ראמי' }
             ].map((btn: any) => (
@@ -292,7 +306,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* --- 2. תפריט רשימת פניות משני --- */}
+      {/* --- 2. תפריט רשימת פניות משני (מאוחד) --- */}
       {!isMobile && (activeTab === 'HUB' || activeTab === 'CRM' || activeTab === 'INVENTORY') && (
         <aside className={`w-85 flex flex-col border-l shrink-0 z-30 ${sidebarBg}`}>
           <header className="p-7 border-b border-inherit flex flex-col gap-4 bg-emerald-500/5">
@@ -303,7 +317,7 @@ export default function App() {
                 </h2>
                 <div className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-[9px] font-black uppercase text-emerald-500">Live Hub</span>
+                  <span className="text-[9px] font-black uppercase text-emerald-500 tracking-tighter">Live Unified</span>
                 </div>
             </div>
             <div className={`relative ${inputBg} rounded-2xl overflow-hidden border border-white/10 shadow-lg`}>
@@ -332,31 +346,27 @@ export default function App() {
       {/* --- 3. אזור העבודה המרכזי --- */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         
-        {activeTab === 'HUB' && selectedCustomer ? (
+        {selectedCustomer && (activeTab === 'HUB' || activeTab === 'SIMULATOR') ? (
             <div className="flex-1 flex flex-col h-full">
                 <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
                     <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl relative group border-4 border-emerald-500/20">
+                        <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20">
                             <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"><UserCog size={20} className="text-white"/></div>
                         </div>
                         <div>
                             <h2 className="font-black text-2xl italic tracking-tighter leading-none">{editCrm.projectName || selectedCustomer.name}</h2>
                             <p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                {selectedCustomer.id} | UNIFIED JONI CORE
+                                {selectedCustomer.id} | UNIFIED IDENTITY
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-6">
-                        <div className="flex flex-col items-end gap-1">
-                           <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">AI Response Logic</span>
-                           <button onClick={() => setIsAiActive(!isAiActive)} className={`flex items-center gap-4 px-7 py-3 rounded-[1.4rem] font-black text-xs transition-all border-2 ${isAiActive ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl shadow-emerald-500/30' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}>
-                             <Power size={20} /> {isAiActive ? 'AI AUTO-MODE ON' : 'MANUAL CONTROL'}
-                           </button>
-                        </div>
-                        <button onClick={() => setIsPrinting(true)} className="p-4 bg-blue-600/10 text-blue-500 rounded-[1.5rem] hover:bg-blue-600/20 transition-all border border-blue-600/20 shadow-xl group">
-                          <Printer size={28} className="group-hover:scale-110 transition-transform"/>
+                        <button onClick={() => setIsAiActive(!isAiActive)} className={`flex items-center gap-4 px-7 py-3 rounded-[1.4rem] font-black text-xs transition-all border-2 ${isAiActive ? 'bg-emerald-500 border-emerald-400 text-white shadow-xl shadow-emerald-500/30' : 'bg-slate-500/10 border-slate-500/20 text-slate-500'}`}>
+                          <Power size={20} /> {isAiActive ? 'AI AUTO-MODE ON' : 'MANUAL CONTROL'}
+                        </button>
+                        <button onClick={() => setIsPrinting(true)} className="p-4 bg-blue-600/10 text-blue-500 rounded-[1.5rem] hover:bg-blue-600/20 transition-all border border-blue-600/20 shadow-xl">
+                          <Printer size={28} />
                         </button>
                     </div>
                 </header>
@@ -378,9 +388,9 @@ export default function App() {
                         </motion.div>
                     ))}
                     {isThinking && (
-                      <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl">
+                      <div className="self-end bg-emerald-500/10 text-emerald-400 p-5 rounded-[2rem] flex items-center gap-5 border border-emerald-500/20 shadow-2xl animate-pulse">
                         <Activity size={24} className="animate-spin" />
-                        <span className="text-sm font-black uppercase tracking-widest">JONI AI IS FORMULATING...</span>
+                        <span className="text-sm font-black uppercase tracking-widest">JONI AI FORMULATING...</span>
                       </div>
                     )}
                 </div>
@@ -391,7 +401,7 @@ export default function App() {
                         <input 
                           type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} 
                           onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                          placeholder="הקש הודעה לניהול פרויקט (יישלח ישירות)..." 
+                          placeholder="הקש הודעה מאוחדת (יישלח ישירות)..." 
                           className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600" 
                         />
                         <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500">
@@ -414,113 +424,74 @@ export default function App() {
                         </button>
                     </div>
                 </header>
-                <div className={`p-10 rounded-[3.5rem] border ${sidebarBg} bg-blue-600/5 shadow-inner`}>
-                  <label className="text-xs font-black uppercase text-blue-500 mb-4 block tracking-[0.3em]">DNA גלובלי (זהות ראמי המוח הלוגיסטי)</label>
-                  <textarea value={globalDNA} onChange={e => setGlobalDNA(e.target.value)} className={`w-full h-40 p-6 rounded-[2rem] text-sm font-bold outline-none focus:border-blue-500 leading-relaxed transition-all shadow-inner ${inputBg}`} placeholder="הגדר את אישיות הבוט..." />
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   {nodes.map(node => (
                     <div key={node.id} className={`p-10 rounded-[3rem] border relative group hover:shadow-[0_40px_80px_rgba(0,0,0,0.4)] transition-all ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
                       <button onClick={() => setNodes(nodes.filter(n => n.id !== node.id))} className="absolute -left-2 -top-2 w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-2xl hover:scale-110 z-10"><Trash2 size={20}/></button>
                       <div className="grid grid-cols-2 gap-8 mb-8">
-                        <div>
-                          <label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">שם הענף</label>
-                          <input value={node.title} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, title: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-black outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">פקודת טריגר</label>
-                          <input value={node.trigger} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, trigger: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-mono text-blue-400 outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} placeholder="למשל: 1" />
-                        </div>
+                        <div><label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">שם הענף</label><input value={node.title} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, title: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-black outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} /></div>
+                        <div><label className="text-[10px] font-black opacity-50 uppercase tracking-widest block mb-2">טריגר</label><input value={node.trigger} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, trigger: e.target.value} : n))} className={`w-full p-4 rounded-2xl text-xs font-mono text-blue-400 outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} placeholder="למשל: 1" /></div>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black opacity-50 uppercase tracking-widest">הוראות DNA למצב זה</label>
-                        <textarea value={node.prompt} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, prompt: e.target.value} : n))} className={`w-full h-40 p-5 rounded-[1.8rem] text-[12px] font-medium leading-relaxed resize-none outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} placeholder="מה ה-AI עונה בשלב זה..." />
-                      </div>
+                      <textarea value={node.prompt} onChange={e => setNodes(nodes.map(n => n.id === node.id ? {...n, prompt: e.target.value} : n))} className={`w-full h-40 p-5 rounded-[1.8rem] text-[12px] font-medium leading-relaxed resize-none outline-none border-2 focus:border-blue-500 transition-all ${inputBg}`} placeholder="מה ה-AI עונה בשלב זה..." />
                     </div>
                   ))}
                 </div>
             </div>
         ) : (
           <div className="m-auto flex flex-col items-center gap-10 opacity-20 group">
-             <div className="relative">
-                <MessageCircle size={200} className="group-hover:scale-110 transition-transform duration-700" />
-                <Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" />
-             </div>
-             <h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>COMMAND CENTER</h2>
-             <p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v3.0</p>
+             <div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div>
+             <h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2>
+             <p className="text-sm font-bold tracking-[0.8em] text-center uppercase">Secure Operating System v3.1</p>
           </div>
         )}
       </main>
 
-      {/* --- 4. עמודה שמאלית: כרטיס CRM ניהול פרויקט --- */}
+      {/* --- 4. עמודה שמאלית: כרטיס CRM ניהול פרויקט (Unification Tool) --- */}
       {!isMobile && selectedCustomer && (activeTab === 'HUB' || activeTab === 'CRM') && (
         <aside className={`w-[480px] flex flex-col border-r shrink-0 z-20 shadow-2xl ${sidebarBg}`}>
           <header className="p-8 border-b border-inherit bg-blue-600/5 flex justify-between items-center">
-             <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3">
-                <UserCog size={24} className="text-blue-500"/> כרטיס ניהול פרויקט
-             </h2>
-             <div className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">SABAN MASTER</div>
+             <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3"><UserCog size={24} className="text-blue-500"/> זהות מאוחדת (Master)</h2>
+             <button onClick={handleMergeManual} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500 transition-all"><Merge size={12}/> איחוד ידני</button>
           </header>
           <div className="flex-1 overflow-y-auto p-10 space-y-10 no-scrollbar">
              <div className="flex flex-col items-center gap-8 pb-10 border-b border-white/5">
                 <div className="w-40 h-40 rounded-[3.5rem] bg-slate-800 overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] border-4 border-emerald-500/30 relative group transform hover:rotate-3 transition-all duration-500">
-                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="p-photo" />
-                   <button onClick={() => { const p = prompt("לינק לתמונה:"); if(p) setEditCrm((prev:any) => ({...prev, photo: p})); }} className="absolute inset-0 bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3">
-                     <ImageIcon size={28}/>
-                     <span className="text-[11px] font-black uppercase tracking-[0.2em]">Update Identity</span>
-                   </button>
+                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" />
+                   <button onClick={() => { const p = prompt("לינק לתמונה:"); if(p) setEditCrm((prev:any) => ({...prev, photo: p})); }} className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-3"><ImageIcon size={28}/><span className="text-[11px] font-black uppercase tracking-[0.2em]">Update Identity</span></button>
                 </div>
                 <div className="text-center space-y-3">
                    <h3 className="text-3xl font-black italic tracking-tighter">{editCrm.contactName || selectedCustomer.name}</h3>
-                   <div className="flex justify-center gap-3">
-                     <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">מנהל פרויקט VIP</span>
-                     <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 px-5 py-2 rounded-full uppercase border border-blue-500/30">אורניל-מהלה</span>
-                   </div>
+                   <div className="flex justify-center gap-3"><span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-5 py-2 rounded-full uppercase border border-emerald-500/30">מנהל פרויקט VIP</span></div>
                 </div>
              </div>
 
              <div className="space-y-8">
-                <div className="space-y-2">
-                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מספר לקוח בקומקס</label>
-                   <input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} placeholder="למשל: 10045" />
-                </div>
-                <div className="space-y-2">
-                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Building size={14} className="text-blue-500"/> שם פרויקט / חברה</label>
-                   <input value={editCrm.projectName} onChange={e => setEditCrm((prev:any)=>({...prev, projectName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-xl`} placeholder="אורניל-מהלה" />
-                </div>
-                <div className="space-y-2">
-                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת מדויקת לאספקה</label>
-                   <input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl`} placeholder="הירקון 12, תל אביב" />
-                </div>
+                <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14} className="text-emerald-500"/> מזהה מערכת (Phone UID)</label><input value={editCrm.comaxId} onChange={e => setEditCrm((prev:any)=>({...prev, comaxId: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-emerald-500 shadow-xl`} placeholder="10045" /></div>
+                <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Building size={14} className="text-blue-500"/> שם פרויקט / חברה</label><input value={editCrm.projectName} onChange={e => setEditCrm((prev:any)=>({...prev, projectName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-blue-500 shadow-xl`} placeholder="אורניל-מהלה" /></div>
+                <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><MapPin size={14} className="text-red-500"/> כתובת אספקה</label><input value={editCrm.projectAddress} onChange={e => setEditCrm((prev:any)=>({...prev, projectAddress: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-sm font-black outline-none border-2 transition-all ${inputBg} focus:border-red-500 shadow-xl`} /></div>
                 <div className="grid grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14} className="text-indigo-500"/> שם איש קשר</label>
-                      <input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Phone size={14} className="text-emerald-400"/> נייד ליצירת קשר</label>
-                      <input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} />
-                   </div>
+                   <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={14}/> שם איש קשר</label><input value={editCrm.contactName} onChange={e => setEditCrm((prev:any)=>({...prev, contactName: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-black outline-none border-2 ${inputBg} focus:border-indigo-500 shadow-xl`} /></div>
+                   <div className="space-y-2"><label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Phone size={14}/> נייד</label><input value={editCrm.contactPhone} onChange={e => setEditCrm((prev:any)=>({...prev, contactPhone: e.target.value}))} className={`w-full p-5 rounded-[1.8rem] text-xs font-mono font-black outline-none border-2 ${inputBg} focus:border-emerald-500 shadow-xl`} /></div>
                 </div>
              </div>
 
-             <button 
-               onClick={saveCustomerCard} disabled={isSaving}
-               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-[0_20px_60px_rgba(37,99,235,0.4)] active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 disabled:opacity-50 text-base uppercase tracking-widest"
-             >
-                {isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Update & Sync Card</>}
+             <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2.5rem] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-5 mt-6 uppercase tracking-widest leading-none">
+                {isSaving ? <Activity size={24} className="animate-spin"/> : <><Save size={24}/> Sync & Unify Card</>}
              </button>
+
+             <div className="p-7 rounded-[3rem] border-4 border-dashed border-amber-500/30 bg-amber-500/5 text-amber-600 text-[10px] font-black leading-relaxed shadow-inner">
+                💡 המערכת מזהה כעת את "עלי אבו עיאדה" כישות אחת. כל הודעה שתגיע מהמספר שלו (קבוצה או פרטי) תתועד כאן תחת מזהה הטלפון שלו.
+             </div>
           </div>
         </aside>
       )}
 
-      {/* רקע אורות אמביינט (Dark Mode בלבד) */}
-      {theme === 'dark' && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[180px]"></div>
-          <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[180px]"></div>
-        </div>
-      )}
+      {/* רקע אורות אמביינט */}
+      {theme === 'dark' && <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden"><div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[180px]"></div><div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[180px]"></div></div>}
     </div>
   );
+}
+
+function MessageSquare({ size = 16, className = "" }) {
+    return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
 }
