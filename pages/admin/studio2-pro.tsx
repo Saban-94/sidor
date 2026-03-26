@@ -57,7 +57,7 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 לוגיקת נורמליזציה: הופכת כל ID לזהות של 9 ספרות אחרונות
+  // 🔥 פונקציית נורמליזציה משופרת למניעת כפילויות בממשק
   const normalizeId = (id: string) => {
     if (!id) return '';
     const clean = id.replace(/\D/g, '');
@@ -75,6 +75,7 @@ export default function App() {
 
     const timer = setInterval(() => setCurrentTime(Date.now()), 5000);
 
+    // מאזין לסטטוס השרת והברקוד
     const statusRef = ref(dbRT, 'saban94/status');
     const unsubStatus = onValue(statusRef, (snap) => {
       const data = snap.val();
@@ -97,12 +98,11 @@ export default function App() {
           if (!existing) {
             unifiedMap.set(uid, { ...curr, uid, allIds: [curr.id] });
           } else {
-            // מיזוג מידע לתוך הזהות המאוחדת
+            // העדפת המזהה המקורי של הטלפון על פני מזהי קבוצות מוזרים (LID)
+            const isCurrRealPhone = curr.id.startsWith('972') && !curr.id.includes('-');
             unifiedMap.set(uid, {
-              ...existing,
-              ...curr,
-              name: curr.name || existing.name,
-              photo: curr.photo || existing.photo,
+              ...(isCurrRealPhone ? curr : existing),
+              uid,
               allIds: Array.from(new Set([...existing.allIds, curr.id]))
             });
           }
@@ -118,7 +118,7 @@ export default function App() {
     };
   }, []);
 
-  // 🔥 טעינת היסטוריה - מאזין לכל המזהים של אותה זהות מאוחדת
+  // 🔥 טעינת היסטוריה - סינכרון מהיר וחסין
   useEffect(() => {
     if (!selectedCustomer) return;
     
@@ -131,12 +131,14 @@ export default function App() {
       photo: selectedCustomer.photo || '' 
     });
 
-    // מאזין למזהה הראשי שנבחר
+    // מאזין להיסטוריה לפי המזהה המדויק שבו השרת משתמש
     const q = query(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history'), orderBy('timestamp', 'asc'));
     const unsubHistory = onSnapshot(q, (snap) => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
-    }, (err) => console.error("Sync Error:", err));
+    }, (err) => {
+        console.error("Sync Error:", err);
+    });
 
     return () => unsubHistory();
   }, [selectedCustomer?.id]);
@@ -153,7 +155,7 @@ export default function App() {
       setIsSaving(true);
       try {
         await update(ref(dbRT, 'saban94/status'), { online: false, qr: null, reset_command: true, lastSeen: Date.now() });
-        alert("פקודת איפוס נשלחה. המתן 20 שניות לברקוד חדש.");
+        alert("פקודת איפוס נשלחה. המתן לברקוד חדש.");
         setShowQrModal(true);
       } catch (e) { console.error(e); } finally { setIsSaving(false); }
     }
@@ -165,12 +167,12 @@ export default function App() {
     setChatInput('');
     if (isAiActive) setIsAiActive(false);
 
-    // 🔥 אופטימיזציה: הוספת ההודעה ל-UI מיד
-    const tempId = Date.now().toString();
-    setMessages(prev => [...prev, { id: tempId, text: txt, type: 'out', timestamp: { seconds: Date.now()/1000 } }]);
+    // 🔥 אופטימיזציה: הוספת ההודעה ל-UI מיד עם חיווי "שולח"
+    const tempId = "temp-" + Date.now();
+    setMessages(prev => [...prev, { id: tempId, text: txt, type: 'out', isSending: true, timestamp: { seconds: Date.now()/1000 } }]);
 
     try {
-      // שליחה ל-RTDB - משתמשים ב-ID המלא של הלקוח
+      // שליחה לצינור ה-Realtime - חייב להשתמש ב-ID המלא של השרת
       await push(ref(dbRT, 'saban94/outgoing'), { 
         number: selectedCustomer.id, 
         message: txt, 
@@ -182,9 +184,12 @@ export default function App() {
         text: txt, 
         type: 'out', 
         timestamp: serverTimestamp(), 
-        source: 'manual-rami' 
+        source: 'manual-control' 
       });
-    } catch (err: any) { console.error(err.message); }
+    } catch (err: any) {
+      console.error("Send failed:", err.message);
+      alert("תקלה בשליחה. בדוק חיבור אינטרנט.");
+    }
   };
 
   const saveCustomerCard = async () => {
@@ -192,7 +197,8 @@ export default function App() {
     setIsSaving(true);
     try {
       await setDoc(doc(dbFS, 'customers', selectedCustomer.id), { ...editCrm, name: editCrm.contactName || selectedCustomer.name, lastUpdated: serverTimestamp() }, { merge: true });
-    } catch (e: any) { console.error(e.message); } finally { setTimeout(() => setIsSaving(false), 800); }
+      alert("✅ כרטיס עודכן וסונכרן.");
+    } catch (e: any) { console.error(e.message); } finally { setIsSaving(false); }
   };
 
   const handleMergeManual = async () => {
@@ -236,14 +242,14 @@ export default function App() {
 
   if (isPrinting) return (
     <div className="bg-white p-12 text-black font-serif min-h-screen overflow-auto" dir="rtl">
-        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 bg-white">
+        <div className="max-w-4xl mx-auto border-[6px] border-double border-black p-10 bg-white shadow-2xl">
           <div className="flex justify-between items-center border-b-4 border-black pb-8 mb-8">
             <div><h1 className="text-5xl font-black italic text-[#0B2C63]">ח. סבן - חומרי בניין</h1><p className="text-xl font-bold uppercase mt-2 text-slate-700">הזמנת עבודה דיגיטלית - {new Date().toLocaleDateString('he-IL')}</p></div>
             <img src={BRAND_LOGO} className="w-28 h-28 border-4 border-black object-cover rounded-xl" alt="logo" />
           </div>
           <div className="grid grid-cols-2 gap-10 mb-10 bg-slate-50 p-8 border-2 border-black shadow-lg text-lg">
-            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">יעד פרויקט</p><p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={18}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
-            <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline">פרטי זיהוי</p><p className="text-2xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
+            <div className="space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">יעד פרויקט</p><p className="text-3xl font-black">{editCrm.projectName || "כללי"}</p><p className="font-bold flex items-center gap-2"><MapPin size={18}/> {editCrm.projectAddress || "חסר כתובת"}</p></div>
+            <div className="text-left space-y-2"><p className="text-xs font-black uppercase text-slate-500 underline underline-offset-4">פרטי זיהוי</p><p className="text-2xl font-bold">קומקס: {editCrm.comaxId || "---"}</p><p className="font-bold">מנהל: {editCrm.contactName || "תחסין"}</p><p className="font-mono text-sm">{editCrm.contactPhone}</p></div>
           </div>
           <div className="border-2 border-black min-h-[500px] flex flex-col shadow-inner">
             <div className="bg-black text-white p-4 flex justify-between font-black text-xl uppercase tracking-widest"><span>תיאור מהצ'אט (JONI)</span><span className="w-32 text-center">כמות</span></div>
@@ -340,7 +346,7 @@ export default function App() {
           <div className="flex-1 flex flex-col h-full">
             <header className={`h-24 flex items-center justify-between px-12 border-b z-20 ${sidebarBg}`}>
               <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20">
+                <div className="w-16 h-16 bg-emerald-500 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-500/20 relative group">
                   <img src={editCrm.photo || BRAND_LOGO} className="w-full h-full object-cover" alt="avatar" />
                 </div>
                 <div><h2 className="font-black text-2xl italic tracking-tighter leading-none text-slate-800 dark:text-slate-100">{editCrm.projectName || selectedCustomer.name}</h2><p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-[0.3em] flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${isTrulyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>{normalizeId(selectedCustomer.id)} | UNIFIED HUB</p></div>
@@ -359,8 +365,8 @@ export default function App() {
                     {isSelectionMode && (<div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${selectedMsgIds.includes(m.id) ? 'bg-orange-500 text-white scale-110' : 'bg-slate-700 text-slate-400 opacity-60'}`}><CheckCircle2 size={16}/></div>)}
                     <div className="text-[9px] font-black opacity-30 mb-2 flex items-center gap-2 uppercase tracking-tighter">{m.source === 'group' ? <Users size={12}/> : <Smartphone size={12}/>} {m.source === 'group' ? 'קבוצה' : 'אישי'}</div>
                     {m.mediaUrl && <img src={m.mediaUrl} className="mb-5 rounded-[1.5rem] max-h-96 w-full object-cover shadow-2xl" alt="product" />}
-                    <div className="whitespace-pre-wrap font-bold leading-relaxed">{m.text}</div>
-                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'עתה'}</div>
+                    <div className={`whitespace-pre-wrap font-bold leading-relaxed ${m.isSending ? 'opacity-50' : ''}`}>{m.text}</div>
+                    <div className={`text-[10px] mt-4 opacity-40 font-mono flex items-center gap-2 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}><Clock size={12} /> {m.timestamp?.seconds ? new Date(m.timestamp.seconds * 1000).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : 'שולח...'}</div>
                   </div>
                 </motion.div>
               ))}
@@ -369,16 +375,18 @@ export default function App() {
 
             <footer className={`p-10 border-t z-20 ${sidebarBg}`}>
               {!isTrulyOnline && (
-                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase">JONI Bridge Dead - Rescan QR in office computer</div>
+                  <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl mb-6 text-center text-xs font-black border-2 border-dashed border-red-500/20 flex items-center justify-center gap-3 shadow-xl font-sans uppercase animate-pulse">
+                    <WifiOff size={18}/> JONI Offline - Check office computer & Rescan QR
+                  </div>
               )}
               <div className={`flex items-center gap-5 p-5 rounded-[3rem] border transition-all ${inputBg} shadow-2xl`}>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה ללקוח..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600 text-slate-800 dark:text-slate-200" />
+                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="כתוב הודעה לניהול פרויקט (יכבה AI אוטומטית)..." className="flex-1 bg-transparent border-none outline-none text-base px-3 font-bold placeholder:text-slate-600 text-slate-800 dark:text-slate-200" />
                 <button onClick={handleSend} className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 active:scale-90 transition-all hover:bg-emerald-500"><Send size={28} className="transform rotate-180" /></button>
               </div>
             </footer>
           </div>
         ) : (
-          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight text-slate-800 dark:text-slate-200">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
+          <div className="m-auto flex flex-col items-center gap-10 opacity-20 group text-slate-800 dark:text-slate-100"><div className="relative"><MessageCircle size={200} /><Bot size={70} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-500 animate-bounce" /></div><h2 className="text-6xl font-black italic tracking-tighter uppercase text-center leading-tight">SABAN HUB<br/>UNIFIED COMMAND</h2></div>
         )}
       </main>
 
@@ -395,7 +403,7 @@ export default function App() {
                 <div className="text-center space-y-3 text-slate-800 dark:text-slate-100">
                    <h3 className="text-3xl font-black italic tracking-tighter leading-none">{editCrm.contactName || selectedCustomer.name}</h3>
                    <div className="flex justify-center gap-3">
-                     <span className={`text-[10px] font-black px-5 py-2 rounded-full uppercase border ${isTrulyOnline ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' : 'text-red-500 bg-red-500/10 border-red-500/30'}`}>Identity: {selectedCustomer.uid}</span>
+                     <span className={`text-[10px] font-black px-5 py-2 rounded-full uppercase border ${isTrulyOnline ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' : 'text-red-500 bg-red-500/10 border-red-500/30'}`}>Real-ID: {selectedCustomer.id}</span>
                    </div>
                 </div>
              </div>
