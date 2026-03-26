@@ -59,9 +59,19 @@ export default function App() {
     checkSize();
     window.addEventListener('resize', checkSize);
 
-    // טעינת לקוחות
-    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(50)), (snap) => {
-      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // טעינת לקוחות עם לוגיקת איחוד לפי טלפון
+    const unsubCust = onSnapshot(query(collection(dbFS, 'customers'), limit(100)), (snap) => {
+      const rawData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // איחוד כפילויות ברמת הקליינט ליתר ביטחון
+      const unified = rawData.reduce((acc: any[], current: any) => {
+        const phoneMatch = current.id.replace(/\D/g, '').slice(-9); // זיהוי לפי 9 ספרות אחרונות
+        const existing = acc.find(item => item.id.includes(phoneMatch));
+        if (!existing) acc.push(current);
+        return acc;
+      }, []);
+
+      setCustomers(unified);
     });
 
     // טעינת עץ ענפים
@@ -119,11 +129,12 @@ export default function App() {
       timestamp: Date.now()
     });
 
-    // שמירה בהיסטוריה Firestore
+    // שמירה בהיסטוריה Firestore - תמיד תחת מזהה הטלפון המאוחד
     await setDoc(doc(collection(dbFS, 'customers', selectedCustomer.id, 'chat_history')), {
       text: msgText,
       type: 'out',
-      timestamp: serverTimestamp()
+      timestamp: serverTimestamp(),
+      source: 'hub'
     });
 
     if (isAiActive) triggerAi(msgText);
@@ -171,7 +182,7 @@ export default function App() {
   const itemBg = theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200';
   const chatAreaBg = theme === 'dark' ? 'bg-[#020617]' : 'bg-[#e5ddd5]';
 
-  // --- תצוגת הדפסה (הזמנת תחסין) ---
+  // --- תצוגת הדפסה ---
   if (isPrinting) {
     return (
       <div className="bg-white p-12 text-black font-serif min-h-screen" dir="rtl">
@@ -263,12 +274,12 @@ export default function App() {
         </aside>
       )}
 
-      {/* --- 2. רשימת לקוחות חיים --- */}
+      {/* --- 2. רשימת לקוחות חיים (מאוחדת) --- */}
       {(activeTab === 'GROUP_HUB' || activeTab === 'SIMULATOR') && (
         <aside className={`w-80 flex flex-col border-l shrink-0 z-20 ${sideBg}`}>
           <header className="p-6 border-b border-inherit bg-emerald-500/5 flex justify-between items-center">
             <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-2">
-              <MessageCircle size={18} className="text-emerald-500"/> צ'אט הזמנות
+              <MessageCircle size={18} className="text-emerald-500"/> לקוחות מאוחדים
             </h2>
             <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse">LIVE</span>
           </header>
@@ -291,12 +302,11 @@ export default function App() {
         </aside>
       )}
 
-      {/* --- 3. אזור העבודה המרכזי (צ'אט / פלואו) --- */}
+      {/* --- 3. אזור העבודה המרכזי --- */}
       <main className="flex-1 relative flex flex-col bg-transparent z-10" style={{ backgroundImage: theme === 'dark' ? 'radial-gradient(#1e293b 0.5px, transparent 0.5px)' : 'radial-gradient(#cbd5e1 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }}>
         
         {selectedCustomer && (activeTab === 'GROUP_HUB' || activeTab === 'SIMULATOR') ? (
           <div className="flex-1 flex flex-col h-full">
-            {/* Header */}
             <header className={`h-20 flex items-center justify-between px-8 border-b z-20 ${sideBg}`}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-emerald-500 rounded-2xl overflow-hidden shadow-2xl">
@@ -304,7 +314,7 @@ export default function App() {
                 </div>
                 <div>
                    <h2 className="font-black text-lg leading-none italic">{editCrm.projectName || selectedCustomer.name}</h2>
-                   <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-[0.2em]">{selectedCustomer.id} | JONI PIPE ACTIVE</p>
+                   <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-[0.2em]">{selectedCustomer.id} | JONI UNIFIED PIPE</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -320,7 +330,6 @@ export default function App() {
               </div>
             </header>
 
-            {/* Chat Body */}
             <div ref={scrollRef} className={`flex-1 overflow-y-auto p-8 flex flex-col gap-6 scroll-smooth no-scrollbar ${chatAreaBg}`} style={theme !== 'dark' ? {backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: 'cover', backgroundBlendMode: 'overlay'} : {}}>
               {messages.map((m, i) => (
                 <motion.div 
@@ -328,6 +337,10 @@ export default function App() {
                   key={i} className={`flex flex-col max-w-[75%] ${m.type === 'in' ? 'self-start' : 'self-end items-end'}`}
                 >
                   <div className={`p-5 rounded-3xl shadow-xl text-[13px] relative border ${m.type === 'in' ? (theme === 'dark' ? 'bg-white/5 border-white/10 text-slate-200 rounded-tr-none' : 'bg-white border-slate-100 text-slate-800 rounded-tr-none') : 'bg-emerald-600 text-white border-emerald-500 rounded-tl-none shadow-emerald-500/20'}`}>
+                    <div className="text-[9px] font-black opacity-40 mb-1 flex items-center gap-1">
+                        {m.source === 'group' ? <Users size={10}/> : <Smartphone size={10}/>}
+                        {m.source === 'group' ? 'הודעת קבוצה' : 'שיחה פרטית'}
+                    </div>
                     {m.mediaUrl && <img src={m.mediaUrl} className="mb-4 rounded-2xl max-h-80 w-full object-cover shadow-lg border-2 border-white/10" alt="product" />}
                     <div className="whitespace-pre-wrap leading-relaxed font-medium">{m.text}</div>
                     <div className={`text-[9px] mt-2 opacity-40 font-mono flex items-center gap-1 ${m.type === 'in' ? 'justify-start' : 'justify-end'}`}>
@@ -344,7 +357,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Input Bar */}
             <footer className={`p-8 border-t z-20 ${sideBg}`}>
               <div className={`flex items-center gap-4 p-4 rounded-[2.5rem] border transition-all ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200 shadow-inner'}`}>
                  <button className="p-3 text-slate-500 hover:text-emerald-500 transition-all"><ImageIcon size={26}/></button>
@@ -361,7 +373,6 @@ export default function App() {
             </footer>
           </div>
         ) : activeTab === 'FLOW' ? (
-          /* --- עורך ענפי שיחה --- */
           <div className="flex-1 overflow-y-auto p-12">
              <header className="flex justify-between items-center mb-10">
                 <div>
@@ -373,7 +384,6 @@ export default function App() {
                    <button onClick={async () => { setIsSaving(true); await setDoc(doc(dbFS, 'system', 'bot_flow_config'), {nodes, globalDNA}, {merge: true}); setIsSaving(false); }} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl flex items-center gap-2 transition-all">{isSaving ? <Activity className="animate-spin"/> : <><Save size={20}/> שמור הכל</>}</button>
                 </div>
              </header>
-
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {nodes.map(node => (
                   <div key={node.id} className={`p-8 rounded-[2.5rem] border relative group hover:shadow-2xl transition-all ${itemBg}`}>
@@ -397,7 +407,6 @@ export default function App() {
              </div>
           </div>
         ) : (
-          /* --- בחירת לקוח כברירת מחדל --- */
           <div className="m-auto flex flex-col items-center gap-6 opacity-20">
              <MessageCircle size={150} />
              <h2 className="text-5xl font-black italic tracking-tighter uppercase">SABAN HUB COMMAND</h2>
@@ -412,7 +421,7 @@ export default function App() {
              <h2 className="font-black text-sm uppercase tracking-widest flex items-center gap-3">
                 <UserCog size={22} className="text-blue-500"/> כרטיס ניהול פרויקט
              </h2>
-             <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase">SABAN SYNC</div>
+             <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase">SABAN UNIFIED</div>
           </header>
           <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
              <div className="flex flex-col items-center gap-6 pb-8 border-b border-white/5">
@@ -422,7 +431,7 @@ export default function App() {
                 </div>
                 <div className="text-center space-y-1">
                    <h3 className="text-2xl font-black italic tracking-tight">{editCrm.contactName || selectedCustomer.name}</h3>
-                   <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full uppercase border border-emerald-500/20">מנהל פרויקט VIP</span>
+                   <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full uppercase border border-emerald-500/20">זהות מאוחדת (קבוצה+פרטי)</span>
                 </div>
              </div>
 
@@ -460,13 +469,12 @@ export default function App() {
 
              <div className="p-5 rounded-[2rem] border-2 border-dashed border-amber-500/30 bg-amber-500/5 text-amber-600 text-xs font-black leading-relaxed shadow-inner">
                 <div className="flex items-center gap-2 mb-2"><Zap size={16}/> הנחיית מערכת:</div>
-                נתונים אלה יוזרקו אוטומטית לטופס ההזמנה של מנהל הפרויקט (תחסין) בכל פעם שתפיק מסמך להדפסה.
+                כעת המערכת מאחדת היסטוריה מהקבוצות ומהפרטי לפי מזהה הטלפון הייחודי.
              </div>
           </div>
         </aside>
       )}
 
-      {/* רקע אורות (Dark Mode) */}
       {theme === 'dark' && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
           <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[150px]"></div>
@@ -475,4 +483,12 @@ export default function App() {
       )}
     </div>
   );
+}
+
+function MessageSquare({ size = 16, className = "" }) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    );
 }
