@@ -64,7 +64,7 @@ export default function App() {
     return clean.length >= 9 ? clean.slice(-9) : id;
   };
 
-  // 🔥 חישוב דופק שרת - קבוע בתוך הרינדור למניעת שגיאות בילד
+  // 🔥 חישוב דופק שרת - מוגדר כקבוע בתוך הרינדור למניעת שגיאות בילד
   const timeDiff = currentTime - serverStatus.lastSeen;
   const isTrulyOnline = serverStatus.online && (timeDiff < 90000);
 
@@ -264,8 +264,8 @@ export default function App() {
           </div>
         </div>
         <div className="fixed bottom-10 left-10 flex gap-6 no-print z-50">
-          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black">ביטול</button>
-          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
+          <button onClick={() => setIsPrinting(false)} className="bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all">ביטול</button>
+          <button onClick={() => window.print()} className="bg-emerald-600 text-white px-10 py-5 rounded-full font-black shadow-2xl hover:scale-105 transition-all flex items-center gap-3"><Printer size={24}/> הדפס הזמנה</button>
         </div>
     </div>
   );
@@ -288,7 +288,7 @@ export default function App() {
               { id: 'FLOW', icon: GitBranch, label: 'עץ ה-AI' },
               { id: 'MASTER', icon: Crown, label: 'מאסטר' }
             ].map((btn: any) => (
-              <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-500 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10'}`}>
+              <button key={btn.id} onClick={() => setActiveTab(btn.id)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all relative group ${activeTab === btn.id ? 'bg-emerald-50 text-white shadow-xl scale-110' : 'text-slate-500 hover:bg-emerald-500/10'}`}>
                 <btn.icon size={26} />
                 <span className="absolute right-20 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">{btn.label}</span>
               </button>
@@ -300,7 +300,7 @@ export default function App() {
                 <div className={`w-4 h-4 rounded-full border-2 border-white/10 ${isTrulyOnline ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 animate-pulse shadow-[0_0_15px_#ef4444]'}`} />
                 <span className={`text-[8px] font-black transition-opacity whitespace-nowrap ${isTrulyOnline ? 'text-emerald-500' : 'text-red-500'}`}>{isTrulyOnline ? 'LIVE' : 'DEAD'}</span>
              </div>
-             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all">
+             <button onClick={toggleTheme} className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-500/10 transition-all border border-transparent hover:border-slate-500/20">
                {theme === 'dark' ? <Sun size={26} /> : <Moon size={26} />}
              </button>
           </div>
@@ -317,7 +317,7 @@ export default function App() {
             </div>
             <div className={`relative bg-black/5 rounded-2xl overflow-hidden border border-black/5 shadow-inner`}>
                 <Search className="absolute right-4 top-3.5 text-slate-500" size={16}/>
-                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חיפוש זהות מאוחדת..." className="w-full bg-transparent p-4 pr-12 text-xs border-none outline-none font-bold" />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חיפוש זהות מאוחדת..." className="w-full bg-transparent p-4 pr-12 text-xs border-none outline-none font-bold text-slate-800 dark:text-slate-200" />
             </div>
           </header>
           <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar bg-slate-50/20">
@@ -414,7 +414,7 @@ export default function App() {
              </div>
              <button onClick={saveCustomerCard} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-8 rounded-[3rem] shadow-[0_30px_80px_rgba(37,99,235,0.5)] active:scale-95 transition-all flex items-center justify-center gap-6 mt-8 uppercase tracking-widest text-xl">{isSaving ? <Activity size={32} className="animate-spin"/> : <><Save size={32}/> Sync Supreme Card</>}</button>
              
-             {/* 🔥 דופק שרת JONI LIVE אמיתי עם תיקון ה-timeDiff */}
+             {/* 🔥 דופק שרת JONI LIVE אמיתי עם הצגת Latency */}
              <div className={`mt-6 p-6 rounded-3xl border-2 border-dashed flex items-center justify-between ${isTrulyOnline ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 shadow-inner' : 'border-red-500/20 bg-red-500/5 text-red-600 animate-pulse'}`}>
                 <div className="flex items-center gap-3"><Heart size={24} className={isTrulyOnline ? 'animate-pulse text-emerald-500' : 'text-red-500'} /><div className="text-sm font-black uppercase tracking-widest">JONI PULSE</div></div>
                 <div className="text-right flex flex-col text-[10px] font-mono font-bold italic">נראה: {serverStatus.lastSeen ? new Date(serverStatus.lastSeen).toLocaleTimeString('he-IL') : 'None'} | {(timeDiff/1000).toFixed(1)}s</div>
