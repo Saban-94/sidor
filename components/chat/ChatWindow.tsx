@@ -140,8 +140,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
               }
             }}
             placeholder="Type a message..."
-            className="flex-1 px-4 py-2 bg-saban-dark border border-white/20 rounded-lg text-white text-sm placeholder-saban-muted focus:border-saban-emerald transition resize-none"
-            rows={1}
+            className="flex-1 px-4 py-2 bg-saban-dark border border-white/20 rounded-lg text-white text-sm placeholder-saban-muted focus:border-saban-emerald transition"
           />
           <button
             onClick={handleSendMessage}
