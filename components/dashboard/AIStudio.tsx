@@ -1,231 +1,134 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { AIBehaviorRules, SuccessMetrics } from '@/types';
 import { database } from '@/lib/firebase';
-import { ref, set, get } from 'firebase/database';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ref, set, onValue } from 'firebase/database';
+import { 
+  Plus, Save, GitBranch, MessageSquare, 
+  Play, Trash2, Zap, Settings, Share2 
+} from 'lucide-react';
+import { motion } from 'framer-motion';
 
-interface AIStudioProps {
-  customerId?: string;
-}
-
-export const AIStudio: React.FC<AIStudioProps> = ({ customerId }) => {
-  const [rules, setRules] = useState<AIBehaviorRules | null>(null);
-  const [metrics, setMetrics] = useState<SuccessMetrics | null>(null);
-  const [dnaRules, setDnaRules] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [responseStyle, setResponseStyle] = useState<'formal' | 'casual' | 'professional' | 'creative'>('professional');
-  const [temperature, setTemperature] = useState(0.7);
+export const AIStudio = () => {
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [globalDNA, setGlobalDNA] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'identity' | 'dna' | 'metrics'>('identity');
 
+  // טעינת מבנה העץ הקיים מ-Firebase
   useEffect(() => {
-    if (!customerId) return;
-
-    const loadRules = async () => {
-      try {
-        const rulesRef = ref(database, `ai-rules/${customerId}`);
-        const snapshot = await get(rulesRef);
-        if (snapshot.exists()) {
-          const data = snapshot.val() as AIBehaviorRules;
-          setRules(data);
-          setDnaRules(data.dnaRules || '');
-          setSystemPrompt(data.systemPrompt || '');
-          setResponseStyle(data.responseStyle || 'professional');
-          setTemperature(data.temperature || 0.7);
-        }
-
-        const metricsRef = ref(database, `success-metrics/${customerId}`);
-        const metricsSnapshot = await get(metricsRef);
-        if (metricsSnapshot.exists()) {
-          setMetrics(metricsSnapshot.val() as SuccessMetrics);
-        }
-      } catch (error) {
-        console.error('[v0] Error loading AI rules:', error);
+    const flowRef = ref(database, 'system/bot_flow_config');
+    return onValue(flowRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        setNodes(data.nodes || []);
+        setGlobalDNA(data.globalDNA || '');
       }
+    });
+  }, []);
+
+  const addNode = () => {
+    const newNode = {
+      id: `NODE_${Date.now()}`,
+      name: 'ענף חדש',
+      prompt: 'מה ה-AI צריך לעשות כאן?',
+      action: 'NONE',
+      trigger: ''
     };
+    setNodes([...nodes, newNode]);
+  };
 
-    loadRules();
-  }, [customerId]);
-
-  const handleSaveRules = async () => {
-    if (!customerId) return;
-
+  const saveFlow = async () => {
     setSaving(true);
     try {
-      const timestamp = Date.now();
-      const newRules: AIBehaviorRules = {
-        id: rules?.id || `rule-${timestamp}`,
-        customerId,
-        systemPrompt,
-        dnaRules,
-        temperature,
-        maxTokens: 1024,
-        responseStyle,
-        createdAt: rules?.createdAt || timestamp,
-        updatedAt: timestamp,
-      };
-
-      const rulesRef = ref(database, `ai-rules/${customerId}`);
-      await set(rulesRef, newRules);
-      setRules(newRules);
-      console.log('[v0] AI rules saved successfully');
-    } catch (error) {
-      console.error('[v0] Error saving AI rules:', error);
+      await set(ref(database, 'system/bot_flow_config'), {
+        nodes,
+        globalDNA,
+        lastUpdated: Date.now()
+      });
+      alert('הסטודיו סונכרן למוח בהצלחה!');
+    } catch (e) {
+      console.error(e);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="h-full flex flex-col bg-saban-slate border-l border-white/10">
-      {/* Header */}
-      <div className="p-4 border-b border-white/10">
-        <h2 className="text-lg font-bold text-white">AI Studio</h2>
-        <p className="text-saban-muted text-xs mt-1">Configure AI behavior and DNA rules</p>
+    <div className="h-full flex flex-col bg-[#020617] text-white p-6 overflow-hidden font-sans" dir="rtl">
+      {/* Header הסטודיו */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <GitBranch size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-black italic uppercase tracking-tighter">RAMI <span className="text-purple-500">STUDIO</span></h1>
+            <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">Logic & Flow Builder</p>
+          </div>
+        </div>
+        <button 
+          onClick={saveFlow} disabled={saving}
+          className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-[#020617] font-black rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
+        >
+          <Save size={18} /> {saving ? 'מסנכרן...' : 'עדכן מוח'}
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-white/10">
-        {(['identity', 'dna', 'metrics'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition border-b-2 ${
-              activeTab === tab
-                ? 'text-saban-emerald border-saban-emerald'
-                : 'text-saban-muted border-transparent hover:text-white'
-            }`}
-          >
-            {tab === 'identity' && 'Identity'}
-            {tab === 'dna' && 'DNA'}
-            {tab === 'metrics' && 'Metrics'}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'identity' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">System Prompt</label>
-              <textarea
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                className="w-full h-24 px-3 py-2 bg-saban-dark border border-white/20 rounded text-white text-sm font-mono placeholder-saban-muted focus:border-saban-emerald transition resize-none"
-                placeholder="Define the AI system prompt..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">Response Style</label>
-              <select
-                value={responseStyle}
-                onChange={(e) => setResponseStyle(e.target.value as any)}
-                className="w-full px-3 py-2 bg-saban-dark border border-white/20 rounded text-white text-sm focus:border-saban-emerald transition"
-              >
-                <option value="formal">Formal</option>
-                <option value="casual">Casual</option>
-                <option value="professional">Professional</option>
-                <option value="creative">Creative</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">
-                Temperature: {temperature.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                className="w-full"
-              />
-              <p className="text-saban-muted text-xs mt-1">Controls randomness (0=deterministic, 1=creative)</p>
-            </div>
+      <div className="flex-1 grid grid-cols-12 gap-8 overflow-hidden">
+        {/* הגדרות DNA גלובליות */}
+        <div className="col-span-4 space-y-6">
+          <div className="bg-[#0f172a] p-6 rounded-[2rem] border border-white/5 shadow-2xl">
+            <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-purple-500">
+              <Zap size={16} /> Global DNA
+            </h3>
+            <textarea 
+              value={globalDNA} onChange={(e) => setGlobalDNA(e.target.value)}
+              placeholder="הגדר את האישיות הבסיסית של ראמי..."
+              className="w-full h-40 bg-black/20 border border-white/10 rounded-2xl p-4 text-xs leading-relaxed outline-none focus:border-purple-500/50 transition-all"
+            />
           </div>
-        )}
-
-        {activeTab === 'dna' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">AI DNA Rules</label>
-              <textarea
-                value={dnaRules}
-                onChange={(e) => setDnaRules(e.target.value)}
-                className="w-full h-64 px-3 py-2 bg-saban-dark border border-white/20 rounded text-white text-sm font-mono placeholder-saban-muted focus:border-saban-emerald transition resize-none"
-                placeholder="Enter DNA rules for AI behavior injection...
-Example:
-- Always be helpful
-- Ask for clarification when needed
-- Maintain context from previous messages"
-              />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'metrics' && (
-          <div className="space-y-4">
-            {metrics ? (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-saban-dark/50 p-3 rounded">
-                    <p className="text-saban-muted text-xs">Total Messages</p>
-                    <p className="text-white text-xl font-bold">{metrics.totalMessages}</p>
-                  </div>
-                  <div className="bg-saban-dark/50 p-3 rounded">
-                    <p className="text-saban-muted text-xs">Delivered</p>
-                    <p className="text-saban-emerald text-xl font-bold">{metrics.deliveredMessages}</p>
-                  </div>
-                  <div className="bg-saban-dark/50 p-3 rounded">
-                    <p className="text-saban-muted text-xs">Avg Response</p>
-                    <p className="text-white text-xl font-bold">{metrics.responseTime}ms</p>
-                  </div>
-                  <div className="bg-saban-dark/50 p-3 rounded">
-                    <p className="text-saban-muted text-xs">Automation Rate</p>
-                    <p className="text-saban-blue text-xl font-bold">{metrics.automationRate}%</p>
-                  </div>
-                </div>
-
-                {metrics.peakHourActivity && metrics.peakHourActivity.length > 0 && (
-                  <div className="bg-saban-dark/30 p-3 rounded">
-                    <p className="text-white text-sm font-medium mb-3">Activity by Hour</p>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={metrics.peakHourActivity}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#94A3B8" />
-                        <XAxis dataKey="hour" stroke="#94A3B8" />
-                        <YAxis stroke="#94A3B8" />
-                        <Tooltip contentStyle={{ backgroundColor: '#1E293B', border: '1px solid #94A3B8' }} />
-                        <Line type="monotone" dataKey="count" stroke="#00A884" dot={{ fill: '#00A884' }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-saban-muted text-sm">No metrics available yet</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Save Button */}
-      {activeTab !== 'metrics' && (
-        <div className="p-4 border-t border-white/10">
-          <button
-            onClick={handleSaveRules}
-            disabled={saving}
-            className="w-full px-4 py-2 bg-saban-emerald text-saban-dark font-medium rounded-lg hover:bg-saban-emerald/90 transition disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
+          
+          <button onClick={addNode} className="w-full py-4 border-2 border-dashed border-white/10 rounded-2xl opacity-40 hover:opacity-100 hover:border-purple-500/50 transition-all flex items-center justify-center gap-2 font-bold text-sm">
+            <Plus size={18} /> הוסף ענף שיחה
           </button>
         </div>
-      )}
+
+        {/* עץ הענפים */}
+        <div className="col-span-8 overflow-y-auto space-y-4 custom-scrollbar pb-20">
+          {nodes.map((node, index) => (
+            <motion.div 
+              key={node.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+              className="bg-[#0f172a] p-6 rounded-[2rem] border border-white/5 relative group"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <input 
+                  value={node.name} onChange={(e) => {
+                    const newNodes = [...nodes];
+                    newNodes[index].name = e.target.value;
+                    setNodes(newNodes);
+                  }}
+                  className="bg-transparent font-black text-emerald-500 outline-none w-1/2"
+                />
+                <button onClick={() => setNodes(nodes.filter(n => n.id !== node.id))} className="opacity-0 group-hover:opacity-100 text-rose-500 transition-opacity">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black opacity-30 uppercase tracking-widest">Logic / Prompt</label>
+                  <input 
+                    value={node.prompt} onChange={(e) => {
+                      const newNodes = [...nodes];
+                      newNodes[index].prompt = e.target.value;
+                      setNodes(newNodes);
+                    }}
+                    className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm outline-none focus:border-emerald-500/30"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
