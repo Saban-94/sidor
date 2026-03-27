@@ -1,226 +1,219 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { supabase } from '@/lib/supabase';
-import { database } from '@/lib/firebase';
-import { ref, onValue, set } from 'firebase/database';
-// תיקון ייבוא: הוספת כל האייקונים הנדרשים כולל Package
+import { database } from '../../lib/firebase';
+import { ref, push, onValue, query, limitToLast } from 'firebase/database';
 import { 
-  Database, Zap, Play, Save, Plus, Trash2, 
-  MessageSquare, Monitor, Smartphone, Search, Sparkles, 
-  Image as ImageIcon, Youtube, Link as LinkIcon, Settings, 
-  BarChart3, HelpCircle, Moon, Sun, X, Cpu, Send, Package, User, Bot
+  Send, Bot, User, Zap, Settings, Moon, Sun, Menu, 
+  Terminal, Sparkles, Layout, Database, ChevronLeft, 
+  MoreVertical, Mic, Paperclip, Smile, History, Search, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- Types & Interfaces ---
-type Tab = 'knowledge' | 'simulator' | 'metrics' | 'guide';
-
-interface NavItemProps {
+interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
-  active: boolean;
-  onClick: () => void;
+  active?: boolean;
+  isDarkMode: boolean;
+  onClick?: () => void;
 }
 
-interface MetricCardProps {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-}
+const BRAIN_LOGO = "https://iili.io/qstzfVf.jpg";
 
-export default function SabanStudioV2() {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active = false, isDarkMode, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all font-bold text-sm ${
+      active 
+      ? 'bg-emerald-500 text-[#020617] shadow-lg shadow-emerald-500/20' 
+      : isDarkMode ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100'
+    }`}
+  >
+    {icon}
+    <span className="flex-1 text-right">{label}</span>
+    {active && <ChevronLeft size={16} className="opacity-50" />}
+  </div>
+);
+
+export default function PersonalAI() {
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('knowledge');
+  const [messages, setMessages] = useState<any[]>([]);
+  const [input, setInput] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [globalDNA, setGlobalDNA] = useState('');
-  const [testMessage, setTestMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
-    fetchInventory();
-    
-    const flowRef = ref(database, 'system/bot_flow_config');
-    const unsub = onValue(flowRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.val();
-        setNodes(data.nodes || []);
-        setGlobalDNA(data.globalDNA || '');
-      }
+    const aiChatRef = query(ref(database, 'private_brain/history'), limitToLast(50));
+    const unsub = onValue(aiChatRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) setMessages(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })));
     });
     return () => unsub();
   }, []);
 
-  const fetchInventory = async () => {
-    const { data } = await supabase.from('inventory').select('*').limit(50);
-    if (data) setInventory(data);
-  };
-
-  const handleSimulate = async () => {
-    if (!testMessage.trim()) return;
-    const userMsg = { role: 'user', content: testMessage, timestamp: Date.now() };
-    setChatHistory(prev => [...prev, userMsg]);
-    setTestMessage('');
-    setIsTyping(true);
-
-    try {
-      const res = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content, state: 'STUDIO_SIM', manualInjection: true })
-      });
-      const data = await res.json();
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.reply, 
-        media: data.mediaUrl, 
-        timestamp: Date.now() 
-      }]);
-    } catch (e) {
-      console.error("Simulation error", e);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
 
   if (!mounted) return null;
 
-  return (
-    <div className={`h-screen flex overflow-hidden font-sans ${isDarkMode ? 'bg-[#020617] text-white' : 'bg-slate-50 text-slate-900'}`} dir="rtl">
-      <Head><title>SABAN STUDIO | Intelligence Center</title></Head>
+  const handleCommand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isProcessing) return;
+    const userMsg = input;
+    setInput('');
+    setIsProcessing(true);
 
-      {/* Sidebar Navigation */}
-      <aside className={`w-72 border-l ${isDarkMode ? 'bg-[#0f172a] border-white/5' : 'bg-white border-slate-200'} p-6 flex flex-col`}>
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg text-[#020617]"><Cpu size={24}/></div>
-          <h1 className="text-xl font-black italic tracking-tighter">SABAN <span className="text-emerald-500">STUDIO</span></h1>
+    try {
+      await push(ref(database, 'private_brain/history'), {
+        role: 'user', content: userMsg, timestamp: Date.now()
+      });
+
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg, name: "ראמי", contextType: 'PRIVATE_ASSISTANT' })
+      });
+      const result = await response.json();
+
+      await push(ref(database, 'private_brain/history'), {
+        role: 'assistant', content: result.reply, timestamp: Date.now()
+      });
+    } catch (err) {
+      console.error("Brain Error:", err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className={`h-screen flex ${isDarkMode ? 'bg-[#020617]' : 'bg-slate-50'} font-sans text-right antialiased overflow-hidden`} dir="rtl">
+      <Head><title>SABAN BRAIN | המוח של סבן</title></Head>
+
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar - Desktop & Mobile */}
+      <aside className={`fixed lg:relative z-50 w-72 h-full border-l transition-transform duration-300 ${isDarkMode ? 'bg-[#0f172a] border-white/5' : 'bg-white border-slate-200'} p-6 flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 text-[#020617]"><Zap size={24} /></div>
+            <h1 className={`text-xl font-black italic tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>SABAN <span className="text-emerald-500">BRAIN</span></h1>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 opacity-50 hover:opacity-100"><X /></button>
         </div>
 
         <nav className="flex-1 space-y-2">
-          <NavItem icon={<Database size={18}/>} label="ניהול ידע (Knowledge)" active={activeTab === 'knowledge'} onClick={() => setActiveTab('knowledge')} />
-          <NavItem icon={<MessageSquare size={18}/>} label="סימולטור צ'אט" active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} />
-          <NavItem icon={<BarChart3 size={18}/>} label="מדדי ביצוע (Metrics)" active={activeTab === 'metrics'} onClick={() => setActiveTab('metrics')} />
-          <NavItem icon={<HelpCircle size={18}/>} label="מדריך RAMI MODE" active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} />
+          <SidebarItem icon={<History size={18}/>} label="היסטוריית משימות" active isDarkMode={isDarkMode} />
+          <SidebarItem icon={<Layout size={18}/>} label="ניהול פרויקטים" isDarkMode={isDarkMode} />
+          <SidebarItem icon={<Database size={18}/>} label="דאטה ולוגיסטיקה" isDarkMode={isDarkMode} />
+          <SidebarItem icon={<Settings size={18}/>} label="הגדרות מוח" isDarkMode={isDarkMode} />
         </nav>
 
-        <button onClick={() => setIsDarkMode(!isDarkMode)} className="mt-auto p-4 rounded-2xl border border-white/5 flex items-center justify-between hover:bg-white/5 transition-all">
-          <span className="text-xs font-bold">{isDarkMode ? 'מצב לילה' : 'מצב יום'}</span>
-          {isDarkMode ? <Sun size={18} className="text-amber-400"/> : <Moon size={18} className="text-blue-500"/>}
+        <button 
+          onClick={() => setIsDarkMode(!isDarkMode)} 
+          className={`mt-auto flex items-center justify-between p-4 rounded-2xl border transition-all ${isDarkMode ? 'border-white/5 bg-white/5 text-white hover:bg-white/10' : 'border-slate-200 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
+        >
+          <span className="font-bold text-sm">{isDarkMode ? 'מצב לילה' : 'מצב יום'}</span>
+          {isDarkMode ? <Moon size={18} className="text-emerald-400" /> : <Sun size={18} className="text-amber-500" />}
         </button>
       </aside>
 
-      {/* Main Workspace */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
-        <header className="p-6 border-b border-white/5 backdrop-blur-md flex justify-between items-center z-10">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full relative overflow-hidden bg-dot-pattern">
+        {/* Top Navigation Bar */}
+        <header className={`px-4 lg:px-8 py-4 border-b ${isDarkMode ? 'bg-[#020617]/80 border-white/5' : 'bg-white/80 border-slate-200'} backdrop-blur-xl flex items-center justify-between z-10`}>
           <div className="flex items-center gap-4">
-            <h2 className="font-black uppercase tracking-widest text-sm opacity-50">{activeTab}</h2>
-            <div className="flex items-center gap-2 text-[10px] text-emerald-500 font-bold uppercase">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/> Brain Online
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><Menu size={20}/></button>
+            <div className="relative">
+              <img src={BRAIN_LOGO} className="w-10 h-10 lg:w-12 lg:h-12 rounded-full border-2 border-emerald-500/50 object-cover" alt="Rami" />
+              <div className="absolute bottom-0 left-0 w-3 h-3 bg-emerald-500 border-2 border-[#020617] rounded-full animate-pulse" />
+            </div>
+            <div>
+              <h2 className={`font-black text-sm lg:text-base uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>העוזר של סבן HUB</h2>
+              <div className="flex items-center gap-2">
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                 <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">System Active</p>
+              </div>
             </div>
           </div>
-          <button className="px-6 py-2.5 bg-emerald-500 text-[#020617] font-black rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2 text-sm">
-            <Save size={16}/> סנכרן הכל
-          </button>
+          <div className={`hidden md:flex gap-4 p-2 rounded-2xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+             <Search size={18} className="opacity-40" />
+             <MoreVertical size={18} className="opacity-40" />
+          </div>
         </header>
 
-        <div className="flex-1 overflow-hidden p-8">
-          <AnimatePresence mode="wait">
-            {activeTab === 'knowledge' && (
-              <motion.div key="knowledge" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="h-full space-y-6">
-                <div className="grid grid-cols-3 gap-6">
-                  <MetricCard label="רשומות מלאי" value={inventory.length} icon={<Package size={20}/>} color="blue" />
-                  <MetricCard label="חוקי AI" value={nodes.length} icon={<Zap size={20}/>} color="emerald" />
-                  <MetricCard label="דיוק תשובות" value="94%" icon={<Sparkles size={20}/>} color="purple" />
+        {/* Chat Stream */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 lg:p-8 flex flex-col gap-6 pb-32">
+          {messages.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center">
+              <Sparkles size={64} className={`mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`} />
+              <p className={`font-black italic uppercase tracking-[0.2em] ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Ready for action</p>
+            </div>
+          ) : (
+            messages.map((m) => (
+              <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 lg:gap-4 ${m.role === 'user' ? 'flex-row' : 'flex-row-reverse'}`}>
+                <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${m.role === 'user' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-[#020617]'}`}>
+                  {m.role === 'user' ? <User size={18}/> : <Bot size={18}/>}
                 </div>
-                
-                <div className={`flex-1 rounded-[2.5rem] border border-white/5 overflow-hidden ${isDarkMode ? 'bg-[#0f172a]' : 'bg-white'}`}>
-                  <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                    <h3 className="font-bold">Database Explorer</h3>
-                    <button className="p-2 bg-emerald-500 rounded-lg text-black"><Plus size={18}/></button>
-                  </div>
-                  <div className="overflow-auto max-h-[500px] custom-scrollbar">
-                    <table className="w-full text-right text-sm">
-                      <thead className="sticky top-0 bg-[#0f172a] z-10 border-b border-white/5">
-                        <tr className="opacity-40 text-[10px] uppercase font-black">
-                          <th className="p-4">SKU</th>
-                          <th className="p-4">מוצר</th>
-                          <th className="p-4">מחיר</th>
-                          <th className="p-4">פעולות</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {inventory.map((item) => (
-                          <tr key={item.sku} className="border-b border-white/[0.02] hover:bg-white/[0.02]">
-                            <td className="p-4 font-mono text-emerald-500">{item.sku}</td>
-                            <td className="p-4 font-bold">{item.product_name}</td>
-                            <td className="p-4">₪{item.price}</td>
-                            <td className="p-4 flex gap-2"><Settings size={14} className="opacity-20"/><Trash2 size={14} className="text-rose-500/50"/></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className={`max-w-[85%] lg:max-w-[70%] p-4 rounded-3xl text-[15px] leading-relaxed shadow-xl border ${
+                  m.role === 'user' 
+                  ? (isDarkMode ? 'bg-[#1e293b] border-white/5 text-white' : 'bg-white border-slate-200 text-slate-900')
+                  : (isDarkMode ? 'bg-[#005c4b] border-emerald-500/20 text-white' : 'bg-emerald-50 border-emerald-200 text-emerald-900')
+                }`}>
+                  <div className="whitespace-pre-wrap font-medium">{m.content}</div>
+                  <div className="mt-2 text-[10px] opacity-50 text-left font-bold tabular-nums">
+                    {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               </motion.div>
-            )}
+            ))
+          )}
+          {isProcessing && (
+            <div className="flex items-center gap-3 px-12">
+               <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '400ms' }} />
+               </div>
+               <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Processing command...</span>
+            </div>
+          )}
+        </div>
 
-            {activeTab === 'simulator' && (
-              <motion.div key="simulator" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex gap-6">
-                <div className="flex-1 bg-[#0f172a]/50 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative">
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
-                    {chatHistory.map((msg, i) => (
-                      <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row' : 'flex-row-reverse'}`}>
-                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-blue-600' : 'bg-emerald-500 text-black'}`}>
-                          {msg.role === 'user' ? <User size={20}/> : <Bot size={20}/>}
-                        </div>
-                        <div className={`max-w-[80%] p-4 rounded-3xl ${msg.role === 'user' ? 'bg-[#1e293b] rounded-tr-none' : 'bg-emerald-500/10 border border-emerald-500/20 rounded-tl-none'}`}>
-                           <p className="text-sm leading-relaxed">{msg.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {isTyping && <div className="text-[10px] text-emerald-500 animate-pulse px-14">ראמי מנתח...</div>}
-                  </div>
-                  
-                  <div className="p-6 bg-[#0f172a]">
-                    <div className="flex gap-3 p-2 bg-black/40 rounded-[2rem] border border-white/10 items-center px-4">
-                      <input 
-                        value={testMessage} onChange={(e) => setTestMessage(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSimulate()}
-                        placeholder="דבר אל המוח..."
-                        className="flex-1 bg-transparent border-none outline-none p-3 text-sm"
-                      />
-                      <button onClick={handleSimulate} className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-[#020617] shadow-lg"><Send size={20}/></button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Action Bar / Input Area */}
+        <div className={`absolute bottom-0 left-0 right-0 p-4 lg:p-6 bg-gradient-to-t ${isDarkMode ? 'from-[#020617] via-[#020617]/90' : 'from-slate-50 via-slate-50/90'} to-transparent`}>
+          <form onSubmit={handleCommand} className="max-w-4xl mx-auto relative group">
+            <div className="absolute inset-0 rounded-[2rem] blur-2xl opacity-10 group-focus-within:opacity-20 transition-opacity bg-emerald-500" />
+            <div className={`relative flex items-center gap-2 lg:gap-3 p-2 rounded-[2.5rem] border shadow-2xl transition-all ${isDarkMode ? 'bg-[#0f172a] border-white/10 group-focus-within:border-emerald-500/50' : 'bg-white border-slate-300'}`}>
+              
+              <div className="flex gap-1 pr-3 border-l border-white/5 ml-1 text-slate-400">
+                 <Paperclip size={20} className="cursor-pointer hover:text-emerald-500 transition" />
+              </div>
+
+              <input 
+                value={input} onChange={(e) => setInput(e.target.value)}
+                placeholder="בצע פעולה: 'עדכן מחירון' או 'מה קורה באשדוד?'"
+                className={`flex-1 bg-transparent border-none outline-none text-sm lg:text-base p-3 font-medium placeholder:opacity-30 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+              />
+              
+              <button type="submit" disabled={!input.trim() || isProcessing} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-emerald-500 flex items-center justify-center text-[#020617] shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
+                <Send size={22} className="ml-1" />
+              </button>
+            </div>
+          </form>
         </div>
       </main>
-    </div>
-  );
-}
-
-// --- Subcomponents ---
-function NavItem({ icon, label, active, onClick }: NavItemProps) {
-  return (
-    <div onClick={onClick} className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all font-bold text-sm ${active ? 'bg-emerald-500 text-[#020617] shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-white/5'}`}>
-      {icon} <span className="flex-1">{label}</span>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, icon, color }: MetricCardProps) {
-  return (
-    <div className="bg-[#0f172a] p-6 rounded-[2rem] border border-white/5 flex items-center justify-between">
-      <div><p className="text-[10px] font-black uppercase opacity-40 mb-1">{label}</p><h4 className="text-2xl font-black">{value}</h4></div>
-      <div className={`p-3 rounded-xl bg-${color}-500/10 text-${color}-500`}>{icon}</div>
     </div>
   );
 }
