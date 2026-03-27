@@ -4,11 +4,11 @@ import { database } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { 
   Database, Zap, Shield, RefreshCcw, 
-  Layers, Activity, Globe, cpu
+  Layers, Activity, Globe, Cpu 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// תיקון ה-Export: הפיכת הרכיב ל-Named Export כדי שה-Dashboard יזהה אותו
+// Named Export תקין עבור ה-Dashboard
 export const Infrastructure: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const [dbStatus, setDbStatus] = useState({ firebase: 'connecting', supabase: 'connecting' });
@@ -17,7 +17,7 @@ export const Infrastructure: React.FC = () => {
   useEffect(() => {
     setMounted(true);
     
-    // בדיקת Latency וחיבור Firebase (מבוסס על הלוגיקה החכמה של הקובץ הישן)
+    // מדידת Latency וחיבור Firebase
     const start = Date.now();
     const statusRef = ref(database, '.info/connected');
     
@@ -28,8 +28,12 @@ export const Infrastructure: React.FC = () => {
 
     // בדיקת חיבור Supabase
     const checkSupabase = async () => {
-      const { error } = await supabase.from('inventory').select('id', { count: 'exact', head: true }).limit(1);
-      setDbStatus(prev => ({ ...prev, supabase: error ? 'error' : 'active' }));
+      try {
+        const { error } = await supabase.from('inventory').select('id').limit(1);
+        setDbStatus(prev => ({ ...prev, supabase: error ? 'error' : 'active' }));
+      } catch (e) {
+        setDbStatus(prev => ({ ...prev, supabase: 'error' }));
+      }
     };
 
     checkSupabase();
@@ -41,7 +45,7 @@ export const Infrastructure: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-[#020617] text-slate-200 font-sans p-6 overflow-y-auto custom-scrollbar" dir="rtl">
       
-      {/* Header יוקרתי - סטטוס מערכת הוליסטי */}
+      {/* Header יוקרתי */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }} 
         animate={{ opacity: 1, y: 0 }}
@@ -52,7 +56,7 @@ export const Infrastructure: React.FC = () => {
             <Layers size={32} />
           </div>
           <div>
-            <h1 className="text-2xl font-black italic tracking-tighter">SABAN <span className="text-emerald-500">CORE</span></h1>
+            <h1 className="text-2xl font-black italic tracking-tighter text-white">SABAN <span className="text-emerald-500">CORE</span></h1>
             <p className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-40">Infrastructure & Brain Sync</p>
           </div>
         </div>
@@ -66,10 +70,10 @@ export const Infrastructure: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* טבלת זיכרון ומאגרים (Supabase) */}
+        {/* טבלת זיכרון ומאגרים */}
         <div className="lg:col-span-8 space-y-6">
           <div className="flex items-center justify-between px-2">
-            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-white">
               <Database size={16} className="text-emerald-500" /> מאגרי מידע ב-Supabase
             </h3>
             <button className="p-2 hover:bg-white/5 rounded-full transition-all text-slate-500">
@@ -85,14 +89,14 @@ export const Infrastructure: React.FC = () => {
           </div>
         </div>
 
-        {/* פאנל ניטור הצינור (Pipeline) */}
+        {/* פאנל ניטור הצינור */}
         <div className="lg:col-span-4 bg-[#0f172a] rounded-[2.5rem] border border-white/5 p-8 relative overflow-hidden flex flex-col justify-between shadow-2xl">
           <div className="absolute -top-10 -right-10 opacity-[0.03] text-emerald-500">
             <Zap size={200} />
           </div>
           
           <div className="relative z-10">
-            <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-2">
+            <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-2 text-white">
               <Shield size={18} className="text-emerald-500" /> AI Execution Pipe
             </h3>
             
@@ -103,7 +107,7 @@ export const Infrastructure: React.FC = () => {
               </div>
               
               <div className="p-5 bg-black/30 rounded-3xl border border-white/5 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
                   <Activity size={14} className="text-emerald-500" />
                   <span>ניתוח זרם הודעות</span>
                 </div>
@@ -123,7 +127,6 @@ export const Infrastructure: React.FC = () => {
   );
 };
 
-// רכיבי עזר מעוצבים
 const StatusItem = ({ label, status, value }: { label: string, status: string, value: string }) => (
   <div className="flex flex-col items-start md:items-end">
     <span className="text-[9px] font-black opacity-30 uppercase tracking-tighter mb-1">{label}</span>
