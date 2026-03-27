@@ -1,167 +1,152 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
-import { database } from '../../lib/firebase';
-import { ref, push, onValue, query, limitToLast } from 'firebase/database';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { database } from '@/lib/firebase';
+import { ref, onValue } from 'firebase/database';
 import { 
-  Send, Bot, User, Zap, Settings, Moon, Sun, Menu, 
-  Terminal, Sparkles, Layout, Database, ChevronLeft, 
-  MoreVertical, Mic, Paperclip, Smile, History, Search
+  Database, Zap, Shield, RefreshCcw, 
+  Layers, Activity, Globe, Cpu 
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
-// הגדרת טיפוסים ל-Props כדי למנוע שגיאות Build
-interface SidebarItemProps {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  isDarkMode: boolean;
-}
-
-const BRAIN_LOGO = "https://iili.io/qstzfVf.jpg";
-
-export default function PersonalAI() {
+// Named Export קבוע - מונע שגיאת Build ב-Dashboard
+export const Infrastructure: React.FC = () => {
   const [mounted, setMounted] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [dbStatus, setDbStatus] = useState({ firebase: 'connecting', supabase: 'connecting' });
+  const [latency, setLatency] = useState(0);
 
   useEffect(() => {
     setMounted(true);
-    const aiChatRef = query(ref(database, 'private_brain/history'), limitToLast(50));
-    const unsub = onValue(aiChatRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setMessages(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })));
-      }
+    
+    // בדיקת Latency וחיבור Firebase
+    const start = Date.now();
+    const statusRef = ref(database, '.info/connected');
+    
+    const unsubFirebase = onValue(statusRef, (snapshot) => {
+      setLatency(Date.now() - start);
+      setDbStatus(prev => ({ ...prev, firebase: snapshot.val() ? 'active' : 'offline' }));
     });
-    return () => unsub();
-  }, []);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+    const checkSupabase = async () => {
+      try {
+        const { error } = await supabase.from('inventory').select('sku').limit(1);
+        setDbStatus(prev => ({ ...prev, supabase: error ? 'error' : 'active' }));
+      } catch (e) {
+        setDbStatus(prev => ({ ...prev, supabase: 'error' }));
+      }
+    };
+
+    checkSupabase();
+    return () => unsubFirebase();
+  }, []);
 
   if (!mounted) return null;
 
-  const handleCommand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isProcessing) return;
-    const userMsg = input;
-    setInput('');
-    setIsProcessing(true);
-
-    try {
-      await push(ref(database, 'private_brain/history'), {
-        role: 'user',
-        content: userMsg,
-        timestamp: Date.now()
-      });
-
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, name: "ראמי", contextType: 'PRIVATE_ASSISTANT' })
-      });
-      const result = await response.json();
-
-      await push(ref(database, 'private_brain/history'), {
-        role: 'assistant',
-        content: result.reply,
-        timestamp: Date.now()
-      });
-    } catch (err) {
-      console.error("Brain Error:", err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   return (
-    <div className={`h-screen flex ${isDarkMode ? 'bg-[#020617] text-slate-100' : 'bg-slate-50 text-slate-900'} font-sans transition-colors duration-300 text-right antialiased`} dir="rtl">
-      <Head>
-        <title>SABAN BRAIN | המוח של סבן</title>
-      </Head>
-
-      {/* Sidebar */}
-      <aside className={`fixed lg:relative z-40 w-72 h-full border-l ${isDarkMode ? 'bg-[#0f172a] border-white/5' : 'bg-white border-slate-200'} p-6 flex flex-col hidden lg:flex shadow-2xl lg:shadow-none`}>
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white">
-            <Zap size={24} />
+    <div className="flex flex-col h-full bg-[#020617] text-slate-200 font-sans p-6 overflow-y-auto custom-scrollbar" dir="rtl">
+      
+      {/* Header פרימיום - המוח הלוגיסטי */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row items-center justify-between bg-[#0f172a] p-8 rounded-[3rem] border border-white/5 shadow-2xl mb-10 gap-6"
+      >
+        <div className="flex items-center gap-6">
+          <div className="p-5 bg-emerald-500/10 rounded-2xl text-emerald-500 shadow-inner ring-1 ring-emerald-500/20">
+            <Layers size={36} />
           </div>
-          <h1 className="text-xl font-black italic tracking-tighter text-white">SABAN <span className="text-emerald-500">BRAIN</span></h1>
+          <div>
+            <h1 className="text-3xl font-black italic tracking-tighter text-white">SABAN <span className="text-emerald-500">CORE</span></h1>
+            <p className="text-[10px] uppercase tracking-[0.4em] font-bold opacity-30 mt-1">Infrastructure Control Center</p>
+          </div>
         </div>
+        
+        <div className="flex gap-10">
+          <StatusItem label="Firebase RT" status={dbStatus.firebase} value={`${latency}ms`} />
+          <StatusItem label="Supabase DB" status={dbStatus.supabase} value="MAPPED" />
+          <StatusItem label="AI Processor" status="active" value="READY" />
+        </div>
+      </motion.div>
 
-        <nav className="flex-1 space-y-2">
-          <SidebarItem icon={<History size={18}/>} label="היסטוריית משימות" active isDarkMode={isDarkMode} />
-          <SidebarItem icon={<Layout size={18}/>} label="ניהול פרויקטים" isDarkMode={isDarkMode} />
-          <SidebarItem icon={<Database size={18}/>} label="דאטה ולוגיסטיקה" isDarkMode={isDarkMode} />
-          <SidebarItem icon={<Settings size={18}/>} label="הגדרות מוח" isDarkMode={isDarkMode} />
-        </nav>
-
-        <button onClick={() => setIsDarkMode(!isDarkMode)} className={`mt-auto flex items-center gap-3 p-4 rounded-2xl border ${isDarkMode ? 'border-white/5 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'}`}>
-          {isDarkMode ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-blue-500" />}
-          <span className="font-bold text-sm">{isDarkMode ? 'מצב יום' : 'מצב לילה'}</span>
-        </button>
-      </aside>
-
-      {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col h-screen relative overflow-hidden">
-        <header className={`p-6 border-b ${isDarkMode ? 'border-white/5 bg-[#020617]/50' : 'border-slate-200 bg-white/50'} backdrop-blur-xl flex items-center justify-between z-10`}>
-          <div className="flex items-center gap-4">
-            <img src={BRAIN_LOGO} className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg shadow-emerald-500/20" alt="Brain" />
-            <div>
-              <h2 className="font-black text-sm uppercase tracking-widest text-white">המוח של סבן HUB</h2>
-              <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest animate-pulse">ראמי מחובר | מוכן לביצוע</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        
+        {/* טבלאות זיכרון ומאגרים */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="flex items-center justify-between px-4">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-white/90">
+              <Database size={18} className="text-emerald-500" /> Supabase Brain Storage
+            </h3>
+            <div className="flex items-center gap-2 text-[10px] opacity-30 font-bold uppercase">
+              <RefreshCcw size={14} className="animate-spin-slow" />
+              Live Sync
             </div>
           </div>
-          <MoreVertical className="opacity-40 cursor-pointer" />
-        </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 pb-36">
-          {messages.map((m) => (
-            <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 ${m.role === 'user' ? 'flex-row' : 'flex-row-reverse'}`}>
-              <div className={`max-w-[85%] lg:max-w-[70%] p-4 rounded-3xl text-sm ${m.role === 'user' ? 'bg-[#1e293b] text-white rounded-tr-none' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-50 rounded-tl-none'}`}>
-                <div className="whitespace-pre-wrap">{m.content}</div>
-                <div className="mt-2 text-[9px] opacity-30 text-left uppercase">
-                  {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <DataCard title="ai_knowledge_base" desc="מאגר ידע טכני ומוצרים" status="Synced" />
+            <DataCard title="customer_memory" desc="זיכרון לקוחות ו-DNA אישי" status="Active" highlight />
+            <DataCard title="dispatch_orders" desc="סידור עבודה ולוגיסטיקה" status="Live" />
+            <DataCard title="ai_rules" desc="ספר חוקי הבית של ראמי" status="Locked" />
+          </div>
+        </div>
+
+        {/* פאנל ביצוע (AI Execution) */}
+        <div className="lg:col-span-4 bg-[#0f172a] rounded-[3rem] border border-white/5 p-10 relative overflow-hidden flex flex-col justify-between shadow-2xl group">
+          <div className="absolute -top-12 -right-12 opacity-[0.02] text-emerald-500 group-hover:opacity-[0.05] transition-opacity">
+            <Zap size={250} />
+          </div>
+          
+          <div className="relative z-10">
+            <h3 className="text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3 text-white">
+              <Shield size={20} className="text-emerald-500" /> AI Action Pipeline
+            </h3>
+            
+            <div className="space-y-8">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="opacity-30 font-bold uppercase tracking-widest">Core Status</span>
+                <span className="text-emerald-500 font-black italic tracking-tighter">OPERATIONAL</span>
               </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Input Bar */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#020617] to-transparent">
-          <form onSubmit={handleCommand} className="max-w-5xl mx-auto relative group">
-            <div className={`relative flex items-center gap-3 p-2 rounded-[2rem] border ${isDarkMode ? 'bg-[#0f172a] border-white/10' : 'bg-white border-slate-200'} shadow-2xl`}>
-              <input 
-                value={input} onChange={(e) => setInput(e.target.value)}
-                placeholder="בצע פעולה: 'עדכן מחירון' או 'מה המצב בסידור?'..."
-                className="flex-1 bg-transparent border-none outline-none text-sm p-4 text-white"
-              />
-              <button type="submit" disabled={!input.trim() || isProcessing} className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg disabled:opacity-50">
-                <Send size={20} className="ml-1" />
-              </button>
+              
+              <div className="p-6 bg-black/40 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md">
+                <div className="flex items-center gap-2 text-xs font-black text-white italic">
+                  <Activity size={16} className="text-emerald-500" />
+                  <span>Real-time Stream Analysis</span>
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-50 font-medium">
+                  המערכת מבצעת כעת סנכרון רציף בין ה-CRM לסידור העבודה, תוך אופטימיזציה של Gemini למניעת Latency.
+                </p>
+              </div>
             </div>
-          </form>
-        </div>
-      </main>
-    </div>
-  );
-}
+          </div>
 
-// פונקציית עזר SidebarItem עם הגדרת Props תקינה
-function SidebarItem({ icon, label, active = false, isDarkMode }: SidebarItemProps) {
-  return (
-    <div className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all font-bold text-sm ${
-      active ? 'bg-emerald-500 text-white shadow-lg' : (isDarkMode ? 'text-slate-400 hover:bg-white/5' : 'text-slate-600 hover:bg-slate-100')
-    }`}>
-      {icon}
-      <span>{label}</span>
-      {active && <ChevronLeft size={16} className="mr-auto opacity-50" />}
+          <button className="relative z-10 w-full mt-10 py-5 bg-emerald-500 text-slate-900 font-black rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-400 active:scale-95 transition-all uppercase text-[10px] tracking-[0.2em]">
+            Clear Brain Cache
+          </button>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+const StatusItem = ({ label, status, value }: { label: string, status: string, value: string }) => (
+  <div className="flex flex-col items-start md:items-end">
+    <span className="text-[9px] font-black opacity-30 uppercase tracking-widest mb-2">{label}</span>
+    <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-xl border border-white/5">
+      <span className="text-[11px] font-black text-white tracking-tighter">{value}</span>
+      <div className={`w-2 h-2 rounded-full ${status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-rose-500'}`} />
+    </div>
+  </div>
+);
+
+const DataCard = ({ title, desc, status, highlight = false }: { title: string, desc: string, status: string, highlight?: boolean }) => (
+  <div className={`p-6 rounded-[2.5rem] border transition-all cursor-pointer group ${highlight ? 'bg-emerald-500/5 border-emerald-500/30 shadow-2xl shadow-emerald-500/5' : 'bg-white/[0.02] border-white/5 hover:border-emerald-500/20 hover:bg-white/[0.04]'}`}>
+    <div className="flex justify-between items-center mb-4">
+      <code className="text-[10px] font-mono text-emerald-500/60 font-bold">{title}</code>
+      <div className={`w-2 h-2 rounded-full ${highlight ? 'bg-emerald-500 animate-pulse' : 'bg-slate-800 group-hover:bg-emerald-500'}`} />
+    </div>
+    <h4 className="font-black text-[15px] mb-2 text-white/90">{desc}</h4>
+    <div className="flex items-center justify-between mt-6">
+      <span className="text-[10px] font-black uppercase opacity-20 tracking-[0.2em] group-hover:opacity-50 transition-opacity">{status}</span>
+      <Cpu size={14} className="opacity-0 group-hover:opacity-100 transition-all text-emerald-500 translate-x-2 group-hover:translate-x-0" />
+    </div>
+  </div>
+);
