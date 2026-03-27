@@ -1,5 +1,6 @@
 'use client';
 
+import { Infrastructure } from './Infrastructure'; // לוודא שזה בתוך סוגריים מסולסלים
 import React, { useState } from 'react';
 import { CustomerIdentity } from '@/types';
 import { CustomerList } from './CustomerList';
