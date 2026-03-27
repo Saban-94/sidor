@@ -56,28 +56,20 @@ export default function SabanStudioFinal() {
     // 2. טעינת מלאי (Supabase)
     fetchInventory();
   }, []);
+// סינון חכם שמונע קריסה אם יש נתונים חסרים ב-Supabase
+  const filteredInventory = inventory.filter(item => {
+    if (!item) return false;
 
-const fetchInventory = async () => {
-    setLoading(true);
-    try {
-      // שליפה פשוטה ללא מיון מורכב כדי לוודא שהחיבור עובד
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*'); 
+    // הפיכת הכל לטקסט בטוח (אם null הופך למחרוזת ריקה)
+    const name = item.product_name || "";
+    const sku = item.sku || "";
+    const query = searchQuery || "";
 
-      if (error) {
-        console.error("Supabase Error Detail:", error.message);
-        // אם יש שגיאה, ננסה לשלוף לפחות שמות ו-SKU
-        const { data: fallbackData } = await supabase.from('inventory').select('product_name, sku');
-        if (fallbackData) setInventory(fallbackData as any);
-      } else if (data) {
-        setInventory(data);
-      }
-    } catch (e) {
-      console.error("Critical Fetch Error:", e);
-    }
-    setLoading(false);
-  };
+    return (
+      name.toLowerCase().includes(query.toLowerCase()) || 
+      sku.toLowerCase().includes(query.toLowerCase())
+    );
+  });
 
   const saveAllToCloud = async () => {
     setLoading(true);
