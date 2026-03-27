@@ -32,12 +32,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 2. שליפת דאטה משולבת (הסטודיו הוא האלוהים)
-    const [flowSnap, memoryRes, inventoryRes] = await Promise.all([
-      getDoc(doc(dbFS, 'system', 'bot_flow_config')),
-      supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle(),
-      supabase.from('inventory').select('product_name, sku, price, stock_quantity').limit(15)
-    ]);
+// 2. זיהוי ענף דינמי (למשל ענף 8 שדיברנו עליו)
+    let activeNode = nodes.find((n: any, index: number) => {
+      const nodeNumber = (index + 1).toString();
+      return cleanMsg === nodeNumber || cleanMsg === n.name || cleanMsg.includes(n.name);
+    });
+
+    // 3. שליפת מוצרים במידה וזה רלוונטי לשיחה
+    let attachedProducts: any[] = [];
+    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי")) {
+      const { data } = await supabase
+        .from('inventory')
+        .select('product_name, sku, price, image_url, youtube_url')
+        .limit(3);
+      attachedProducts = data || [];
+    }
+
+    // 4. בניית ה-Prompt ל-Gemini
+    const systemPrompt = `
+      ${globalDNA}
+      הקשר לקוח מה-Frontend: ${context}
+      ${activeNode ? `הנחיית ענף נבחר (${activeNode.name}): ${activeNode.prompt}` : "שיחה כללית."}
+      
+      חוקים למענה:
+      - תענה קצר, חברותי, ובשפה של קבלנים (🏗️, 🦾).
+      - אם הלקוח שאל על מוצר, תגיד לו שצירפת לו כרטיסי מוצר למטה.
+    `;
 
     const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
     const nodes = flowData.nodes || [];
@@ -73,6 +93,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       - השתמש בטקסט **מודגש** ובאימוג'ים 🏗️.
       הודעת לקוח: "${cleanMsg}"
       תשובת ראמי: תתקבל ברגע שאבין כוונות פניה.
+      let attachedProducts: any[] = [];
+    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי")) {
+      const { data } = await supabase
+        .from('inventory')
+        .select('product_name, sku, price, image_url, youtube_url')
+        .limit(3);
+      attachedProducts = data || [];
+    }
     `;
 
     // 5. הרצת רוטציית המודלים (Fallback)
