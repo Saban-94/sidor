@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // בריכת מודלים לגיבוי (Rotation)
-    const modelPool = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"];
+    const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash", "gemini-pro"];
 
     try {
         // 1. משיכת עץ ה-Flow הדינמי מהסטודיו (Firestore)
