@@ -21,134 +21,133 @@ const dbFS = getFirestore(app);
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const { message, name, state, senderPhone, manualInjection } = req.body; 
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const { message, name, state, senderPhone, manualInjection } = req.body;
 
-    // הגנות בסיס
-    if (!message && !manualInjection) {
-        return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
+  // הגנות בסיס
+  if (!message && !manualInjection) {
+    return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
+  }
+  if (!apiKey) {
+    return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
+  }
+
+  // עדכון בריכת המודלים לפי בקשתך
+  const modelPool = [
+    "gemini-3.1-flash-lite-preview",
+    "gemini-1.5-flash",
+    "gemini-pro"
+  ];
+
+  try {
+    const phone = senderPhone?.replace('@c.us', '') || 'unknown';
+
+    // 1. שליפת דאטה משולב (זיכרון לקוח, חוקים ומבנה Flow)
+    const [flowSnap, memoryRes, rulesRes] = await Promise.all([
+      getDoc(doc(dbFS, 'system', 'bot_flow_config')),
+      supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).single(),
+      supabase.from('ai_rules').select('instruction').eq('is_active', true)
+    ]);
+
+    const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
+    const dynamicNodes = flowData.nodes || [];
+    const globalDNA = flowData.globalDNA || "אתה ראמי, המוח הלוגיסטי של ח. סבן. דבר קצר, יוקרתי ובשפת השטח.";
+    const customerContext = memoryRes.data?.accumulated_knowledge || "אין מידע קודם על הלקוח.";
+    const activeRules = rulesRes.data?.map(r => r.instruction).join('\n') || "";
+
+    // 2. ניווט חכם (Guard Rails)
+    let forcedState = state || 'MENU';
+    const cleanMsg = (message || "").trim();
+    if (['0', 'חזור', 'תפריט', 'איפוס'].includes(cleanMsg)) {
+      forcedState = 'MENU';
     }
-    
-    if (!apiKey) {
-        return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
+
+    // 3. בניית ה-Prompt המשולב
+    const prompt = `
+      ${globalDNA}
+      -- חוקי מערכת קשיחים --
+      ${activeRules}
+      
+      -- זיכרון היסטורי על הלקוח (${name}) --
+      ${customerContext}
+
+      -- ענפי השיחה מהסטודיו --
+      ${dynamicNodes.map((n: any) => `מצב [${n.id}]: ${n.prompt}`).join('\n')}
+
+      -- פרטי שיחה --
+      מצב נוכחי: ${forcedState}
+      הודעה: "${message}"
+
+      -- פורמט חובה: JSON בלבד --
+      {
+        "reply": "התשובה שלך (מעוצבת יוקרתי עם אימוג'ים)",
+        "newState": "המצב הבא",
+        "updateMemory": "מידע חדש לשימור (אם הלקוח נתן נתון חדש) או null",
+        "mediaUrl": "${forcedState === 'MENU' ? BRAND_LOGO : 'null'}"
+      }
+    `;
+
+    // 4. הרצת המודלים ברוטציה (Fallback)
+    let jsonResult: any = null;
+
+    for (const modelName of modelPool) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { 
+                temperature: 0.2, 
+                responseMimeType: "application/json" 
+              }
+            })
+          }
+        );
+
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (rawText) {
+          const parsed = JSON.parse(rawText);
+          // הבטחת קיום המשתנה לפני החזרה
+          jsonResult = {
+            ...parsed,
+            mediaUrl: parsed.mediaUrl || (forcedState === 'MENU' ? BRAND_LOGO : null)
+          };
+          break; // הצלחנו, עוצרים את הלולאה
+        }
+      } catch (e) {
+        console.error(`Fallback: ${modelName} failed. trying next...`);
+        continue;
+      }
     }
 
-    // בריכת מודלים לגיבוי (Rotation)
-    const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash", "gemini-pro"];
-
-    try {
-        // 1. משיכת עץ ה-Flow הדינמי מהסטודיו (Firestore)
-        const flowSnap = await getDoc(doc(dbFS, 'system', 'bot_flow_config'));
-        const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
-        const dynamicNodes = flowData.nodes || [];
-        const globalDNA = flowData.globalDNA || "אתה ראמי, המוח הלוגיסטי של ח. סבן. דבר קצר, יוקרתי ובשפת השטח.";
-
-        // 2. ניווט חכם וזיהוי "חזור" (Guard Rail)
-        let forcedState = state || 'MENU';
-        const cleanMsg = (message || "").trim();
-
-        if (['0', 'חזור', 'תפריט', 'איפוס'].includes(cleanMsg)) {
-            forcedState = 'MENU';
-        } else if (forcedState === 'MENU' || !state) {
-            if (cleanMsg === '1') forcedState = 'INQUIRY';
-            else if (cleanMsg === '2') forcedState = 'QUOTE';
-            else if (cleanMsg === '3') forcedState = 'ORDER';
-        }
-
-        // 3. שליפת DNA אישי מה-CRM (Firestore)
-        let customerDNA = '';
-        if (senderPhone) {
-            const custSnap = await getDoc(doc(dbFS, 'customers', senderPhone)).catch(() => null);
-            if (custSnap?.exists()) {
-                const cData = custSnap.data();
-                customerDNA = `\nDNA אישי ללקוח: ${cData.dnaContext || 'לקוח רגיל'}`;
-            }
-        }
-
-        // 4. שליפת מלאי חכמה מ-Supabase (רק בבירור מוצר)
-        let invInfo = "";
-        if (forcedState === 'INQUIRY') {
-            const keyword = cleanMsg.replace(/[^\w\sא-ת]/gi, '').split(/\s+/).filter((w: string) => w.length > 2)[0] || cleanMsg;
-            const { data } = await supabase.from('inventory').select('*').ilike('product_name', `%${keyword}%`).limit(3); 
-            if (data && data.length > 0) {
-                invInfo = data.map(p => `💎 מוצר: ${p.product_name} | SKU: ${p.sku} | מחיר: ₪${p.price}`).join('\n');
-            }
-        }
-
-        // 5. בניית הנחיות העץ (Nodes Instructions)
-        const nodesInstructions = dynamicNodes.map((n: any) => `מצב [${n.id}]: ${n.prompt}`).join('\n');
-
-        // 6. בניית ה-Prompt המשולב
-        const prompt = `
-        ${globalDNA}
-        ${customerDNA}
-
-        -- מפת ענפי השיחה מהסטודיו (Flow Builder) --
-        ${nodesInstructions}
-
-        -- נתונים אישיים --
-        שם הלקוח: ${name || 'אח יקר'}
-        מספר טלפון: ${senderPhone || 'לא ידוע'}
-        לוגו המותג: ${BRAND_LOGO}
-
-        -- מצב נוכחי: ${forcedState} --
-        הודעת הלקוח: "${message}"
-
-        -- חוקי עיצוב יוקרתיים --
-        1. בתפריט (MENU): הצג אימוג'ים (✨, 🏗️, 💎), כתב מודגש, ושלח את ${BRAND_LOGO} ב-mediaUrl.
-        2. בבירור (INQUIRY): השתמש בנתוני המלאי: ${invInfo}.
-        3. פורמט חובה: JSON בלבד.
-
-        {
-          "reply": "טקסט מעוצב",
-          "newState": "${forcedState}",
-          "mediaUrl": "URL או null",
-          "pdfUrl": "URL או null",
-          "actionButton": { "text": "טקסט", "link": "URL" } או null
-        }
-        `;
-
-        // 7. הרצת מודלים ברוטציה (Fallback)
-        let jsonResult: any = null;
-        for (const modelName of modelPool) {
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.1, responseMimeType: "application/json" } 
-                    })
-                });
-                const data = await response.json();
-                
-                if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
-                    
-                    // תיקון ה-Type: הזרקת לוגו רק אם הפארסינג הצליח
-                    if (forcedState === 'MENU') {
-                        parsed.mediaUrl = BRAND_LOGO;
-                    }
-                    
-                    jsonResult = parsed;
-                    break;
-                }
-            } catch (e) { 
-                console.error(`Error with model ${modelName}:`, e);
-                continue; 
-            }
-        }
-
-        if (!jsonResult) {
-            return res.status(200).json({ reply: "משהו השתבש במוח, נסה שוב." });
-        }
-
-        return res.status(200).json(jsonResult);
-
-    } catch (e: any) {
-        console.error("Server API Error:", e);
-        return res.status(200).json({ reply: `תקלה בשרת: ${e.message}` });
+    if (!jsonResult) {
+      return res.status(200).json({ reply: "⚠️ המוח עמוס כרגע, נסה שוב בעוד רגע." });
     }
+
+    // 5. עדכון זיכרון אוטומטי ב-Supabase אם ה-AI זיהה מידע חדש
+    if (jsonResult.updateMemory && phone !== 'unknown') {
+      const updatedKnowledge = customerContext === "אין מידע קודם על הלקוח." 
+        ? jsonResult.updateMemory 
+        : `${customerContext} | ${jsonResult.updateMemory}`;
+
+      await supabase.from('customer_memory').upsert({
+        clientId: phone,
+        accumulated_knowledge: updatedKnowledge,
+        last_update: new Date().toISOString()
+      });
+    }
+
+    return res.status(200).json(jsonResult);
+
+  } catch (e: any) {
+    console.error("Critical API Error:", e);
+    return res.status(200).json({ reply: "תקלה בצינורות המוח, אני כבר מתקן." });
+  }
 }
