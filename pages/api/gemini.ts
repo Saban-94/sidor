@@ -24,8 +24,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
-    
-    // תיקון קריטי: פירוק manualInjection מה-body כדי שיהיה מוכר ל-TS
     const { message, name, state, senderPhone, manualInjection } = req.body; 
 
     // הגנות בסיס
@@ -113,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         `;
 
         // 7. הרצת מודלים ברוטציה (Fallback)
-        let jsonResult = null;
+        let jsonResult: any = null;
         for (const modelName of modelPool) {
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -125,9 +123,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     })
                 });
                 const data = await response.json();
+                
                 if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    jsonResult = JSON.parse(data.candidates[0].content.parts[0].text);
-                    if (forcedState === 'MENU') jsonResult.mediaUrl = BRAND_LOGO;
+                    const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+                    
+                    // תיקון ה-Type: הזרקת לוגו רק אם הפארסינג הצליח
+                    if (forcedState === 'MENU') {
+                        parsed.mediaUrl = BRAND_LOGO;
+                    }
+                    
+                    jsonResult = parsed;
                     break;
                 }
             } catch (e) { 
@@ -136,7 +141,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
         }
 
-        return res.status(200).json(jsonResult || { reply: "משהו השתבש במוח, נסה שוב." });
+        if (!jsonResult) {
+            return res.status(200).json({ reply: "משהו השתבש במוח, נסה שוב." });
+        }
+
+        return res.status(200).json(jsonResult);
 
     } catch (e: any) {
         console.error("Server API Error:", e);
