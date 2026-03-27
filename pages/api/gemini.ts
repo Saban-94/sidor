@@ -15,32 +15,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
-  const { message, name, state, senderPhone, manualInjection } = req.body;
+  const { message, name, senderPhone, manualInjection, context: frontendContext } = req.body;
   const cleanMsg = (message || "").trim();
 
   // הגנות בסיס
   if (!cleanMsg && !manualInjection) return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
-  // בריכת המודלים ברוטציה (לפי סדר עדיפויות שביקשת)
+  // בריכת המודלים ברוטציה (לפי סדר עדיפויות)
   const modelPool = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-1.5-flash",
-    "gemini-pro"
+    "gemini-2.0-flash-lite-preview-02-05", // המודל הכי מהיר וחדש
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
   ];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-// 2. זיהוי ענף דינמי (למשל ענף 8 שדיברנו עליו)
+    // 2. שליפת דאטה משולבת (סטודיו + זיכרון לקוח)
+    const [flowSnap, memoryRes] = await Promise.all([
+      getDoc(doc(dbFS, 'system', 'bot_flow_config')),
+      supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
+    ]);
+
+    const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
+    const nodes = flowData.nodes || [];
+    const globalDNA = flowData.globalDNA || "אתה ראמי, המוח של ח. סבן.";
+    const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
+
+    // 3. זיהוי ענף דינמי (Mapping) - תומך בענף 8 וכל מספר אחר
     let activeNode = nodes.find((n: any, index: number) => {
       const nodeNumber = (index + 1).toString();
       return cleanMsg === nodeNumber || cleanMsg === n.name || cleanMsg.includes(n.name);
     });
 
-    // 3. שליפת מוצרים במידה וזה רלוונטי לשיחה
+    // 4. שליפת מוצרים לממשק הפרימיום (אם מדובר בבירור מלאי)
     let attachedProducts: any[] = [];
-    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי")) {
+    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי") || cleanMsg.includes("כמה עולה")) {
       const { data } = await supabase
         .from('inventory')
         .select('product_name, sku, price, image_url, youtube_url')
@@ -48,62 +59,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       attachedProducts = data || [];
     }
 
-    // 4. בניית ה-Prompt ל-Gemini
-    const systemPrompt = `
-      ${globalDNA}
-      הקשר לקוח מה-Frontend: ${context}
-      ${activeNode ? `הנחיית ענף נבחר (${activeNode.name}): ${activeNode.prompt}` : "שיחה כללית."}
-      
-      חוקים למענה:
-      - תענה קצר, חברותי, ובשפה של קבלנים (🏗️, 🦾).
-      - אם הלקוח שאל על מוצר, תגיד לו שצירפת לו כרטיסי מוצר למטה.
-    `;
-
-    const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
-    const nodes = flowData.nodes || [];
-    const globalDNA = flowData.globalDNA || "אתה ראמי, המוח של ח. סבן. דבר קצר ומקצועי.";
-    const customerContext = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
-    const inventoryContext = inventoryRes.data?.map(i => `${i.product_name} (₪${i.price})`).join(', ') || "המלאי בטעינה.";
-
-    // 3. זיהוי ענף (Mapping) - מונע לולאת תפריט פתיחה
-    let activeNode = nodes.find((n: any) => 
-      cleanMsg === n.name || 
-      (cleanMsg.length === 1 && nodes.indexOf(n) + 1 === parseInt(cleanMsg)) ||
-      cleanMsg.includes(n.name)
-    );
-
-    // 4. בניית ה-Prompt ל-AI
+    // 5. בניית ה-Prompt ל-AI (נקי ללא כפילויות)
     const prompt = `
       ${globalDNA}
       
       -- הקשר לקוח --
-      שם: ${name || 'לקוח'}
-      זיכרון: ${customerContext}
-      
-      -- נתוני מלאי מהמחסן --
-      ${inventoryContext}
+      שם הלקוח: ${name || 'חבר'}
+      זיכרון מערכת: ${customerMemory}
+      הקשר מהממשק: ${frontendContext || 'לקוח כללי'}
 
-      -- מצב שיחה --
-      ${activeNode ? `ענף נבחר: ${activeNode.name}. הנחיה: ${activeNode.prompt}` : "הודעת פתיחה/שיחה כללית"}
+      -- מצב שיחה נוכחי --
+      ${activeNode ? `הלקוח בחר בענף: ${activeNode.name}. הנחיה לפעולה: ${activeNode.prompt}` : "שיחה כללית/פתיחה"}
       
-      חוקים קשיחים:
-      "חוק קשיח: תשובות קצרות, עד 2-3 משפטים. בלי חזרות מיותרות. תדבר בגובה העיניים, מקצועי ומהיר."
-      - אם הלקוח בחר מספר או נושא, ענה לו ישירות על הנושא. **אל תציג שוב את כל התפריט (1-7)**.
-      - אם מדובר בבירור מוצר, השתמש בנתוני המלאי שסופקו למעלה.
-      - השתמש בטקסט **מודגש** ובאימוג'ים 🏗️.
+      -- מידע זמין מהמחסן (להזרקה לתשובה במידת הצורך) --
+      ${attachedProducts.length > 0 ? attachedProducts.map(p => `${p.product_name}: ₪${p.price}`).join(', ') : 'המלאי נטען...'}
+
+      חוקים קשיחים למענה:
+      1. תשובות קצרות וקולעות (2-3 משפטים).
+      2. אם נבחר ענף או מספר, עבור ישר לנושא. **אל תציג שוב את כל התפריט (1-7)**.
+      3. דבר בשפה של קבלנים: חברותי, מקצועי, עם אימוג'ים 🏗️🦾.
+      4. אם צירפת מוצרים, ציין זאת בקצרה: "שלחתי לך כרטיסי מוצר כאן למטה".
+
       הודעת לקוח: "${cleanMsg}"
-      תשובת ראמי: תתקבל ברגע שאבין כוונות פניה.
-      let attachedProducts: any[] = [];
-    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי")) {
-      const { data } = await supabase
-        .from('inventory')
-        .select('product_name, sku, price, image_url, youtube_url')
-        .limit(3);
-      attachedProducts = data || [];
-    }
+      תשובת ראמי:
     `;
 
-    // 5. הרצת רוטציית המודלים (Fallback)
+    // 6. הרצת רוטציית המודלים (Fallback)
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -119,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const data = await response.json();
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           replyText = data.candidates[0].content.parts[0].text;
-          break; // הצלחנו, עוצרים את הלולאה
+          break; 
         }
       } catch (err) {
         console.warn(`Model ${modelName} failed, trying next...`);
@@ -127,12 +108,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    if (!replyText) throw new Error("כל המודלים נכשלו במענה.");
+    if (!replyText) throw new Error("כל המודלים נכשלו.");
 
-    // החזרת תשובה לסטודיו/וואטסאפ
+    // 7. החזרת תשובה מסונכרנת לצאט פרימיום
     return res.status(200).json({
       reply: replyText,
-      mediaUrl: activeNode ? null : BRAND_LOGO // מציג לוגו רק בפתיחה
+      products: attachedProducts, // נשלח לממשק המעוצב
+      mediaUrl: activeNode ? null : BRAND_LOGO // מציג לוגו רק בהודעה ראשונה
     });
 
   } catch (e) {
