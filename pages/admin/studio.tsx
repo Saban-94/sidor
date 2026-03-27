@@ -28,14 +28,14 @@ export default function SabanStudioFinal() {
   const [activeSection, setActiveSection] = useState<StudioSection>('FLOW_BUILDER');
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // Data State (Firebase & Supabase)
+  // Data State
   const [nodes, setNodes] = useState<any[]>([]);
   const [globalDNA, setGlobalDNA] = useState('');
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Editor & Simulator State
+  // UI State
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
@@ -44,7 +44,7 @@ export default function SabanStudioFinal() {
 
   useEffect(() => {
     setMounted(true);
-    // 1. טעינת ענפים ותפריטים (Firebase)
+    // 1. טעינת ענפים (Firebase)
     const flowRef = ref(database, 'system/bot_flow_config');
     onValue(flowRef, (snap) => {
       if (snap.exists()) {
@@ -56,19 +56,30 @@ export default function SabanStudioFinal() {
     // 2. טעינת מלאי (Supabase)
     fetchInventory();
   }, []);
-// סינון חכם שמונע קריסה אם יש נתונים חסרים ב-Supabase
+
+  // פונקציית השליפה שהייתה חסרה ב-Build הקודם
+  const fetchInventory = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) setInventory(data);
+      if (error) console.error("Supabase Error:", error);
+    } catch (e) {
+      console.error("Fetch Error:", e);
+    }
+    setLoading(false);
+  };
+
+  // סינון חסין קריסות (מונע שגיאת Includes על null)
   const filteredInventory = inventory.filter(item => {
     if (!item) return false;
-
-    // הפיכת הכל לטקסט בטוח (אם null הופך למחרוזת ריקה)
-    const name = item.product_name || "";
-    const sku = item.sku || "";
-    const query = searchQuery || "";
-
-    return (
-      name.toLowerCase().includes(query.toLowerCase()) || 
-      sku.toLowerCase().includes(query.toLowerCase())
-    );
+    const name = (item.product_name || "").toLowerCase();
+    const sku = (item.sku || "").toLowerCase();
+    const query = (searchQuery || "").toLowerCase();
+    return name.includes(query) || sku.includes(query);
   });
 
   const saveAllToCloud = async () => {
@@ -76,7 +87,7 @@ export default function SabanStudioFinal() {
     await set(ref(database, 'system/bot_flow_config'), {
       nodes, globalDNA, lastUpdated: Date.now()
     });
-    alert('✅ הסטודיו, הענפים וה-DNA סונכרנו בהצלחה!');
+    alert('✅ המוח סונכרן בהצלחה!');
     setLoading(false);
   };
 
@@ -84,6 +95,7 @@ export default function SabanStudioFinal() {
     if (!testInput.trim()) return;
     const userMsg = { role: 'user', content: testInput };
     setChatHistory(prev => [...prev, userMsg]);
+    const currentInput = testInput;
     setTestInput('');
     setIsTyping(true);
 
@@ -91,7 +103,7 @@ export default function SabanStudioFinal() {
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content, state: 'STUDIO_TEST', manualInjection: true })
+        body: JSON.stringify({ message: currentInput, state: 'STUDIO_TEST', manualInjection: true })
       });
       const data = await res.json();
       setChatHistory(prev => [...prev, { role: 'assistant', content: data.reply, media: data.mediaUrl }]);
@@ -103,9 +115,9 @@ export default function SabanStudioFinal() {
 
   return (
     <div className={`h-screen flex overflow-hidden font-sans ${isDarkMode ? 'bg-[#020617] text-white' : 'bg-[#f8fafc] text-slate-900'}`} dir="rtl">
-      <Head><title>SABAN STUDIO ULTRA | מרכז השליטה</title></Head>
+      <Head><title>SABAN STUDIO ULTRA</title></Head>
 
-      {/* --- Sidebar Navigation (Dark) --- */}
+      {/* --- Sidebar Navigation --- */}
       <aside className="w-72 bg-[#0f172a] text-white p-6 flex flex-col shadow-2xl z-30">
         <div className="flex items-center gap-3 mb-10">
           <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg"><Cpu size={24}/></div>
@@ -114,20 +126,21 @@ export default function SabanStudioFinal() {
         <nav className="flex-1 space-y-2">
           <NavBtn icon={<GitBranch/>} label="עיצוב תפריט וענפים" active={activeSection === 'FLOW_BUILDER'} onClick={() => setActiveSection('FLOW_BUILDER')} />
           <NavBtn icon={<Database/>} label="ניהול ידע ומלאי" active={activeSection === 'KNOWLEDGE'} onClick={() => setActiveSection('KNOWLEDGE')} />
-          <NavBtn icon={<Briefcase/>} label="ניהול פרויקטים" active={activeSection === 'PROJECTS'} onClick={() => setActiveSection('PROJECTS')} />
-          <NavBtn icon={<Truck/>} label="דאטה ולוגיסטיקה" active={activeSection === 'LOGISTICS'} onClick={() => setActiveSection('LOGISTICS')} />
           <NavBtn icon={<Settings/>} label="הגדרות מוח" active={activeSection === 'BRAIN_SETTINGS'} onClick={() => setActiveSection('BRAIN_SETTINGS')} />
         </nav>
+        <button onClick={() => setIsDarkMode(!isDarkMode)} className="mt-auto p-4 rounded-2xl bg-white/5 flex items-center justify-between">
+          <span className="text-xs font-black">Mode</span>
+          {isDarkMode ? <Sun size={18}/> : <Moon size={18}/>}
+        </button>
       </aside>
 
-      {/* --- Main Dashboard Area --- */}
+      {/* --- Workspace --- */}
       <main className="flex-1 flex overflow-hidden relative bg-white">
         <div className="flex-1 p-10 overflow-y-auto custom-scrollbar pb-32">
           <AnimatePresence mode="wait">
             
-            {/* 1. FLOW BUILDER - עיצוב תפריט וענפים */}
             {activeSection === 'FLOW_BUILDER' && (
-              <motion.div key="flow" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-8">
+              <motion.div key="flow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto space-y-8">
                 <header className="flex justify-between items-center border-b pb-6 border-slate-100">
                   <h2 className="text-3xl font-black italic text-slate-900 uppercase">Flow <span className="text-emerald-500">Builder</span></h2>
                   <button onClick={() => setNodes([...nodes, { id: Date.now(), name: 'כפתור חדש', prompt: '' }])} className="px-6 py-3 bg-emerald-500 text-black font-black rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105"><Plus size={18}/> הוסף ענף</button>
@@ -135,56 +148,48 @@ export default function SabanStudioFinal() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {nodes.map((node, i) => (
                     <div key={node.id} className="bg-slate-50 border border-slate-200 p-6 rounded-[2.5rem] group relative hover:shadow-xl transition-all">
-                       <input value={node.name} onChange={(e) => { const n = [...nodes]; n[i].name = e.target.value; setNodes(n); }} className="bg-transparent font-black text-slate-900 text-lg outline-none w-full focus:text-emerald-500" />
-                       <textarea value={node.prompt} onChange={(e) => { const n = [...nodes]; n[i].prompt = e.target.value; setNodes(n); }} className="w-full h-32 bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-xs text-slate-600 outline-none" placeholder="הנחיה למוח..." />
-                       <button onClick={() => setNodes(nodes.filter(nd => nd.id !== node.id))} className="absolute top-4 left-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
+                       <input value={node.name} onChange={(e) => { const n = [...nodes]; n[i].name = e.target.value; setNodes(n); }} className="bg-transparent font-black text-slate-900 text-lg outline-none w-full" />
+                       <textarea value={node.prompt} onChange={(e) => { const n = [...nodes]; n[i].prompt = e.target.value; setNodes(n); }} className="w-full h-32 bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-xs" placeholder="הנחיה למוח..." />
+                       <button onClick={() => setNodes(nodes.filter(nd => nd.id !== node.id))} className="absolute top-4 left-4 text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={18}/></button>
                     </div>
                   ))}
                 </div>
               </motion.div>
             )}
 
-            {/* 2. KNOWLEDGE - ניהול מלאי מלא מ-Supabase */}
             {activeSection === 'KNOWLEDGE' && (
               <motion.div key="knowledge" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-6xl mx-auto space-y-8">
                 <header className="flex justify-between items-center border-b pb-6 border-slate-100">
-                  <h2 className="text-3xl font-black italic text-slate-900 uppercase">Database & <span className="text-emerald-500">Inventory</span></h2>
+                  <h2 className="text-3xl font-black italic text-slate-900 uppercase">Inventory</h2>
                   <div className="bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
                     <Search size={14}/><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-xs w-48" placeholder="חפש מוצר..."/>
                   </div>
                 </header>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {inventory.filter(i => i.product_name.includes(searchQuery) || i.sku.includes(searchQuery)).map((item) => (
+                  {filteredInventory.map((item) => (
                     <div key={item.id} onClick={() => { setSelectedProduct(item); setIsModalOpen(true); }} className="bg-slate-50 border border-slate-200 p-6 rounded-[2.5rem] hover:bg-white hover:shadow-2xl transition-all cursor-pointer group">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="w-16 h-16 bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-inner flex items-center justify-center">
-                          {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="opacity-10"/>}
-                        </div>
-                        <div className="text-left font-mono text-[10px] text-emerald-500 font-bold">{item.sku}</div>
+                      <div className="w-16 h-16 bg-white rounded-2xl border border-slate-100 overflow-hidden mb-4 flex items-center justify-center">
+                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="opacity-10"/>}
                       </div>
                       <h4 className="font-black text-slate-800 text-lg group-hover:text-emerald-500 transition-colors">{item.product_name}</h4>
-                      <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center text-xs font-black">
-                        <span className="text-slate-900">₪{item.price}</span>
-                        <span className="text-emerald-500">מלאי: {item.stock_quantity}</span>
-                      </div>
+                      <p className="text-[10px] font-mono text-emerald-500 font-bold mt-1 uppercase">{item.sku}</p>
                     </div>
                   ))}
                 </div>
               </motion.div>
             )}
 
-            {/* 3. BRAIN SETTINGS - הגדרות DNA */}
             {activeSection === 'BRAIN_SETTINGS' && (
               <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-8">
-                 <h2 className="text-3xl font-black italic tracking-tighter uppercase text-purple-600">Brain <span className="text-slate-900">DNA</span></h2>
-                 <textarea value={globalDNA} onChange={(e) => setGlobalDNA(e.target.value)} className="w-full h-80 bg-slate-50 border border-slate-200 rounded-[3rem] p-8 text-sm text-slate-700 outline-none focus:border-purple-500/50 transition-all font-medium leading-relaxed" placeholder="הגדר את אישיות הליבה של ראמי..." />
+                 <h2 className="text-3xl font-black italic uppercase text-purple-600">Brain DNA</h2>
+                 <textarea value={globalDNA} onChange={(e) => setGlobalDNA(e.target.value)} className="w-full h-80 bg-slate-50 border border-slate-200 rounded-[3rem] p-8 text-sm outline-none" placeholder="הגדר את אישיות הליבה של ראמי..." />
               </motion.div>
             )}
 
           </AnimatePresence>
         </div>
 
-        {/* --- Simulator iPhone (תמיד מוצג) --- */}
+        {/* --- Simulator iPhone --- */}
         <aside className="w-[450px] bg-slate-100 border-r border-slate-200 flex items-center justify-center p-8 z-20 shadow-inner">
            <div className="relative w-full max-w-[300px] aspect-[9/19.5] bg-[#000] rounded-[3.5rem] border-[10px] border-[#1a1a1a] shadow-2xl overflow-hidden flex flex-col">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-[#1a1a1a] rounded-b-2xl z-20"></div>
@@ -212,38 +217,36 @@ export default function SabanStudioFinal() {
         </aside>
 
         {/* --- Training Toolbox --- */}
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-[#0f172a] p-4 rounded-full flex gap-4 shadow-[0_25px_60px_rgba(0,0,0,0.5)] z-50 ring-2 ring-white/5">
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-[#0f172a] p-4 rounded-full flex gap-4 shadow-2xl z-50 ring-2 ring-white/5">
            <ToolAction icon={<Target/>} label="אימון" color="emerald" />
-           <ToolAction icon={<LinkIcon/>} label="לינק מוצר" color="blue" />
            <div className="w-[1px] bg-white/10 mx-2" />
            <button onClick={saveAllToCloud} className="px-10 py-3 bg-emerald-500 text-black font-black rounded-full hover:scale-105 transition-all text-sm flex items-center gap-2">
-             <Save size={18}/> סנכרן הכל
+             <Save size={18}/> {loading ? 'סנכרון...' : 'סנכרן מוח'}
            </button>
         </div>
       </main>
 
-      {/* --- Product Modal (עריכה והוספה) --- */}
+      {/* --- Editor Modal --- */}
       <AnimatePresence>
         {isModalOpen && selectedProduct && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm p-10 flex items-center justify-center">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white p-10 rounded-[3rem] w-full max-w-4xl shadow-2xl space-y-8 relative">
-                <button onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 p-3 bg-slate-100 rounded-full hover:bg-rose-500 hover:text-white transition-all"><X/></button>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white p-10 rounded-[3rem] w-full max-w-4xl shadow-2xl space-y-8 relative">
+                <button onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 p-3 bg-slate-100 rounded-full"><X/></button>
                 <div className="grid grid-cols-2 gap-10">
                    <div className="space-y-4">
                       <div className="aspect-square bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
                          {selectedProduct.image_url ? <img src={selectedProduct.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={48} className="text-slate-200"/>}
                       </div>
-                      <input value={selectedProduct.image_url} onChange={(e) => setSelectedProduct({...selectedProduct, image_url: e.target.value})} placeholder="לינק לתמונה" className="w-full p-4 bg-slate-100 rounded-2xl text-xs font-bold" />
+                      <input value={selectedProduct.image_url} onChange={(e) => setSelectedProduct({...selectedProduct, image_url: e.target.value})} placeholder="לינק לתמונה" className="w-full p-4 bg-slate-100 rounded-2xl text-xs" />
                    </div>
                    <div className="space-y-6">
-                      <h3 className="text-3xl font-black italic uppercase text-slate-900">Edit <span className="text-emerald-500">Product</span></h3>
-                      <input value={selectedProduct.product_name} onChange={(e) => setSelectedProduct({...selectedProduct, product_name: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl text-sm font-bold border-none" placeholder="שם מוצר" />
+                      <h3 className="text-3xl font-black italic uppercase text-slate-900">Edit Product</h3>
+                      <input value={selectedProduct.product_name} onChange={(e) => setSelectedProduct({...selectedProduct, product_name: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl text-sm font-bold" placeholder="שם מוצר" />
                       <div className="grid grid-cols-2 gap-4">
                          <input value={selectedProduct.sku} onChange={(e) => setSelectedProduct({...selectedProduct, sku: e.target.value})} className="p-4 bg-slate-100 rounded-2xl text-sm font-bold" placeholder="SKU" />
                          <input value={selectedProduct.price} onChange={(e) => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} className="p-4 bg-slate-100 rounded-2xl text-sm font-bold" placeholder="מחיר" type="number" />
                       </div>
-                      <textarea value={selectedProduct.description} onChange={(e) => setSelectedProduct({...selectedProduct, description: e.target.value})} className="w-full h-32 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium" placeholder="תיאור למוח..." />
-                      <button onClick={async () => { await supabase.from('inventory').upsert(selectedProduct); fetchInventory(); setIsModalOpen(false); alert('המוצר עודכן!'); }} className="w-full py-4 bg-emerald-500 text-black font-black rounded-full shadow-lg">שמור שינויים במלאי</button>
+                      <button onClick={async () => { await supabase.from('inventory').upsert(selectedProduct); fetchInventory(); setIsModalOpen(false); alert('עודכן!'); }} className="w-full py-4 bg-emerald-500 text-black font-black rounded-full shadow-lg">שמור במלאי</button>
                    </div>
                 </div>
             </motion.div>
@@ -256,16 +259,14 @@ export default function SabanStudioFinal() {
 
 function NavBtn({ icon, label, active, onClick }: any) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl font-black transition-all text-[11px] uppercase tracking-tighter ${active ? 'bg-emerald-500 text-black shadow-lg scale-[1.03]' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl font-black transition-all text-[11px] uppercase ${active ? 'bg-emerald-500 text-black shadow-lg scale-[1.03]' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
       {icon} <span className="flex-1 text-right">{label}</span>
     </button>
   );
 }
 
-function ToolAction({ icon, label, color, onClick }: any) {
+function ToolAction({ icon, label, color }: any) {
   return (
-    <div className="group relative">
-      <button onClick={onClick} className={`p-4 bg-white/5 rounded-full hover:bg-${color}-500 hover:text-black transition-all text-slate-400`}>{icon}</button>
-      <span className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#0f172a] text-white text-[10px] font-black px-4 py-2 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap">{label}</span>
-    </div>
+    <button className={`p-4 bg-white/5 rounded-full hover:bg-${color}-500 hover:text-black transition-all text-slate-400`}>{icon}</button>
+  );
 }
