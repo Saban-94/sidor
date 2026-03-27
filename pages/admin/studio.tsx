@@ -53,15 +53,51 @@ export default function SabanStudioV3() {
     alert('✅ המוח סונכרן! כל הענפים וההגדרות עודכנו.');
   };
 
-  const handleSimulate = () => {
-    if (!testMessage.trim()) return;
-    setChatHistory(prev => [...prev, { role: 'user', content: testMessage }]);
-    setIsTyping(true);
+const handleSimulate = async () => {
+    if (!testMessage.trim() || isTyping) return;
+
+    // 1. הצגת הודעת המשתמש בסימולטור
+    const userMsg = { role: 'user', content: testMessage };
+    setChatHistory(prev => [...prev, userMsg]);
+    const currentInput = testMessage;
     setTestMessage('');
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, { role: 'assistant', content: "קיבלתי, אחי. אני בודק את הלוגיקה של הענף שהגדרת..." }]);
+    setIsTyping(true);
+
+    try {
+      // 2. קריאה ל-API האמיתי של המוח (המוח המבצע)
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: currentInput, 
+          state: 'STUDIO_TEST', // מסמן למוח שזו בדיקה מהסטודיו
+          manualInjection: true, // מאפשר עקיפת מגבלות לצרכי בדיקה
+          senderPhone: 'STUDIO_USER' 
+        })
+      });
+
+      const data = await res.json();
+
+      // 3. הצגת תשובת המוח האמיתית בסימולטור
+      if (data && data.reply) {
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: data.reply,
+          media: data.mediaUrl || null 
+        }]);
+      } else {
+        throw new Error("No reply from AI");
+      }
+
+    } catch (error) {
+      console.error("Simulator Sync Error:", error);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: "⚠️ אחי, יש תקלה בחיבור למוח המבצע. וודא שקובץ /api/gemini.ts מעודכן." 
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   if (!mounted) return null;
