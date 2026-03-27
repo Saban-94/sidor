@@ -57,10 +57,25 @@ export default function SabanStudioFinal() {
     fetchInventory();
   }, []);
 
-  const fetchInventory = async () => {
+const fetchInventory = async () => {
     setLoading(true);
-    const { data } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
-    if (data) setInventory(data);
+    try {
+      // שליפה פשוטה ללא מיון מורכב כדי לוודא שהחיבור עובד
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*'); 
+
+      if (error) {
+        console.error("Supabase Error Detail:", error.message);
+        // אם יש שגיאה, ננסה לשלוף לפחות שמות ו-SKU
+        const { data: fallbackData } = await supabase.from('inventory').select('product_name, sku');
+        if (fallbackData) setInventory(fallbackData as any);
+      } else if (data) {
+        setInventory(data);
+      }
+    } catch (e) {
+      console.error("Critical Fetch Error:", e);
+    }
     setLoading(false);
   };
 
