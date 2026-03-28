@@ -8,6 +8,15 @@ import { getFirestore, doc, onSnapshot, collection, query, orderBy, addDoc, serv
 import { Send, Bot, Calculator, PackageSearch, Youtube, ArrowRight, Paperclip, MoreVertical, Sparkles, X, Moon, Sun, User, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// הגדרת סוגי נתונים למניעת שגיאות Build
+interface ChatMessage {
+  id: string;
+  text: string;
+  type: 'in' | 'out';
+  timestamp: any;
+  attachedProducts?: any[];
+}
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -23,7 +32,7 @@ export default function PremiumAdaptiveApp() {
   const { phone } = router.query;
 
   const [profile, setProfile] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -32,10 +41,9 @@ export default function PremiumAdaptiveApp() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 1. זיהוי לקוח וניקוי מזהים מהלינק
   useEffect(() => {
     if (!phone) return;
-    const cleanPhone = phone.toString().replace(/[\[\]\s]/g, ""); // תיקון לוגיקת סוגריים
+    const cleanPhone = phone.toString().replace(/[\[\]\s]/g, "");
 
     const unsubProfile = onSnapshot(doc(dbFS, "customers", cleanPhone), (docSnap) => {
       if (docSnap.exists()) {
@@ -47,11 +55,14 @@ export default function PremiumAdaptiveApp() {
 
     const q = query(collection(dbFS, "customers", cleanPhone, "chat_history"), orderBy("timestamp", "asc"));
     const unsubChat = onSnapshot(q, (snap) => {
-      const newMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const newMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
       
-      // הפעלת צליל אם ההודעה האחרונה היא מה-AI
-      if (newMsgs.length > messages.length && newMsgs[newMsgs.length - 1].type === 'out') {
-        playNotification();
+      // תיקון: בדיקה אם נוספה הודעה חדשה מה-AI להפעלת צליל
+      if (newMsgs.length > 0 && newMsgs.length > messages.length) {
+        const lastMsg = newMsgs[newMsgs.length - 1];
+        if (lastMsg.type === 'out') {
+          playNotification();
+        }
       }
       
       setMessages(newMsgs);
@@ -59,7 +70,7 @@ export default function PremiumAdaptiveApp() {
     });
 
     return () => { unsubProfile(); unsubChat(); };
-  }, [phone]);
+  }, [phone, messages.length]); // הוספת messages.length ל-dependency
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -132,17 +143,15 @@ export default function PremiumAdaptiveApp() {
 
       <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" />
 
-      {/* Background Brand Image */}
       <div className="absolute inset-0 opacity-[0.04] grayscale pointer-events-none bg-center bg-cover" style={{ backgroundImage: `url(${RAMI_PHOTO})` }} />
 
-      {/* Modern Header */}
       <header className={`relative z-30 pt-12 pb-4 px-6 border-b backdrop-blur-xl flex items-center justify-between shadow-2xl transition-colors ${
         isDarkMode ? 'bg-black/40 border-white/5' : 'bg-white/80 border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="relative group cursor-pointer" onClick={() => router.push('/start')}>
             <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-emerald-500/50 shadow-emerald-500/20 shadow-lg group-active:scale-90 transition-transform">
-              <img src={RAMI_PHOTO} className="w-full h-full object-cover" />
+              <img src={RAMI_PHOTO} className="w-full h-full object-cover" alt="Rami" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#050a14]">
               <Sparkles size={10} className="text-black animate-pulse" />
@@ -165,13 +174,12 @@ export default function PremiumAdaptiveApp() {
           </button>
           {profile.image_url && (
             <div className="w-10 h-10 rounded-full border-2 border-emerald-500/20 overflow-hidden">
-               <img src={profile.image_url} className="w-full h-full object-cover" />
+               <img src={profile.image_url} className="w-full h-full object-cover" alt="Profile" />
             </div>
           )}
         </div>
       </header>
 
-      {/* Chat Area */}
       <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 relative z-20 custom-scrollbar">
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
@@ -186,15 +194,13 @@ export default function PremiumAdaptiveApp() {
                 ? 'bg-emerald-600 text-white rounded-tr-none' 
                 : isDarkMode ? 'bg-white/10 backdrop-blur-md border border-white/5 text-white rounded-tl-none' : 'bg-white border border-slate-100 text-slate-800 rounded-tl-none shadow-slate-200/50'
               }`}>
-                {/* Typewriter Effect simulate for last AI message */}
                 <p className="text-[14px] leading-relaxed font-bold whitespace-pre-wrap">{m.text}</p>
                 <div className="text-[8px] mt-2 opacity-50 font-black tracking-widest uppercase">
                   {m.timestamp?.toDate ? new Date(m.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'צפייה'}
                 </div>
               </div>
 
-              {/* Product Cards */}
-              {m.attachedProducts?.length > 0 && (
+              {m.attachedProducts && m.attachedProducts.length > 0 && (
                 <div className="mt-4 flex flex-col gap-3 w-full max-w-[280px]">
                   {m.attachedProducts.map((p: any, idx: number) => (
                     <motion.div 
@@ -206,7 +212,7 @@ export default function PremiumAdaptiveApp() {
                         isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'
                       }`}
                     >
-                      <img src={p.image_url || RAMI_PHOTO} className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={p.image_url || RAMI_PHOTO} className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500" alt={p.product_name} />
                       <div className="p-4 flex justify-between items-center">
                         <div>
                           <h3 className="text-xs font-black truncate max-w-[120px]">{p.product_name}</h3>
@@ -224,7 +230,6 @@ export default function PremiumAdaptiveApp() {
           ))}
         </AnimatePresence>
 
-        {/* Typing/Thinking Indicator */}
         {(isLoading || isTypingEffect) && (
           <div className="flex items-center gap-3 bg-emerald-500/10 p-4 rounded-3xl rounded-tl-none border border-emerald-500/20 w-max">
             <div className="flex gap-1.5">
@@ -237,7 +242,6 @@ export default function PremiumAdaptiveApp() {
         )}
       </main>
 
-      {/* Product Popup Quick View */}
       <AnimatePresence>
         {selectedProduct && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6">
@@ -245,7 +249,7 @@ export default function PremiumAdaptiveApp() {
               isDarkMode ? 'bg-[#0f172a] border-white/10' : 'bg-white border-slate-200'
             }`}>
               <button onClick={() => setSelectedProduct(null)} className="absolute top-6 right-6 p-3 bg-white/10 rounded-full text-white"><X size={24}/></button>
-              <img src={selectedProduct.image_url} className="w-full h-72 object-cover" />
+              <img src={selectedProduct.image_url} className="w-full h-72 object-cover" alt={selectedProduct.product_name} />
               <div className="p-8 text-center">
                 <h2 className="text-2xl font-black italic uppercase tracking-tighter">{selectedProduct.product_name}</h2>
                 <p className="text-emerald-500 font-mono text-2xl font-black mt-2">₪{selectedProduct.price}</p>
@@ -258,19 +262,18 @@ export default function PremiumAdaptiveApp() {
         )}
       </AnimatePresence>
 
-      {/* Input Field - App Dock */}
       <footer className={`relative z-30 p-6 pt-2 border-t backdrop-blur-2xl transition-all ${
         isDarkMode ? 'bg-black/60 border-white/5 pb-10' : 'bg-white/90 border-slate-200 pb-8'
       }`}>
         <div className="max-w-3xl mx-auto flex items-end gap-3">
           <button className={`w-12 h-12 flex items-center justify-center rounded-2xl border transition-all ${
-            isDarkMode ? 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+            isDarkMode ? 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
           }`}>
             <Paperclip size={20} />
           </button>
           
           <div className={`flex-1 rounded-[2rem] px-5 py-3 flex items-center transition-all border focus-within:ring-2 focus-within:ring-emerald-500/30 ${
-            isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'
+            isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border border-slate-200'
           }`}>
             <textarea 
               value={inputText}
