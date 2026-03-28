@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
-import { createClient } from '@supabase/supabase-js';
 import { 
-  ShieldCheck, Users, BrainCircuit, Save, Activity, Search, 
-  Trash2, Edit3, UserPlus, Copy, Heart, Mail, 
-  Smartphone, Send, X, ChevronRight, Database, UserCircle
+  ShieldCheck, BrainCircuit, Save, Activity, Smartphone, 
+  Send, Zap, Database, ListChecks, 
+  UserCheck, Terminal, Mic
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -18,240 +17,181 @@ const firebaseConfig = {
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 };
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const dbFS = getFirestore(app);
+const db = getFirestore(app);
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export default function SabanOSMaster() {
-  const [activeTab, setActiveTab] = useState<'CRM' | 'DNA'>('CRM');
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [botConfig, setBotConfig] = useState({ name: '', instructions: '' });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
+export default function SabanBrainOS() {
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-
-  // --- סימולטור ---
-  const [selectedUserForChat, setSelectedUserForChat] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [simInput, setSimInput] = useState('');
+  const [chat, setChat] = useState<any[]>([{ role: 'assistant', content: 'בוס, המערכת מוכנה. מחכה להנחיות ה-DNA החדשות שלך.' }]);
+  
+  const [brainDNA, setBrainDNA] = useState({
+    contextIntegration: '', 
+    executionProtocol: '',  
+    coreIdentity: '',       
+    toneAndVoice: ''        
+  });
 
   useEffect(() => {
-    // טעינת DNA מ-Firebase
-    const unsubDNA = onSnapshot(doc(dbFS, 'settings', 'bot-dna'), (d) => {
-      if (d.exists()) setBotConfig(d.data() as any);
+    const unsub = onSnapshot(doc(db, 'settings', 'brain-core'), (d) => {
+      if (d.exists()) setBrainDNA(d.data() as any);
     });
-    fetchUsers();
-    return () => unsubDNA();
+    return () => unsub();
   }, []);
 
-  const fetchUsers = async () => {
-    const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
-    if (!error) setCustomers(data || []);
-  };
-
-  const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const saveSection = async () => {
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    const userData = Object.fromEntries(formData.entries());
-
     try {
-      if (editingUser) {
-        await supabase.from('customers').update(userData).eq('id', editingUser.id);
-      } else {
-        await supabase.from('customers').insert([userData]);
-      }
-      setIsModalOpen(false);
-      setEditingUser(null);
-      fetchUsers();
-    } catch (err) {
-      alert("שגיאה בשמירה");
-    }
+      await setDoc(doc(db, 'settings', 'brain-core'), { 
+        ...brainDNA, 
+        lastUpdated: serverTimestamp(),
+        updatedBy: 'Rami'
+      });
+      alert('ה-DNA של המוח עודכן בהצלחה!');
+    } catch (e) { alert("שגיאה בסנכרון"); }
     setLoading(false);
   };
 
-  const startSim = (user: any) => {
-    setSelectedUserForChat(user);
-    setChatMessages([
-      { role: 'system', content: `איתחול. ה-DNA הוטמע. הנחיה עבור ${user.name}: ${user.brain_dna_notes || 'כללי'}` },
-      { role: 'assistant', content: `אהלן ${user.name}, המוח של סבן OS מוכן. איך אני יכול לעזור?` }
-    ]);
-  };
-
-  const sendSimMsg = () => {
+  const runSimulation = () => {
     if (!simInput.trim()) return;
-    setChatMessages(prev => [...prev, { role: 'user', content: simInput }]);
-    const currentInput = simInput;
+    const userMsg = simInput;
+    setChat(prev => [...prev, { role: 'user', content: userMsg }]);
     setSimInput('');
+
     setTimeout(() => {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: `בהתאם ל-DNA שלי ולמידע שרמי הזין עליך (${selectedUserForChat.hobbies || 'פרופיל כללי'}), אני עונה על: ${currentInput}` }]);
-    }, 800);
+      setChat(prev => [...prev, { 
+        role: 'assistant', 
+        content: `בוס, קיבלתי את הפקודה: "${userMsg}". פועל לפי הפרוטוקול: 1. שילוב קונטקסט מלא. 2. ביצוע ללא דמיון. אני יד ימינך.` 
+      }]);
+    }, 1000);
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7F9] text-slate-900 font-sans selection:bg-emerald-200" dir="rtl">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-lg shadow-emerald-200"><ShieldCheck size={24} /></div>
+    <div className="min-h-screen bg-[#F0F2F5] text-slate-900 font-sans" dir="rtl">
+      {/* Header */}
+      <nav className="bg-[#1E293B] text-white p-4 sticky top-0 z-50 shadow-2xl flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div className="bg-emerald-500 p-2 rounded-lg shadow-lg"><ShieldCheck size={24}/></div>
           <div>
-            <h1 className="font-black text-slate-950 uppercase tracking-tighter text-xl">Saban Master</h1>
-            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">OS Core & Simulator</p>
+            <h1 className="text-xl font-black tracking-tighter uppercase">Saban Brain OS</h1>
+            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Master Control</p>
           </div>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-          <button onClick={() => setActiveTab('CRM')} className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'CRM' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>ניהול משתמשים</button>
-          <button onClick={() => setActiveTab('DNA')} className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'DNA' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>ליבת המוח</button>
-        </div>
+        <button onClick={saveSection} className="bg-emerald-500 hover:bg-emerald-600 px-6 py-2 rounded-xl font-black text-xs flex items-center gap-2 transition-all">
+          {loading ? <Activity className="animate-spin" size={16}/> : <Save size={16}/>} שמור הכל
+        </button>
       </nav>
 
-      <main className="p-6 grid grid-cols-1 xl:grid-cols-3 gap-8 max-w-[1700px] mx-auto">
-        <div className={`xl:col-span-2 space-y-6 ${selectedUserForChat ? 'hidden xl:block' : ''}`}>
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2"><Users className="text-emerald-500" /> מאגר המוחות</h2>
-            <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg hover:bg-emerald-600 transition-all">הוסף פרופיל +</button>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm">
-            <table className="w-full text-right border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <tr>
-                  <th className="p-5">לקוח</th>
-                  <th className="p-5">קשר & תחביבים</th>
-                  <th className="p-5 text-center">לינק</th>
-                  <th className="p-5 text-left">פעולות</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {customers.filter(c => c.name.includes(search) || c.phone.includes(search)).map(c => (
-                  <tr key={c.id} onClick={() => startSim(c)} className={`hover:bg-emerald-50/30 transition-all cursor-pointer ${selectedUserForChat?.id === c.id ? 'bg-emerald-50 border-r-4 border-r-emerald-500' : ''}`}>
-                    <td className="p-5">
-                      <div className="font-black text-slate-950">{c.name}</div>
-                      <div className="text-xs text-slate-400 font-mono">{c.phone}</div>
-                    </td>
-                    <td className="p-5">
-                      <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-600">
-                        {c.family_relation && <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg">{c.family_relation} לרמי</span>}
-                        {c.hobbies && <span className="bg-red-50 text-red-600 px-2 py-1 rounded-lg">❤️ {c.hobbies}</span>}
-                      </div>
-                    </td>
-                    <td className="p-5 text-center" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { navigator.clipboard.writeText(`https://sidor.vercel.app/chat/[${c.phone.replace(/\D/g, '')}]`); alert("הועתק!"); }} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-emerald-500 transition-all"><Copy size={18}/></button>
-                    </td>
-                    <td className="p-5" onClick={e => e.stopPropagation()}>
-                      <div className="flex justify-end gap-2 text-slate-300">
-                        <button onClick={() => { setEditingUser(c); setIsModalOpen(true); }} className="hover:text-emerald-500"><Edit3 size={18}/></button>
-                        <button onClick={() => { if(confirm("למחוק?")) supabase.from('customers').delete().eq('id', c.id).then(fetchUsers); }} className="hover:text-red-500"><Trash2 size={18}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1800px] mx-auto">
+        
+        {/* DNA Editing Area */}
+        <div className="lg:col-span-4 space-y-4">
+          <SectionCard 
+            title="1. שילוב ה-Context" 
+            icon={<Database size={20}/>}
+            value={brainDNA.contextIntegration}
+            onChange={(v: string) => setBrainDNA({...brainDNA, contextIntegration: v})}
+            description="איך המוח מחבר בין המשתמש להיסטוריה שלו."
+          />
+          <SectionCard 
+            title="2. פרוטוקול ביצוע" 
+            icon={<Terminal size={20}/>}
+            value={brainDNA.executionProtocol}
+            onChange={(v: string) => setBrainDNA({...brainDNA, executionProtocol: v})}
+            description="חוקים לביצוע פגישות, ניווט ומיילים."
+          />
+          <SectionCard 
+            title="3. הגדרת ה-DNA" 
+            icon={<BrainCircuit size={20}/>}
+            value={brainDNA.coreIdentity}
+            onChange={(v: string) => setBrainDNA({...brainDNA, coreIdentity: v})}
+            description="מי המוח ומה השליחות שלו עבור ראמי."
+          />
+          <SectionCard 
+            title="4. טון דיבור" 
+            icon={<Mic size={20}/>}
+            value={brainDNA.toneAndVoice}
+            onChange={(v: string) => setBrainDNA({...brainDNA, toneAndVoice: v})}
+            description="השפה: חדה, עניינית וחברית (בוס, אח)."
+          />
         </div>
 
-        {/* iPhone Simulator */}
-        <div className="xl:col-span-1 flex justify-center sticky top-28 h-fit">
-          <div className="w-[310px] h-[630px] bg-black rounded-[50px] border-[10px] border-black shadow-2xl relative overflow-hidden flex flex-col p-2">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-b-xl z-20" />
-            {selectedUserForChat ? (
-              <div className="flex-1 bg-[#E5DDD5] rounded-[30px] overflow-hidden flex flex-col">
-                <div className="bg-[#075E54] p-3 pt-5 text-white flex items-center justify-between">
+        {/* Simulator Area */}
+        <div className="lg:col-span-4 flex justify-center">
+          <div className="w-[320px] h-[650px] bg-[#121212] rounded-[55px] border-[10px] border-[#222] shadow-2xl relative overflow-hidden flex flex-col p-3">
+             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#121212] rounded-b-2xl z-20 flex justify-center items-end pb-1">
+                <div className="w-10 h-1 bg-slate-800 rounded-full"/>
+             </div>
+             
+             <div className="flex-1 bg-[#0B141A] rounded-[40px] overflow-hidden flex flex-col">
+                <div className="bg-[#202C33] p-4 pt-8 text-white flex items-center justify-between border-b border-white/5">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-[#075E54] text-xs">{selectedUserForChat.name[0]}</div>
-                    <div className="text-xs font-bold leading-tight">{selectedUserForChat.name}<br/><span className="text-[8px] opacity-70 italic">Brain Simulation</span></div>
+                    <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center font-bold text-black text-xs">OS</div>
+                    <div className="text-xs font-bold">Simulator</div>
                   </div>
-                  <button onClick={() => setSelectedUserForChat(null)} className="text-white/70"><X size={16}/></button>
                 </div>
-                <div className="flex-1 p-3 space-y-2 overflow-y-auto text-[10px]">
-                  {chatMessages.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : m.role === 'assistant' ? 'justify-start' : 'justify-center'}`}>
-                      <div className={`max-w-[85%] p-2 rounded-lg ${m.role === 'user' ? 'bg-[#DCF8C6]' : m.role === 'assistant' ? 'bg-white' : 'bg-blue-50 text-blue-500 text-center text-[8px]'}`}>
+
+                <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+                  {chat.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] p-2.5 rounded-xl text-[10px] leading-tight ${m.role === 'user' ? 'bg-[#005C4B] text-white rounded-tr-none' : 'bg-[#202C33] text-slate-200 rounded-tl-none'}`}>
                         {m.content}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="bg-[#F0F0F0] p-2 flex gap-1">
-                  <input value={simInput} onChange={e => setSimInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && sendSimMsg()} className="flex-1 p-2 bg-white rounded-full text-[10px] outline-none" placeholder="הודעה למוח..." />
-                  <button onClick={sendSimMsg} className="p-2 bg-[#075E54] text-white rounded-full"><Send size={14}/></button>
+
+                <div className="p-3 bg-[#111B21] flex gap-2">
+                  <input 
+                    value={simInput} onChange={(e) => setSimInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && runSimulation()}
+                    className="flex-1 bg-[#2A3942] border-none rounded-full px-4 py-2 text-[10px] text-white outline-none"
+                    placeholder="כתוב פקודה..."
+                  />
+                  <button onClick={runSimulation} className="bg-emerald-500 text-black p-2 rounded-full"><Send size={14}/></button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 bg-slate-900 rounded-[30px] flex flex-col items-center justify-center p-8 text-center text-slate-600 gap-4">
-                <Smartphone size={40} className="animate-pulse" />
-                <div className="text-[10px] font-bold uppercase tracking-widest">בחר משתמש לסימולציה</div>
-              </div>
-            )}
+             </div>
           </div>
         </div>
 
-        {/* DNA View */}
-        {activeTab === 'DNA' && (
-          <div className="xl:col-span-2 max-w-2xl mx-auto w-full">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white border rounded-[2.5rem] p-8 shadow-sm space-y-6">
-              <h2 className="text-2xl font-black flex items-center gap-3 text-slate-950"><BrainCircuit size={32} className="text-emerald-500"/> DNA כללי</h2>
-              <textarea 
-                className="w-full h-[400px] bg-slate-50 border border-slate-200 rounded-3xl p-6 outline-none focus:ring-2 focus:ring-emerald-500/10 text-sm"
-                value={botConfig.instructions}
-                onChange={(e) => setBotConfig({...botConfig, instructions: e.target.value})}
-              />
-              <button onClick={async () => {
-                setLoading(true);
-                await setDoc(doc(dbFS, 'settings', 'bot-dna'), { ...botConfig, updatedAt: serverTimestamp() });
-                setLoading(false);
-                alert("עודכן!");
-              }} className="w-full bg-slate-950 text-white font-black py-4 rounded-2xl shadow-xl">{loading ? 'מעדכן...' : 'שמור DNA מערכתי'}</button>
-            </motion.div>
+        {/* Logs & Rules Area */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+            <h2 className="font-black flex items-center gap-2 mb-4 text-slate-800"><ListChecks className="text-blue-500"/> חוקי הברזל</h2>
+            <div className="space-y-3 text-[11px] text-slate-600 font-bold">
+               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">המוח אינו פועל מדמיונו - רק לפי ה-DNA של ראמי.</div>
+               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">כל תשובה חייבת להסתיים בשורת TL;DR.</div>
+            </div>
           </div>
-        )}
-      </main>
+          <div className="bg-slate-900 rounded-3xl p-6 shadow-xl h-[300px] overflow-hidden flex flex-col font-mono text-[10px] text-emerald-400">
+             <div className="text-slate-500 mb-2 border-b border-slate-800 pb-1">LIVE SYSTEM LOGS</div>
+             <div className="space-y-1">
+                <div>[{new Date().toLocaleTimeString()}] DNA Synced.</div>
+                <div>[{new Date().toLocaleTimeString()}] Simulator Active.</div>
+                <div>[{new Date().toLocaleTimeString()}] No Hallucinations Allowed.</div>
+             </div>
+          </div>
+        </div>
 
-      {/* Modal - CRM */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm bg-slate-900/40">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-2xl font-black text-slate-950">פרופיל משתמש</h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X/></button>
-              </div>
-              <form onSubmit={handleSaveUser} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">שם מלא</label>
-                  <input name="name" defaultValue={editingUser?.name} required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">טלפון (972...)</label>
-                  <input name="phone" defaultValue={editingUser?.phone} required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">אימייל</label>
-                  <input name="email" defaultValue={editingUser?.email} type="email" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">קשר משפחתי</label>
-                  <input name="family_relation" defaultValue={editingUser?.family_relation} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none" />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">תחביבים</label>
-                  <input name="hobbies" defaultValue={editingUser?.hobbies} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-[10px] font-black text-emerald-600 uppercase mb-1 block">הנחיה ספציפית למוח עבורו</label>
-                  <textarea name="brain_dna_notes" defaultValue={editingUser?.brain_dna_notes} className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/10" placeholder="איך הבוט יגיב אליו ספציפית?" />
-                </div>
-                <button type="submit" className="md:col-span-2 bg-slate-950 text-white font-black py-5 rounded-2xl shadow-xl mt-4">שמור ועדכן מוח</button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, icon, value, onChange, description }: any) {
+  return (
+    <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-slate-100 p-2.5 rounded-2xl text-slate-600">{icon}</div>
+        <div>
+          <h3 className="font-black text-sm text-slate-800">{title}</h3>
+          <p className="text-[10px] text-slate-400 font-bold">{description}</p>
+        </div>
+      </div>
+      <textarea 
+        value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full h-24 bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs outline-none focus:ring-2 focus:ring-emerald-200 resize-none transition-all"
+        placeholder="הזן הנחיות..."
+      />
     </div>
   );
 }
