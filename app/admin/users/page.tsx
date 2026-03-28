@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, User, Phone, Briefcase, Trash2, Edit3, 
   Sparkles, Share2, Search, Languages, 
-  UserPlus, ShieldCheck, MessageSquare, ExternalLink
+  UserPlus, ShieldCheck, MessageSquare, ExternalLink,
+  MoreVertical, Filter, ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,9 +37,9 @@ export default function UserManagementStudio() {
     
     if (navigator.clipboard) {
       navigator.clipboard.writeText(link);
-      alert(`✅ לינק הקסם הועתק:\n${link}`);
+      alert(`✅ לינק הקסם הועתק ללוח!\nניתן לשלוח עכשיו בוואטסאפ ללקוח.`);
     } else {
-      alert(`הלינק שלך: ${link}`);
+      alert(`הלינק: ${link}`);
     }
   };
 
@@ -48,103 +49,137 @@ export default function UserManagementStudio() {
   );
 
   return (
-    <div className="p-6 md:p-10 bg-[#f8fafc] min-h-screen text-slate-900 font-sans" dir="rtl">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
-        <div>
-          <h1 className="text-4xl font-black uppercase tracking-tighter italic">
-            User <span className="text-emerald-500">Studio</span>
-          </h1>
-          <p className="text-slate-500 font-bold text-sm mt-1">ניהול לקוחות VIP וסנכרון מוח AI</p>
+    <div className="p-4 md:p-10 bg-[#fbfcfd] min-h-screen text-slate-900 font-sans selection:bg-emerald-100" dir="rtl">
+      {/* Header Premium */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <UserPlus className="text-black" size={28} />
+          </div>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic leading-none">
+              User <span className="text-emerald-500">Studio</span>
+            </h1>
+            <p className="text-slate-400 font-bold text-xs mt-2 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              ניהול לקוחות VIP וסנכרון מוח AI
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-80">
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <div className="relative flex-1 md:w-96 group">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={20} />
             <input 
               type="text" 
-              placeholder="חיפוש לקוח או טלפון..."
+              placeholder="חפש לקוח, טלפון או פרויקט..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-2xl py-3 pr-12 pl-4 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold text-sm"
+              className="w-full bg-white border border-slate-200 rounded-[1.2rem] py-4 pr-12 pl-4 outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all font-bold text-sm shadow-sm"
             />
           </div>
-          <button className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl hover:bg-emerald-600 transition-all">
-            <UserPlus size={22} />
+          <button className="bg-white border border-slate-200 p-4 rounded-[1.2rem] shadow-sm hover:bg-slate-50 transition-all text-slate-500">
+            <Filter size={22} />
           </button>
         </div>
       </header>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-64 opacity-50">
-          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 font-black uppercase tracking-widest text-xs">טוען מאגר לקוחות...</p>
+        <div className="flex flex-col items-center justify-center h-[50vh]">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-slate-100 border-t-emerald-500 rounded-full animate-spin"></div>
+            <Bot className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" size={20} />
+          </div>
+          <p className="mt-6 font-black uppercase tracking-[0.2em] text-[10px] text-slate-400">Syncing Database...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <AnimatePresence>
-            {filteredCustomers.map((c) => (
+            {filteredCustomers.map((c, index) => (
               <motion.div 
                 key={c.id} 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden"
+                transition={{ delay: index * 0.05 }}
+                className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-xl hover:border-emerald-500/20 transition-all group relative overflow-hidden"
               >
-                <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500"></div>
+                {/* VIP Side Highlight */}
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-                <div className="flex items-start gap-6">
-                  <div className="relative">
-                    <img 
-                      src={c.image_url || 'https://iili.io/qstzfVf.jpg'} 
-                      className="w-20 h-20 rounded-3xl object-cover shadow-lg border-2 border-slate-50" 
-                      alt={c.name}
-                    />
-                    <div className="absolute -bottom-2 -right-2 bg-slate-900 text-emerald-400 p-1.5 rounded-xl border-2 border-white">
-                      <ShieldCheck size={14} />
+                <div className="flex flex-col md:flex-row items-start gap-6">
+                  {/* User Avatar */}
+                  <div className="relative shrink-0">
+                    <div className="w-24 h-24 rounded-[2rem] overflow-hidden shadow-inner bg-slate-50 border-2 border-white group-hover:scale-105 transition-transform duration-500">
+                      <img 
+                        src={c.image_url || 'https://iili.io/qstzfVf.jpg'} 
+                        className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" 
+                        alt={c.name}
+                      />
+                    </div>
+                    <div className="absolute -bottom-2 -right-2 bg-slate-900 text-emerald-400 p-2 rounded-2xl border-2 border-white shadow-lg">
+                      <ShieldCheck size={16} />
                     </div>
                   </div>
 
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
+                  {/* User Details */}
+                  <div className="flex-1 w-full">
+                    <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="text-xl font-black text-slate-900">{c.name || 'לקוח ללא שם'}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] font-black uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg">
-                            {c.relation || 'לקוח כללי'}
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">{c.name || 'אורח חדש'}</h3>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">
+                            {c.relation || 'לקוח ח.סבן'}
                           </span>
-                          <span className="text-slate-400 font-bold text-xs">{c.phone}</span>
+                          <div className="flex items-center gap-1 text-slate-400 font-bold text-xs bg-slate-50 px-3 py-1 rounded-full">
+                            <Phone size={12} />
+                            {c.phone}
+                          </div>
                         </div>
                       </div>
                       
                       <div className="flex gap-2">
                         <button 
                           onClick={() => createMagicLink(c.phone)}
-                          className="p-3 bg-slate-50 text-slate-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                          title="העתק לינק קסם"
+                          className="w-12 h-12 flex items-center justify-center bg-emerald-500 text-black rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                          title="שתף לינק קסם"
                         >
-                          <Share2 size={18} />
+                          <Share2 size={20} />
                         </button>
-                        <button className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-blue-500 hover:text-white transition-all shadow-sm">
-                          <Edit3 size={18} />
+                        <button className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                          <Edit3 size={20} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-4 bg-[#fcfdfe] border border-slate-100 p-4 rounded-2xl relative">
-                      <div className="flex items-center gap-2 mb-2 text-emerald-600">
-                        <Sparkles size={14} className="animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Brain Training Data</span>
+                    {/* Brain Intelligence Box */}
+                    <div className="bg-[#fcfdfe] border border-slate-100 p-5 rounded-[1.8rem] relative overflow-hidden">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-emerald-600">
+                          <Sparkles size={16} className="animate-pulse" />
+                          <span className="text-[11px] font-black uppercase tracking-[0.1em]">AI Brain Intelligence</span>
+                        </div>
+                        <Languages size={14} className="text-slate-300" />
                       </div>
-                      <p className="text-xs text-slate-600 leading-relaxed font-medium italic line-clamp-2">
-                        {c.brain_notes || "המוח טרם למד את העדפות הלקוח. לחץ לעריכה..."}
+                      
+                      <p className="text-xs text-slate-500 leading-relaxed font-medium italic min-h-[40px]">
+                        {c.brain_notes || "המוח טרם למד את העדפות הלקוח. לחץ על עריכה כדי להזין תחביבים, שפה וסגנון מענה..."}
                       </p>
                       
-                      <div className="flex gap-4 mt-3 pt-3 border-t border-slate-50">
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                          <MessageSquare size={12} /> {c.total_chats || 0} שיחות
+                      {/* Stats Footer */}
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
+                        <div className="flex gap-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase">
+                            <MessageSquare size={14} className="text-emerald-500" /> 
+                            {c.total_chats || 0} Chats
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase">
+                            <ExternalLink size={14} /> 
+                            {new Date(c.created_at).toLocaleDateString('he-IL')}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                          <Languages size={12} /> עברית/ערבית
-                        </div>
+                        <button className="text-[10px] font-black text-emerald-600 underline decoration-2 underline-offset-4 hover:text-emerald-700">
+                          צפה בשיחה
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -155,9 +190,14 @@ export default function UserManagementStudio() {
         </div>
       )}
 
-      <button className="fixed bottom-10 left-10 w-16 h-16 bg-emerald-500 text-black rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
-        <Plus size={32} />
-      </button>
+      {/* Floating Magic Button */}
+      <motion.button 
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-10 left-10 w-20 h-20 bg-slate-900 text-emerald-500 rounded-[2rem] shadow-2xl flex items-center justify-center border-4 border-white z-50 group"
+      >
+        <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
+      </motion.button>
     </div>
   );
 }
