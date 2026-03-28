@@ -1,24 +1,29 @@
 import React, { useState } from 'react';
 
-export default function TestDrivePage() {
+export default function SuperLoggerPage() {
   const [logs, setLogs] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [googleUrl, setGoogleUrl] = useState('');
+  const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
 
-  const addLog = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  const addLog = (msg: string) => setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev]);
 
-  const handleTest = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const startTest = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !googleUrl) {
+      alert("חובה להזין URL של גוגל ולבחור קובץ!");
+      return;
+    }
 
-    setLoading(true);
-    addLog(`מתחיל בדיקה עבור: ${file.name}`);
-
+    setStatus('running');
+    addLog(`🚀 שלב 1: התחלת תהליך עבור ${file.name}`);
+    
     const reader = new FileReader();
     reader.onload = async () => {
       try {
+        addLog("📂 שלב 2: קובץ הומר ל-Base64 בהצלחה");
         const base64 = (reader.result as string).split(',')[1];
-        addLog("המרת קובץ ל-Base64 הושלמה.");
 
+        addLog("📡 שלב 3: שולח בקשה ל-Vercel API (api/test-upload)...");
         const res = await fetch('/api/test-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -26,37 +31,64 @@ export default function TestDrivePage() {
             fileName: file.name,
             fileData: base64,
             mimeType: file.type,
-            phone: "050-TEST"
+            GOOGLE_URL: googleUrl
           })
         });
 
-        const data = await res.json();
+        addLog(`📡 שלב 4: התקבלה תגובה מ-Vercel (סטטוס: ${res.status})`);
         
-        if (res.ok) {
-          addLog(`✅ הצלחה! לינק: ${data.link}`);
+        const contentType = res.headers.get("content-type");
+        if (contentType && !contentType.includes("application/json")) {
+          const rawText = await res.text();
+          addLog(`❌ שגיאה קריטית: השרת החזיר HTML במקום JSON!`);
+          addLog(`תוכן השגיאה: ${rawText.substring(0, 100)}...`);
+          throw new Error("הנתיב api/test-upload לא נמצא (404)");
+        }
+
+        const data = await res.json();
+        if (data.status === 'success' || res.ok) {
+          addLog(`✅ שלב 5: גוגל אישרה קבלה! לינק: ${data.link}`);
+          setStatus('success');
         } else {
-          addLog(`❌ כשל בשרת: ${data.error || data.message}`);
+          addLog(`❌ שלב 5: גוגל/ורסל החזירו שגיאה: ${data.message || data.error}`);
+          setStatus('error');
         }
       } catch (err: any) {
-        addLog(`💥 שגיאת דפדפן: ${err.message}`);
-      } finally {
-        setLoading(false);
+        addLog(`💥 קריסת ממשק: ${err.message}`);
+        setStatus('error');
       }
     };
     reader.readAsDataURL(file);
   };
 
   return (
-    <div className="p-10 font-sans max-w-2xl mx-auto" dir="rtl">
-      <h1 className="text-2xl font-bold mb-4">מעבדת בדיקת דרייב 🧪</h1>
-      <div className="border-2 border-dashed border-slate-300 p-10 text-center rounded-xl mb-6">
-        <input type="file" onChange={handleTest} disabled={loading} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+    <div className="p-6 max-w-3xl mx-auto font-sans" dir="rtl">
+      <h1 className="text-2xl font-black mb-6 text-slate-800 underline decoration-emerald-500">מלשינון העלאה חריף 🌶️</h1>
+      
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 mb-6 shadow-sm">
+        <label className="block text-sm font-bold mb-2">1. כתובת ה-Deployment מגוגל (ה-URL מסוג exec):</label>
+        <input 
+          type="text" 
+          value={googleUrl}
+          onChange={(e) => setGoogleUrl(e.target.value)}
+          placeholder="https://script.google.com/macros/s/.../exec"
+          className="w-full p-3 border rounded-xl mb-4 text-xs font-mono bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none"
+        />
+        
+        <label className="block text-sm font-bold mb-2">2. בחר קובץ לבדיקה:</label>
+        <input type="file" onChange={startTest} className="block w-full text-sm" />
       </div>
 
-      <div className="bg-slate-900 text-emerald-400 p-6 rounded-xl font-mono text-xs h-64 overflow-y-auto shadow-2xl">
-        <p className="mb-2 text-slate-500">// לוגים בזמן אמת:</p>
-        {logs.map((log, i) => <div key={i} className="mb-1">{log}</div>)}
-        {loading && <p className="animate-pulse">מעבד נתונים...</p>}
+      <div className="bg-black rounded-2xl p-6 h-96 overflow-y-auto shadow-2xl border-4 border-slate-800">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
+          <span className="text-emerald-500 font-mono text-xs uppercase tracking-widest">Live System Logs</span>
+          <div className={`w-3 h-3 rounded-full ${status === 'running' ? 'bg-yellow-500 animate-ping' : status === 'success' ? 'bg-emerald-500' : status === 'error' ? 'bg-red-500' : 'bg-slate-700'}`} />
+        </div>
+        {logs.map((log, i) => (
+          <div key={i} className={`mb-2 font-mono text-[11px] ${log.includes('✅') ? 'text-emerald-400' : log.includes('❌') || log.includes('💥') ? 'text-red-400' : 'text-slate-300'}`}>
+            {log}
+          </div>
+        ))}
       </div>
     </div>
   );
