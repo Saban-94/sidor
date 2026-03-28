@@ -6,7 +6,7 @@ import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'firebase
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, Users, BrainCircuit, Save, Activity, Search, 
-  Trash2, Edit3, UserPlus, Copy, Heart, Mail, UsersCircle, 
+  Trash2, Edit3, UserPlus, Copy, Heart, Mail, UserCircle, 
   Smartphone, Bot, Send, X, LayoutGrid, Check, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
