@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, User, Phone, Briefcase, Trash2, Edit3, 
-  Sparkles, Share2, Search, languages, 
+  Sparkles, Share2, Search, Languages, 
   UserPlus, ShieldCheck, MessageSquare, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,24 +17,34 @@ export default function UserManagementStudio() {
 
   async function fetchCustomers() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setCustomers(data);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) setCustomers(data);
+    } catch (e) {
+      console.error("Error fetching customers:", e);
+    }
     setLoading(false);
   }
 
   const createMagicLink = (phone: string) => {
+    if (!phone) return;
     const cleanPhone = phone.replace(/\D/g, '');
     const link = `https://sidor.vercel.app/chat/${cleanPhone}`;
-    navigator.clipboard.writeText(link);
-    alert(`✅ לינק הקסם הועתק:\n${link}`);
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link);
+      alert(`✅ לינק הקסם הועתק:\n${link}`);
+    } else {
+      alert(`הלינק שלך: ${link}`);
+    }
   };
 
   const filteredCustomers = customers.filter(c => 
-    c.name?.toLowerCase().includes(search.toLowerCase()) || 
-    c.phone?.includes(search)
+    (c.name?.toLowerCase().includes(search.toLowerCase())) || 
+    (c.phone?.includes(search))
   );
 
   return (
@@ -79,7 +89,6 @@ export default function UserManagementStudio() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all group relative overflow-hidden"
               >
-                {/* סטטוס VIP מובנה */}
                 <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500"></div>
 
                 <div className="flex items-start gap-6">
@@ -87,6 +96,7 @@ export default function UserManagementStudio() {
                     <img 
                       src={c.image_url || 'https://iili.io/qstzfVf.jpg'} 
                       className="w-20 h-20 rounded-3xl object-cover shadow-lg border-2 border-slate-50" 
+                      alt={c.name}
                     />
                     <div className="absolute -bottom-2 -right-2 bg-slate-900 text-emerald-400 p-1.5 rounded-xl border-2 border-white">
                       <ShieldCheck size={14} />
@@ -119,8 +129,7 @@ export default function UserManagementStudio() {
                       </div>
                     </div>
 
-                    {/* Rich Brain Notes Section */}
-                    <div className="mt-4 bg-[#fcfdfe] border border-slate-100 p-4 rounded-2xl relative group/note">
+                    <div className="mt-4 bg-[#fcfdfe] border border-slate-100 p-4 rounded-2xl relative">
                       <div className="flex items-center gap-2 mb-2 text-emerald-600">
                         <Sparkles size={14} className="animate-pulse" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Brain Training Data</span>
@@ -129,13 +138,12 @@ export default function UserManagementStudio() {
                         {c.brain_notes || "המוח טרם למד את העדפות הלקוח. לחץ לעריכה..."}
                       </p>
                       
-                      {/* Quick Stats */}
                       <div className="flex gap-4 mt-3 pt-3 border-t border-slate-50">
                         <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
                           <MessageSquare size={12} /> {c.total_chats || 0} שיחות
                         </div>
                         <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                          <ExternalLink size={12} /> הצטרף ב-{new Date(c.created_at).toLocaleDateString()}
+                          <Languages size={12} /> עברית/ערבית
                         </div>
                       </div>
                     </div>
@@ -147,7 +155,6 @@ export default function UserManagementStudio() {
         </div>
       )}
 
-      {/* Floating Action Button */}
       <button className="fixed bottom-10 left-10 w-16 h-16 bg-emerald-500 text-black rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
         <Plus size={32} />
       </button>
