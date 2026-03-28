@@ -19,12 +19,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
 
   // הגנות בסיס
-  if (!cleanMsg && !manualInjection) return res.status(200).json({ reply: "קיבלתי הודעה ריקה, אחי. איך אפשר לעזור?" });
+  if (!cleanMsg && !manualInjection) return res.status(200).json({ reply: "בוס, קיבלתי הודעה ריקה. איך אני יכול לשרת אותך?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
-  // בריכת המודלים ברוטציה (לפי סדר עדיפויות)
+  // בריכת המודלים ברוטציה (ללא שימוש בשמות או סדר)
   const modelPool = [
-    "gemini-3.1-flash-lite-preview", // המודל הכי מהיר וחדש
+    "gemini-3.1-flash-lite-preview", 
     "gemini-2.0-flash",
     "gemini-1.5-flash"
   ];
@@ -32,59 +32,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 2. שליפת דאטה משולבת (סטודיו + זיכרון לקוח)
-    const [flowSnap, memoryRes] = await Promise.all([
+    // 2. שליפת דאטה משולבת (סטודיו + זיכרון לקוח + DNA של ראמי)
+    const [flowSnap, brainCoreSnap, memoryRes] = await Promise.all([
       getDoc(doc(dbFS, 'system', 'bot_flow_config')),
+      getDoc(doc(dbFS, 'settings', 'brain-core')), // המוח המפוצל החדש
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
     const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
+    const dna = brainCoreSnap.exists() ? brainCoreSnap.data() : {};
     const nodes = flowData.nodes || [];
-    const globalDNA = flowData.globalDNA || "אתה ראמי, המוח של ח. סבן.";
     const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
 
-    // 3. זיהוי ענף דינמי (Mapping) - תומך בענף 8 וכל מספר אחר
+    // 3. זיהוי ענף דינמי
     let activeNode = nodes.find((n: any, index: number) => {
       const nodeNumber = (index + 1).toString();
       return cleanMsg === nodeNumber || cleanMsg === n.name || cleanMsg.includes(n.name);
     });
 
-    // 4. שליפת מוצרים לממשק הפרימיום (אם מדובר בבירור מלאי)
+    // 4. שליפת מוצרים (אם רלוונטי)
     let attachedProducts: any[] = [];
     if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי") || cleanMsg.includes("כמה עולה")) {
-      const { data } = await supabase
-        .from('inventory')
-        .select('product_name, sku, price, image_url, youtube_url')
-        .limit(3);
+      const { data } = await supabase.from('inventory').select('product_name, sku, price, image_url, youtube_url').limit(3);
       attachedProducts = data || [];
     }
 
-    // 5. בניית ה-Prompt ל-AI (נקי ללא כפילויות)
+    // 5. בניית ה-Prompt הקשיח - חוקי ראמי
     const prompt = `
-      ${globalDNA}
+      הנחיית יסוד קשיחה: אתה Saban OS, העוזר האישי והמשרת של ראמי מסארוה. אתה מקשיב רק לראמי ופועל לפי חוקיו.
       
-      -- הקשר לקוח --
-      שם הלקוח: ${name || 'חבר'}
+      -- DNA וזהות (חוקי ראמי) --
+      ${dna.coreIdentity || "אתה שותף עסקי חכם ומשרת נאמן של ראמי."}
+      
+      -- פרוטוקול ביצוע --
+      ${dna.executionProtocol || "בצע פקודות בחדות. אין להמציא נתונים מדמיונך."}
+      
+      -- טון דיבור --
+      ${dna.toneAndVoice || "דבר כשגיא חכם: חד, ענייני, חברי (בוס, אח)."}
+
+      -- שילוב קונטקסט וזיכרון --
+      שם המשתמש: ${name || 'חבר'}
       זיכרון מערכת: ${customerMemory}
-      הקשר מהממשק: ${frontendContext || 'לקוח כללי'}
+      הנחיות מהאדמין: ${dna.contextIntegration || ""}
 
-      -- מצב שיחה נוכחי --
-      ${activeNode ? `הלקוח בחר בענף: ${activeNode.name}. הנחיה לפעולה: ${activeNode.prompt}` : "שיחה כללית/פתיחה"}
+      -- מצב שיחה --
+      ${activeNode ? `ענף פעיל: ${activeNode.name}. פקודה: ${activeNode.prompt}` : "שיחה כללית"}
       
-      -- מידע זמין מהמחסן (להזרקה לתשובה במידת הצורך) --
-      ${attachedProducts.length > 0 ? attachedProducts.map(p => `${p.product_name}: ₪${p.price}`).join(', ') : 'המלאי נטען...'}
+      מידע מהמחסן: ${attachedProducts.length > 0 ? attachedProducts.map(p => `${p.product_name}: ₪${p.price}`).join(', ') : 'המלאי זמין.'}
 
-      חוקים קשיחים למענה:
-      1. תשובות קצרות וקולעות (2-3 משפטים).
-      2. אם נבחר ענף או מספר, עבור ישר לנושא. **אל תציג שוב את כל התפריט (1-7)**.
-      3. דבר בשפה של קבלנים: חברותי, מקצועי, עם אימוג'ים 🏗️🦾.
-      4. אם צירפת מוצרים, ציין זאת בקצרה: "שלחתי לך כרטיסי מוצר כאן למטה".
+      חוקים בל יעברו:
+      1. אל תמציא נתונים (No Hallucinations). אם חסר מידע - שאל את ראמי.
+      2. תמיד סיים בתשובה קצרה (2-3 משפטים) ובשורת TL;DR מודגשת בסוף.
+      3. התייחס לראמי כאל הבוס והמנהל הבלעדי שלך.
 
-      הודעת לקוח: "${cleanMsg}"
-      תשובת ראמי:
+      הודעה: "${cleanMsg}"
+      תשובת המוח:
     `;
 
-    // 6. הרצת רוטציית המודלים (Fallback)
+    // 6. הרצת רוטציית המודלים
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -96,29 +101,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
           }
         );
-
         const data = await response.json();
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           replyText = data.candidates[0].content.parts[0].text;
           break; 
         }
-      } catch (err) {
-        console.warn(`Model ${modelName} failed, trying next...`);
-        continue;
-      }
+      } catch (err) { continue; }
     }
 
     if (!replyText) throw new Error("כל המודלים נכשלו.");
 
-    // 7. החזרת תשובה מסונכרנת לצאט פרימיום
+    // 7. החזרת תשובה מסונכרנת
     return res.status(200).json({
       reply: replyText,
-      products: attachedProducts, // נשלח לממשק המעוצב
-      mediaUrl: activeNode ? null : BRAND_LOGO // מציג לוגו רק בהודעה ראשונה
+      products: attachedProducts,
+      mediaUrl: activeNode ? null : BRAND_LOGO
     });
 
   } catch (e) {
-    console.error("Critical Error:", e);
-    return res.status(200).json({ reply: "אחי, המוח עמוס לרגע. שלח הודעה שוב בבקשה? 🛠️" });
+    return res.status(200).json({ reply: "בוס, המוח עמוס לרגע. שלח הודעה שוב ואני מבצע. 🛠️" });
   }
 }
