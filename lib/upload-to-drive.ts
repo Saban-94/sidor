@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PassThrough } from 'stream';
 
 export const config = {
   api: {
@@ -21,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const credentials = JSON.parse(jsonKey);
     
-    // תיקון מפתח פרטי עבור סביבת Vercel
+    // תיקון קריטי למפתח הפרטי ב-Vercel
     if (credentials.private_key) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
@@ -33,10 +32,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const drive = google.drive({ version: 'v3', auth });
 
-    // יצירת צינור PassThrough - זה הפתרון הסופי לשגיאת .pipe()
-    const buffer = Buffer.from(fileData, 'base64');
-    const bufferStream = new PassThrough();
-    bufferStream.end(buffer);
+    // במקום Stream, אנחנו הופכים את ה-Base64 ל-Uint8Array
+    // זה מבנה נתונים שגוגל מקבלת בלי לנסות להפעיל עליו .pipe()
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    const uint8Array = new Uint8Array(fileBuffer);
 
     const fileMetadata = {
       name: `${phone || 'unknown'}_${fileName}`,
@@ -45,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const media = {
       mimeType: mimeType,
-      body: bufferStream, // כאן ה-PassThrough פותר את הבעיה
+      body: uint8Array, // שליחה ישירה כ-Array
     };
 
     const file = await drive.files.create({
