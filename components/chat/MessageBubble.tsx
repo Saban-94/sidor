@@ -6,9 +6,14 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message }: MessageBubbleProps) => {
   const isMe = message.fromMe;
+  const bodyText = message.body || message.content || '';
 
   // פונקציה שמזהה ומציגה תמונות מתוך לינקים של גוגל דרייב
   const renderMessageBody = (body: string) => {
+    if (!body || typeof body !== 'string') {
+      return <p className="text-sm leading-relaxed whitespace-pre-wrap">{'(Empty message)'}</p>;
+    }
+
     // Regex שמחפש את ה-ID של הקובץ מתוך הלינק שנוצר בשרת
     const drivePattern = /https:\/\/drive\.google\.com\/file\/d\/([^\/]+)\/view/;
     const match = body.match(drivePattern);
@@ -37,7 +42,7 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
             rel="noopener noreferrer"
             className={`text-[11px] underline flex items-center gap-1 ${isMe ? 'text-saban-dark/70' : 'text-emerald-400'}`}
           >
-            📎 לצפייה בדרייב ↗
+            {'📎 לצפייה בדרייב ↗'}
           </a>
         </div>
       );
@@ -45,6 +50,19 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
 
     // אם זה טקסט רגיל
     return <p className="text-sm leading-relaxed whitespace-pre-wrap">{body}</p>;
+  };
+
+  const getStatusSymbol = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return '✓';
+      case 'delivered':
+        return '✓✓';
+      case 'read':
+        return '✓✓';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -56,7 +74,7 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
             : 'bg-saban-surface text-white rounded-br-none border border-white/20'
         }`}
       >
-        {renderMessageBody(message.body)}
+        {renderMessageBody(bodyText)}
         
         <div className="flex items-center justify-end mt-1 gap-1">
           <span className={`text-[10px] ${isMe ? 'opacity-60' : 'opacity-70 text-saban-muted'}`}>
@@ -67,9 +85,7 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
           </span>
           {isMe && message.status && (
             <span className={`text-[10px] ${message.status === 'read' ? 'text-blue-500' : ''}`}>
-              {message.status === 'sent' && '✓'}
-              {message.status === 'delivered' && '✓✓'}
-              {message.status === 'read' && '✓✓'}
+              {getStatusSymbol(message.status)}
             </span>
           )}
         </div>
