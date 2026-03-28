@@ -5,7 +5,7 @@ import {
   Plus, User, Phone, Briefcase, Trash2, Edit3, 
   Sparkles, Share2, Search, Languages, 
   UserPlus, ShieldCheck, MessageSquare, ExternalLink,
-  MoreVertical, Filter, ArrowLeft
+  MoreVertical, Filter, ArrowLeft, Bot // הוספתי את הבוט כאן
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -103,11 +103,9 @@ export default function UserManagementStudio() {
                 transition={{ delay: index * 0.05 }}
                 className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-xl hover:border-emerald-500/20 transition-all group relative overflow-hidden"
               >
-                {/* VIP Side Highlight */}
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                 <div className="flex flex-col md:flex-row items-start gap-6">
-                  {/* User Avatar */}
                   <div className="relative shrink-0">
                     <div className="w-24 h-24 rounded-[2rem] overflow-hidden shadow-inner bg-slate-50 border-2 border-white group-hover:scale-105 transition-transform duration-500">
                       <img 
@@ -121,7 +119,6 @@ export default function UserManagementStudio() {
                     </div>
                   </div>
 
-                  {/* User Details */}
                   <div className="flex-1 w-full">
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -151,7 +148,6 @@ export default function UserManagementStudio() {
                       </div>
                     </div>
 
-                    {/* Brain Intelligence Box */}
                     <div className="bg-[#fcfdfe] border border-slate-100 p-5 rounded-[1.8rem] relative overflow-hidden">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-emerald-600">
@@ -165,7 +161,6 @@ export default function UserManagementStudio() {
                         {c.brain_notes || "המוח טרם למד את העדפות הלקוח. לחץ על עריכה כדי להזין תחביבים, שפה וסגנון מענה..."}
                       </p>
                       
-                      {/* Stats Footer */}
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
                         <div className="flex gap-4">
                           <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase">
@@ -190,7 +185,6 @@ export default function UserManagementStudio() {
         </div>
       )}
 
-      {/* Floating Magic Button */}
       <motion.button 
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
