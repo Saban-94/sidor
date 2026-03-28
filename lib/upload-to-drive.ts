@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '10mb', // מאפשר קבצים עד 10 מגה
     },
   },
 };
@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const credentials = JSON.parse(jsonKey);
     
-    // תיקון קריטי למפתח הפרטי ב-Vercel
+    // תיקון מפתח פרטי - קריטי לשרתי Vercel
     if (credentials.private_key) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
@@ -32,33 +32,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const drive = google.drive({ version: 'v3', auth });
 
-    // במקום Stream, אנחנו הופכים את ה-Base64 ל-Uint8Array
-    // זה מבנה נתונים שגוגל מקבלת בלי לנסות להפעיל עליו .pipe()
-    const fileBuffer = Buffer.from(fileData, 'base64');
-    const uint8Array = new Uint8Array(fileBuffer);
+    // המרה לפורמט בסיסי שאינו דורש .pipe()
+    const buffer = Buffer.from(fileData, 'base64');
 
     const fileMetadata = {
-      name: `${phone || 'unknown'}_${fileName}`,
+      name: `${phone || 'customer'}_${fileName}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID || ''],
     };
 
+    // הגדרה של "media" בצורה פשוטה - גוגל תזהה שזה Buffer ותטפל בזה פנימית
     const media = {
       mimeType: mimeType,
-      body: uint8Array, // שליחה ישירה כ-Array
+      body: buffer, 
     };
 
-    const file = await drive.files.create({
+    // שימוש ב-create בצורה הכי בסיסית שלו
+    const response = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
       fields: 'id, webViewLink',
+    } as any); // as any מונע שגיאות Type של TS בגרסאות מסוימות
+
+    return res.status(200).json({ 
+      link: response.data.webViewLink,
+      id: response.data.id 
     });
 
-    return res.status(200).json({ link: file.data.webViewLink });
-
   } catch (error: any) {
-    console.error('Drive Error Detail:', error.message);
+    console.error('Drive Critical Error:', error.message);
     return res.status(500).json({ 
-      error: 'Internal Server Error', 
+      error: 'Upload Failed', 
       details: error.message 
     });
   }
