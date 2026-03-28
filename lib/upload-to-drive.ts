@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // חובה: ה-URL העדכני ביותר מה-Deploy בגוגל
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxsE93xPgCj-N6tv-jqqTYaLeCr2HppODNQMtlSCdToN7fzuAf3u2O6bYv9k4L46ILu/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwwKOwIks5wT_BEwaIVorKREucPAtBLQD-KcyuC-7cyrv31W4KPL1U8WG2iMhQLy1l3/exec";
 
   try {
     const response = await fetch(GOOGLE_SCRIPT_URL, {
