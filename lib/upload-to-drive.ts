@@ -1,17 +1,10 @@
 import { google } from 'googleapis';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
+export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   const { fileName, fileData, mimeType, phone } = req.body;
 
   try {
@@ -19,8 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!jsonKey) throw new Error("Missing GOOGLE_DRIVE_JSON_KEY");
 
     const credentials = JSON.parse(jsonKey);
-    
-    // תיקון מפתח פרטי עבור Vercel
+    // תיקון פורמט המפתח עבור ורסל
     if (credentials.private_key) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
@@ -32,19 +24,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const drive = google.drive({ version: 'v3', auth });
 
-    // יצירת הקובץ ללא שימוש ב-Stream (שימוש ב-Base64 ישיר)
-    // זה הפתרון הסופי שעוקף את שגיאת .pipe() ב-Next.js 16
+    // המרה ל-Uint8Array - הפתרון הסופי לשגיאת ה-pipe
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    const uint8Array = new Uint8Array(fileBuffer);
+
     const fileMetadata = {
       name: `${phone || 'customer'}_${fileName}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID || ''],
     };
 
-    // אנחנו שולחים את המדיה כ-String בפורמט Base64 או Buffer
-    // גוגל יודעת לטפל בזה כ-Simple Request בתוך ה-SDK
-    const media = {
-      mimeType: mimeType,
-      body: Buffer.from(fileData, 'base64'),
-    };
+    const media = { mimeType, body: uint8Array };
 
     const response = await drive.files.create({
       requestBody: fileMetadata,
@@ -52,20 +41,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fields: 'id, webViewLink',
     } as any);
 
-    console.log(`[Drive Success] File ID: ${response.data.id}`);
-
-    return res.status(200).json({ 
-      link: response.data.webViewLink,
-      id: response.data.id 
-    });
-
+    return res.status(200).json({ link: response.data.webViewLink });
   } catch (error: any) {
-    console.error('[Drive Critical Error]:', error.message);
-    
-    // אם השגיאה היא Permissions, זה אומר שלא שיתפת את התיקייה עם המייל מה-JSON
-    return res.status(500).json({ 
-      error: 'Upload Failed', 
-      details: error.message 
-    });
+    console.error('[Drive Error]:', error.message);
+    return res.status(500).json({ error: 'Upload Failed', details: error.message });
   }
 }
