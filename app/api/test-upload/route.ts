@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "error", message: "Missing Google URL" }, { status: 400 });
     }
 
-    // שליחה לגוגל
+    // שליחה ל-Google Apps Script
     const response = await fetch(GOOGLE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
