@@ -1,3 +1,4 @@
+'use client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export const config = {
