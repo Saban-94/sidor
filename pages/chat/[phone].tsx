@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { 
   ShieldCheck, UserCheck, BarChart3, Settings, Menu, X, 
-  PlusCircle, LayoutGrid, Clock, Briefcase, Lock, Database, Send, Zap, Bell, Mail, Sun, Moon
+  PlusCircle, LayoutGrid, Clock, Briefcase, Lock, Database, Send, Zap, Bell, Mail, Sun, Moon, MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
