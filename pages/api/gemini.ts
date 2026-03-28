@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!cleanMsg && !manualInjection) return res.status(200).json({ reply: "בוס, קיבלתי הודעה ריקה. איך אני יכול לשרת אותך?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
-  // בריכת המודלים ברוטציה (ללא שימוש בשמות או סדר)
+  // בריכת המודלים ברוטציה
   const modelPool = [
     "gemini-3.1-flash-lite-preview", 
     "gemini-2.0-flash",
@@ -32,10 +32,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 2. שליפת דאטה משולבת (סטודיו + זיכרון לקוח + DNA של ראמי)
+    // 2. שליפת דאטה משולבת (כולל DNA המוח החדש)
     const [flowSnap, brainCoreSnap, memoryRes] = await Promise.all([
       getDoc(doc(dbFS, 'system', 'bot_flow_config')),
-      getDoc(doc(dbFS, 'settings', 'brain-core')), // המוח המפוצל החדש
+      getDoc(doc(dbFS, 'settings', 'brain-core')),
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
@@ -44,13 +44,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const nodes = flowData.nodes || [];
     const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
 
+    // --- לוגיקת דוח בוקר (WhatsApp Report) ---
+    let reportContent = "";
+    let whatsappLink = "";
+    const isReportRequest = cleanMsg.includes("דוח") || cleanMsg.includes("סיכום");
+
+    if (isReportRequest) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('created_at', today)
+        .order('order_time', { ascending: true });
+
+      if (orders && orders.length > 0) {
+        reportContent = "📋 *דוח הזמנות נבחרות*\n\n";
+        const drivers = [...new Set(orders.map(o => o.driver_name))];
+        
+        drivers.forEach(driver => {
+          reportContent += `*${driver}*\n`;
+          orders.filter(o => o.driver_name === driver).forEach(o => {
+            reportContent += `⏰ ${o.order_time} | 👤 ${o.client_info} | 📍 ${o.location} | 🏠 ${o.source_branch}\n`;
+          });
+          reportContent += "\n";
+        });
+        
+        whatsappLink = `https://wa.me/?text=${encodeURIComponent(reportContent)}`;
+      }
+    }
+
     // 3. זיהוי ענף דינמי
     let activeNode = nodes.find((n: any, index: number) => {
       const nodeNumber = (index + 1).toString();
       return cleanMsg === nodeNumber || cleanMsg === n.name || cleanMsg.includes(n.name);
     });
 
-    // 4. שליפת מוצרים (אם רלוונטי)
+    // 4. שליפת מוצרים
     let attachedProducts: any[] = [];
     if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי") || cleanMsg.includes("כמה עולה")) {
       const { data } = await supabase.from('inventory').select('product_name, sku, price, image_url, youtube_url').limit(3);
@@ -59,31 +88,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 5. בניית ה-Prompt הקשיח - חוקי ראמי
     const prompt = `
-      הנחיית יסוד קשיחה: אתה Saban OS, העוזר האישי והמשרת של ראמי מסארוה. אתה מקשיב רק לראמי ופועל לפי חוקיו.
+      הנחיית יסוד: אתה Saban OS, העוזר והמשרת האישי של ראמי מסארוה. אתה פועל רק לפי חוקיו.
       
-      -- DNA וזהות (חוקי ראמי) --
-      ${dna.coreIdentity || "אתה שותף עסקי חכם ומשרת נאמן של ראמי."}
-      
+      -- DNA וזהות --
+      ${dna.coreIdentity || "משרת נאמן ושותף ביצועי של ראמי."}
       -- פרוטוקול ביצוע --
-      ${dna.executionProtocol || "בצע פקודות בחדות. אין להמציא נתונים מדמיונך."}
+      ${dna.executionProtocol || "בצע פקודות בחדות."}
+      ${isReportRequest ? `שים לב: ראמי ביקש דוח. הנה הנתונים שנשלפו: ${reportContent || 'אין הזמנות להיום'}` : ''}
       
       -- טון דיבור --
-      ${dna.toneAndVoice || "דבר כשגיא חכם: חד, ענייני, חברי (בוס, אח)."}
+      ${dna.toneAndVoice || "חד, ענייני, חברי (בוס, אח)."}
 
-      -- שילוב קונטקסט וזיכרון --
-      שם המשתמש: ${name || 'חבר'}
-      זיכרון מערכת: ${customerMemory}
-      הנחיות מהאדמין: ${dna.contextIntegration || ""}
-
-      -- מצב שיחה --
-      ${activeNode ? `ענף פעיל: ${activeNode.name}. פקודה: ${activeNode.prompt}` : "שיחה כללית"}
-      
-      מידע מהמחסן: ${attachedProducts.length > 0 ? attachedProducts.map(p => `${p.product_name}: ₪${p.price}`).join(', ') : 'המלאי זמין.'}
-
-      חוקים בל יעברו:
-      1. אל תמציא נתונים (No Hallucinations). אם חסר מידע - שאל את ראמי.
-      2. תמיד סיים בתשובה קצרה (2-3 משפטים) ובשורת TL;DR מודגשת בסוף.
-      3. התייחס לראמי כאל הבוס והמנהל הבלעדי שלך.
+      חוקים למענה:
+      1. אם מדובר בדוח, הצג אותו במבנה המקצועי שביקש ראמי עם האימוג'ים.
+      2. צרף תמיד את לינק השיתוף לוואטסאפ בסוף הדוח: ${whatsappLink}
+      3. אל תמציא נתונים. סיים כל הודעה ב-TL;DR מודגש.
 
       הודעה: "${cleanMsg}"
       תשובת המוח:
@@ -111,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!replyText) throw new Error("כל המודלים נכשלו.");
 
-    // 7. החזרת תשובה מסונכרנת
+    // 7. החזרת תשובה
     return res.status(200).json({
       reply: replyText,
       products: attachedProducts,
@@ -119,6 +138,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח עמוס לרגע. שלח הודעה שוב ואני מבצע. 🛠️" });
+    return res.status(200).json({ reply: "בוס, המוח עמוס. שלח שוב ואני מבצע. 🛠️" });
   }
 }
