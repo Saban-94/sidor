@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { Readable } from 'stream'; // ייבוא קריטי לתיקון השגיאה
 
 export const config = {
   api: {
@@ -15,13 +16,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { fileName, fileData, mimeType, phone } = req.body;
 
   try {
-    // שליפת ה-JSON מהמשתנים של ורסל
     const jsonKey = process.env.GOOGLE_DRIVE_JSON_KEY;
     if (!jsonKey) throw new Error("Missing GOOGLE_DRIVE_JSON_KEY");
 
     const credentials = JSON.parse(jsonKey);
     
-    // התיקון הקריטי למפתח ששלחת: הפיכת \n לתו שורה אמיתי
+    // תיקון מפתח פרטי עבור Vercel
     if (credentials.private_key) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
@@ -33,6 +33,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const drive = google.drive({ version: 'v3', auth });
 
+    // הפיכת ה-Base64 ל-Stream (פותר את שגיאת .pipe)
+    const buffer = Buffer.from(fileData, 'base64');
+    const bufferStream = new Readable();
+    bufferStream.push(buffer);
+    bufferStream.push(null);
+
     const fileMetadata = {
       name: `${phone || 'unknown'}_${fileName}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID || ''],
@@ -40,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const media = {
       mimeType: mimeType,
-      body: Buffer.from(fileData, 'base64'),
+      body: bufferStream, // כאן אנחנו שולחים את ה-Stream במקום Buffer ישיר
     };
 
     const file = await drive.files.create({
