@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`✅ נתונים התקבלו: ${fileName} (${mimeType}), גודל: ${fileData.length}`);
 
     // שלב 2: בדיקת ה-URL של גוגל
-    const GOOGLE_URL = "YOUR_APPS_SCRIPT_URL_HERE"; // שים פה את ה-URL שלך
+    const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzuKzJdg7B3Q0Q42IonnWlEgsE_o_Sj2dgqxpHrmU0ro-MYmlismm9LzMnpbn7y8rOj/exec"; // שים פה את ה-URL שלך
     if (!GOOGLE_URL || GOOGLE_URL.includes("YOUR_APPS_SCRIPT")) {
       console.error("❌ שגיאה: שכחת לעדכן את ה-URL של גוגל!");
       return res.status(500).json({ error: "Google URL not configured" });
