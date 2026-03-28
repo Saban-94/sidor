@@ -1,7 +1,6 @@
 import { google } from 'googleapis';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// הגדרת מגבלת גודל קובץ ל-10MB
 export const config = {
   api: {
     bodyParser: {
@@ -11,24 +10,31 @@ export const config = {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { fileName, fileData, mimeType, phone } = req.body;
 
   try {
-    // אימות מול Google
+    // שליפת ה-JSON מהמשתנים של ורסל
+    const jsonKey = process.env.GOOGLE_DRIVE_JSON_KEY;
+    if (!jsonKey) throw new Error("Missing GOOGLE_DRIVE_JSON_KEY");
+
+    const credentials = JSON.parse(jsonKey);
+    
+    // התיקון הקריטי למפתח ששלחת: הפיכת \n לתו שורה אמיתי
+    if (credentials.private_key) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
+
     const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_DRIVE_JSON_KEY || '{}'),
+      credentials,
       scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
 
     const drive = google.drive({ version: 'v3', auth });
 
-    // הגדרת המטא-דאטה של הקובץ
     const fileMetadata = {
-      name: `${phone}_${fileName}`,
+      name: `${phone || 'unknown'}_${fileName}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID || ''],
     };
 
@@ -37,22 +43,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       body: Buffer.from(fileData, 'base64'),
     };
 
-    // יצירת הקובץ בדרייב
     const file = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
       fields: 'id, webViewLink',
     });
 
-    return res.status(200).json({ 
-      link: file.data.webViewLink, 
-      fileId: file.data.id 
-    });
+    return res.status(200).json({ link: file.data.webViewLink });
 
   } catch (error: any) {
-    console.error('Drive Upload Error:', error);
+    console.error('Drive Error Detail:', error.message);
     return res.status(500).json({ 
-      error: 'Upload failed', 
+      error: 'Internal Server Error', 
       details: error.message 
     });
   }
