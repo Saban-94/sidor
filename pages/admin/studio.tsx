@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, Users, BrainCircuit, Save, Activity, Search, 
   Trash2, Edit3, UserPlus, Copy, Heart, Mail, UsersCircle, 
-  Smartphone, Bot, Send, X, LayoutGrid, Check
+  Smartphone, Bot, Send, X, LayoutGrid, Check, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -40,6 +40,7 @@ export default function SabanOSMaster() {
   const [simInput, setSimInput] = useState('');
 
   useEffect(() => {
+    // טעינת DNA מ-Firebase
     const unsubDNA = onSnapshot(doc(dbFS, 'settings', 'bot-dna'), (d) => {
       if (d.exists()) setBotConfig(d.data() as any);
     });
@@ -74,8 +75,8 @@ export default function SabanOSMaster() {
   const startSim = (user: any) => {
     setSelectedUserForChat(user);
     setChatMessages([
-      { role: 'system', content: `איתחול סימולציה. משתמש: ${user.name}. הערות מוח: ${user.brain_dna_notes || 'כללי'}` },
-      { role: 'assistant', content: `שלום ${user.name}, המוח של סבן OS מוכן. איך אני יכול לעזור?` }
+      { role: 'system', content: `איתחול סימולציה. DNA מוטמע עבור ${user.name}. הנחיות: ${user.brain_dna_notes || 'כללי'}` },
+      { role: 'assistant', content: `אהלן ${user.name}, המוח של סבן OS מוכן. איך אני יכול לעזור?` }
     ]);
   };
 
@@ -86,9 +87,21 @@ export default function SabanOSMaster() {
     setSimInput('');
     
     setTimeout(() => {
-      let response = `אני מבין, ${selectedUserForChat.name}. בהתאם ל-DNA שלי, אני מזהה שאתה ${selectedUserForChat.family_relation || 'משתמש'} במערכת.`;
+      let response = "";
+      if (msg.includes("ראמי")) {
+        response = "ראמי הוא האדריכל והבוס שלי. אני עונה לו בגובה העיניים כמו שותף אסטרטגי.";
+      } else {
+        response = `אני מזהה שאתה ${selectedUserForChat.family_relation || 'משתמש'} ושתחביביך הם ${selectedUserForChat.hobbies || 'כלליים'}. איך עוד אוכל לסייע?`;
+      }
       setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
     }, 800);
+  };
+
+  const copyMagicLink = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const link = `https://sidor.vercel.app/chat/[${cleanPhone}]`;
+    navigator.clipboard.writeText(link);
+    alert("לינק קסם הועתק!");
   };
 
   return (
@@ -96,7 +109,7 @@ export default function SabanOSMaster() {
       {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-lg shadow-emerald-200"><ShieldCheck size={24} /></div>
+          <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-lg"><ShieldCheck size={24} /></div>
           <div>
             <h1 className="font-black text-slate-950 uppercase tracking-tighter text-xl">Saban OS Master</h1>
             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mt-0.5">Central Control & Simulator</p>
@@ -109,16 +122,18 @@ export default function SabanOSMaster() {
       </nav>
 
       <main className="p-6 grid grid-cols-1 xl:grid-cols-3 gap-8 max-w-[1700px] mx-auto">
+        
+        {/* CRM SECTION */}
         <div className={`xl:col-span-2 space-y-6 ${selectedUserForChat ? 'hidden xl:block' : ''}`}>
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2"><Users className="text-emerald-500" /> מאגר המשתמשים</h2>
-            <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2"><Users className="text-emerald-500" /> מאגר המוחות של סבן</h2>
+            <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg hover:bg-emerald-600 transition-all">
               הוסף משתמש חדש +
             </button>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm">
-            <table className="w-full text-right border-collapse text-sm">
+            <table className="w-full text-right border-collapse">
               <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <tr>
                   <th className="p-5">פרופיל</th>
@@ -141,11 +156,7 @@ export default function SabanOSMaster() {
                       </div>
                     </td>
                     <td className="p-5 text-center" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => {
-                        const link = `https://sidor.vercel.app/chat/[${c.phone.replace(/\D/g, '')}]`;
-                        navigator.clipboard.writeText(link);
-                        alert("לינק קסם הועתק!");
-                      }} className="p-2.5 bg-white border rounded-xl text-slate-400 hover:text-emerald-500"><Copy size={18}/></button>
+                      <button onClick={() => copyMagicLink(c.phone)} className="p-2.5 bg-white border rounded-xl text-slate-400 hover:text-emerald-500"><Copy size={18}/></button>
                     </td>
                     <td className="p-5" onClick={e => e.stopPropagation()}>
                       <div className="flex justify-end gap-2">
@@ -160,22 +171,23 @@ export default function SabanOSMaster() {
           </div>
         </div>
 
+        {/* IPHONE SIMULATOR */}
         <div className="xl:col-span-1 flex justify-center sticky top-28 h-fit">
            <div className="w-[310px] h-[630px] bg-black rounded-[50px] border-[10px] border-black shadow-2xl relative overflow-hidden flex flex-col p-2">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-b-xl z-20" />
               {selectedUserForChat ? (
-                <div className="flex-1 bg-[#E5DDD5] rounded-[30px] overflow-hidden flex flex-col">
+                <div className="flex-1 bg-[#E5DDD5] rounded-[30px] overflow-hidden flex flex-col font-sans">
                   <div className="bg-[#075E54] p-3 pt-5 text-white flex items-center justify-between">
                     <div className="flex items-center gap-2">
                        <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-[#075E54] text-xs">{selectedUserForChat.name[0]}</div>
-                       <div className="text-xs font-bold leading-tight">{selectedUserForChat.name}<br/><span className="text-[8px] opacity-70">Saban OS Intelligence</span></div>
+                       <div className="text-xs font-bold leading-tight">{selectedUserForChat.name}<br/><span className="text-[8px] opacity-70">Saban Intelligence</span></div>
                     </div>
                     <button onClick={() => setSelectedUserForChat(null)} className="text-white/70 hover:text-white"><X size={16}/></button>
                   </div>
                   <div className="flex-1 p-3 space-y-2 overflow-y-auto text-[10px]">
                     {chatMessages.map((m, i) => (
                       <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : m.role === 'assistant' ? 'justify-start' : 'justify-center'}`}>
-                        <div className={`max-w-[85%] p-2 rounded-lg shadow-sm ${m.role === 'user' ? 'bg-[#DCF8C6] rounded-bl-none' : m.role === 'assistant' ? 'bg-white rounded-br-none' : 'bg-blue-50 text-blue-500 text-center text-[8px]'}`}>
+                        <div className={`max-w-[85%] p-2 rounded-lg shadow-sm ${m.role === 'user' ? 'bg-[#DCF8C6]' : m.role === 'assistant' ? 'bg-white' : 'bg-blue-50 text-blue-500 text-center text-[8px]'}`}>
                           {m.content}
                         </div>
                       </div>
@@ -195,6 +207,7 @@ export default function SabanOSMaster() {
            </div>
         </div>
 
+        {/* DNA EDIT VIEW */}
         {activeTab === 'DNA' && (
           <div className="xl:col-span-2 max-w-2xl mx-auto w-full">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white border rounded-[2.5rem] p-8 shadow-sm space-y-6">
@@ -218,10 +231,11 @@ export default function SabanOSMaster() {
         )}
       </main>
 
+      {/* MODAL - CRM PROFILE */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/40">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-2xl font-black text-slate-950">עריכת פרופיל משתמש</h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X/></button>
@@ -230,13 +244,13 @@ export default function SabanOSMaster() {
                 <Field name="name" label="שם מלא" defaultValue={editingUser?.name} required />
                 <Field name="phone" label="טלפון" defaultValue={editingUser?.phone} required />
                 <Field name="email" label="אימייל" defaultValue={editingUser?.email} type="email" />
-                <Field name="family_relation" label="קשר משפחתי" defaultValue={editingUser?.family_relation} />
-                <Field name="hobbies" label="תחביבים" defaultValue={editingUser?.hobbies} />
+                <Field name="family_relation" label="קשר משפחתי לרמי" defaultValue={editingUser?.family_relation} placeholder="למשל: אח, חבר טוב" />
+                <Field name="hobbies" label="תחביבים (לשימוח המוח)" defaultValue={editingUser?.hobbies} placeholder="למשל: כדורגל, נדלן" />
                 <div className="md:col-span-2">
                    <label className="text-[10px] font-black text-emerald-600 uppercase mb-1 block">הנחיה ספציפית למוח</label>
-                   <textarea name="brain_dna_notes" defaultValue={editingUser?.brain_dna_notes} className="w-full h-24 p-4 bg-slate-50 border rounded-2xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/10" />
+                   <textarea name="brain_dna_notes" defaultValue={editingUser?.brain_dna_notes} className="w-full h-24 p-4 bg-slate-50 border rounded-2xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/10" placeholder="איך המוח יתייחס אליו?" />
                 </div>
-                <button type="submit" className="md:col-span-2 bg-slate-950 text-white font-black py-5 rounded-2xl shadow-xl mt-4">שמור פרופיל</button>
+                <button type="submit" className="md:col-span-2 bg-slate-950 text-white font-black py-5 rounded-2xl shadow-xl mt-4">שמור ושדרג מוח</button>
               </form>
             </motion.div>
           </div>
@@ -246,6 +260,7 @@ export default function SabanOSMaster() {
   );
 }
 
+// קומפוננטות עזר פנימיות למניעת שגיאות ייבוא
 const Field = ({ label, name, ...props }: any) => (
   <div className="space-y-1">
     <label className="text-[10px] font-black text-slate-400 uppercase">{label}</label>
