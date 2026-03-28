@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Readable } from 'stream'; // ייבוא קריטי לתיקון השגיאה
+import { PassThrough } from 'stream';
 
 export const config = {
   api: {
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const credentials = JSON.parse(jsonKey);
     
-    // תיקון מפתח פרטי עבור Vercel
+    // תיקון מפתח פרטי עבור סביבת Vercel
     if (credentials.private_key) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
@@ -33,11 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const drive = google.drive({ version: 'v3', auth });
 
-    // הפיכת ה-Base64 ל-Stream (פותר את שגיאת .pipe)
+    // יצירת צינור PassThrough - זה הפתרון הסופי לשגיאת .pipe()
     const buffer = Buffer.from(fileData, 'base64');
-    const bufferStream = new Readable();
-    bufferStream.push(buffer);
-    bufferStream.push(null);
+    const bufferStream = new PassThrough();
+    bufferStream.end(buffer);
 
     const fileMetadata = {
       name: `${phone || 'unknown'}_${fileName}`,
@@ -46,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const media = {
       mimeType: mimeType,
-      body: bufferStream, // כאן אנחנו שולחים את ה-Stream במקום Buffer ישיר
+      body: bufferStream, // כאן ה-PassThrough פותר את הבעיה
     };
 
     const file = await drive.files.create({
