@@ -55,24 +55,48 @@ export default function ProfessionalChat() {
   }, [cleanPhone]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+// ... (חלקי ייבוא קיימים)
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = input;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setIsTyping(true);
+const handleSend = async () => {
+  if (!input.trim()) return;
+  const userMsg = input;
+  setInput('');
+  setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+  setIsTyping(true);
 
-    // כאן תבוא הקריאה ל-API של Gemini עם ה-Context של המשתמש
-    setTimeout(() => {
-      const response = userProfile?.family_relation === 'הבעלים' 
-        ? `שותף יקר, הבנתי את הבקשה שלך לגבי "${userMsg}". אני מעבד את הנתונים לפי הפרוטוקול המקצועי שלנו.`
-        : `שלום ${userProfile?.name}, קיבלתי את הודעתך. איך עוד אוכל לעזור?`;
+  try {
+    // שליפת ה-DNA הכללי מ-Firebase (צריך להוסיף את הלוגיקה הזו)
+    const dnaSnapshot = await getDoc(doc(dbFS, 'settings', 'bot-dna'));
+    const systemDNA = dnaSnapshot.exists() ? dnaSnapshot.data().instructions : "";
+
+    // בניית ה-Context המלא עבור Gemini
+    const fullPrompt = `
+      ${systemDNA}
       
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
-      setIsTyping(false);
-    }, 1000);
-  };
+      מידע על המשתמש הנוכחי:
+      שם: ${userProfile?.name}
+      קשר: ${userProfile?.family_relation}
+      תחביבים: ${userProfile?.hobbies}
+      הנחיה אישית: ${userProfile?.brain_dna_notes}
+      
+      הודעת המשתמש: ${userMsg}
+    `;
+
+    // קריאה ל-API האמיתי (Gemini)
+    const res = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: fullPrompt, history: messages })
+    });
+
+    const data = await res.json();
+    setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+  } catch (err) {
+    setMessages(prev => [...prev, { role: 'assistant', content: "בוס, יש לי תקלה קלה בסינכרון הנתונים. אני בודק את זה." }]);
+  } finally {
+    setIsTyping(false);
+  }
+};
 
   return (
     <div className="flex flex-col h-screen bg-[#F0F2F5] font-sans" dir="rtl">
