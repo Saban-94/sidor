@@ -22,41 +22,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-    const [memoryRes] = await Promise.all([
-      supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
-    ]);
 
-// בתוך פונקציית ה-handler, אחרי שליפת ה-customerMemory
-let currentDNA = customerMemory;
+    // 1. שליפת זיכרון קיים מ-Supabase
+    const { data: memoryRes } = await supabase
+      .from('customer_memory')
+      .select('accumulated_knowledge')
+      .eq('clientId', phone)
+      .maybeSingle();
 
-// 1. הזרקת הנתון החדש לזיכרון הזמני כדי שהמוח ידע מה הוא הרגע קיבל
-currentDNA += `\nUser said: ${cleanMsg}`;
+    let history = memoryRes?.accumulated_knowledge || "";
+    
+    // איפוס זיכרון אם מתחילים מחדש
+    if (cleanMsg === "הוסף הזמנה") history = "";
 
-const prompt = `
-  חוק ברזל: אתה העוזר של ראמי. דבר קצר (מילה-שתיים).
-  סדר עץ הזמנה (אל תסטה!):
-  1. שם לקוח?
-  2. כתובת?
-  3. מחסן? (התלמיד/החרש)
-  4. נהג? (חכמת/עלי)
+    // 2. בניית ה-Prompt עם סדר קשיח (State Machine)
+    const prompt = `
+      זהות: העוזר של ראמי. קצר, חריף, מילה-שתיים.
+      
+      פרוטוקול עץ הזמנה (סדר חובה):
+      1. שם לקוח?
+      2. כתובת?
+      3. מחסן? (התלמיד / החרש)
+      4. נהג? (חכמת / עלי)
 
-  בדיקת מצב נוכחי בזיכרון:
-  ${currentDNA}
+      היסטוריית תהליך נוכחית:
+      ${history}
 
-  הנחיה לביצוע:
-  - אם המשתמש אמר "הוסף הזמנה" -> שאל "שם לקוח?"
-  - אם יש שם ("דרך עפר") ואין כתובת -> שאל "כתובת?"
-  - אם יש כתובת ("ויצמן 4") ואין מחסן -> שאל "מחסן?"
-  - אם יש מחסן ואין נהג -> שאל "נהג?"
+      הודעה אחרונה מראמי: "${cleanMsg}"
 
-  תשובה (מילה-שתיים בלבד):
-`;
+      הנחיות לביצוע:
+      - אם ההודעה היא "הוסף הזמנה" -> ענה רק: "שם לקוח?"
+      - אם יש שם ואין כתובת -> ענה רק: "כתובת?"
+      - אם יש כתובת ואין מחסן -> ענה רק: "מחסן?"
+      - אם יש מחסן ואין נהג -> ענה רק: "נהג?"
+      - אם הכל הושלם -> ענה: "הוזרק ללוח."
 
-// 2. אחרי קבלת התשובה מהמודל (replyText), חובה לעדכן את Supabase!
-await supabase.from('customer_memory').upsert({
-  clientId: phone,
-  accumulated_knowledge: currentDNA + `\nAssistant asked: ${replyText}`
-});
+      לוגיקה: חכמת=מנוף, עלי=ידני.
+      תשובה (מילה-שתיים):
+    `;
+
+    // 3. הרצת המודל
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -70,15 +75,23 @@ await supabase.from('customer_memory').upsert({
         );
         const data = await response.json();
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text;
+          replyText = data.candidates[0].content.parts[0].text.trim();
           break; 
         }
       } catch (err) { continue; }
     }
 
-    return res.status(200).json({ reply: replyText.trim() });
+    // 4. עדכון הזיכרון ב-Supabase למניעת לופים
+    const updatedHistory = history + `\nUser: ${cleanMsg}\nAssistant: ${replyText}`;
+    await supabase.from('customer_memory').upsert({
+      clientId: phone,
+      accumulated_knowledge: updatedHistory,
+      last_update: new Date().toISOString()
+    });
+
+    return res.status(200).json({ reply: replyText });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, תקלה. שוב?" });
+    return res.status(200).json({ reply: "בוס, המוח עמוס. שוב?" });
   }
 }
