@@ -8,7 +8,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
   const hour = Math.floor(i / 2) + 6;
@@ -41,7 +44,10 @@ export default function SabanMasterOS() {
     fetchOrders();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     const sub = supabase.channel('orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders).subscribe();
-    return () => { clearInterval(timer); sub.unsubscribe(); };
+    return () => { 
+      clearInterval(timer); 
+      sub.unsubscribe(); 
+    };
   }, []);
 
   const fetchOrders = async () => {
@@ -74,7 +80,7 @@ export default function SabanMasterOS() {
   };
 
   const submitOrder = async () => {
-    await supabase.from('orders').insert([{
+    const { error } = await supabase.from('orders').insert([{
       client_info: formData.client, 
       location: formData.address, 
       source_branch: formData.branch,
@@ -82,9 +88,12 @@ export default function SabanMasterOS() {
       delivery_date: formData.date, 
       order_time: formData.time
     }]);
-    setIsOrderModalOpen(false); 
-    setStep(1);
-    setFormData({ ...formData, client: '', address: '' });
+
+    if (!error) {
+      setIsOrderModalOpen(false); 
+      setStep(1);
+      setFormData({ ...formData, client: '', address: '' });
+    }
   };
 
   if (!mounted) return null;
@@ -97,7 +106,7 @@ export default function SabanMasterOS() {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg shadow-emerald-500/30"><ShieldCheck size={24}/></div>
-            <h1 className="font-black text-2xl tracking-tighter">SABAN <span className="text-emerald-500">PRO</span></h1>
+            <h1 className="font-black text-2xl tracking-tighter uppercase">SABAN <span className="text-emerald-500">LIVE</span></h1>
           </div>
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
             {isDarkMode ? <Sun size={20} className="text-yellow-400"/> : <Moon size={20} className="text-slate-600"/>}
@@ -151,7 +160,7 @@ export default function SabanMasterOS() {
           <div className={`px-10 py-4 rounded-full border shadow-2xl mb-2 flex items-center gap-4 ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200'}`}>
             <Clock className="text-emerald-500" size={28}/>
             <span className="text-5xl font-black font-mono tracking-tighter">
-              {mounted && currentTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+              {currentTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
           <p className="opacity-40 font-black uppercase tracking-[0.3em] text-xs">Logistic Master Control</p>
@@ -164,13 +173,13 @@ export default function SabanMasterOS() {
               
               <div className="p-6 bg-white/5 flex items-center gap-5 border-b border-white/5">
                 <div className="w-20 h-20 rounded-full border-4 border-emerald-500 p-1 bg-slate-800">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver === 'עלי' ? 'Ali' : 'Hachmat'}`} className="w-full h-full rounded-full" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver === 'עלי' ? 'Ali' : 'Hachmat'}`} className="w-full h-full rounded-full" alt={driver} />
                 </div>
                 <div>
                   <h2 className="text-3xl font-black italic tracking-tighter">{driver.toUpperCase()}</h2>
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"/>
-                    <span className="text-emerald-500 font-black text-sm uppercase">Active</span>
+                    <span className="text-emerald-500 font-black text-sm uppercase">Active Mission</span>
                   </div>
                 </div>
               </div>
@@ -179,7 +188,7 @@ export default function SabanMasterOS() {
                 {TIME_SLOTS.map(slot => {
                   const order = orders.find(o => o.driver_name === driver && o.order_time === slot);
                   return (
-                    <div key={slot} className={`group flex items-center gap-4 p-3 rounded-2xl transition-all ${order ? 'bg-emerald-500/10 border border-emerald-500/30' : 'opacity-20 hover:opacity-100'}`}>
+                    <div key={slot} className={`group flex items-center gap-4 p-3 rounded-2xl transition-all ${order ? 'bg-emerald-500/10 border border-emerald-500/30 shadow-lg' : 'opacity-20 hover:opacity-100'}`}>
                       <span className="w-16 font-mono font-black text-lg text-emerald-500">{slot}</span>
                       {order ? (
                         <div className="flex-1 flex items-center justify-between">
@@ -229,12 +238,12 @@ export default function SabanMasterOS() {
                 <div className="space-y-6">
                   <div className="flex items-center gap-3 opacity-50 font-black uppercase tracking-widest text-sm"><Clock size={18}/> מועד אספקה</div>
                   <div className="grid grid-cols-2 gap-4">
-                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="bg-white/5 p-6 rounded-3xl border border-white/10 text-white" />
-                    <select value={formData.time} onChange={(e)=>setFormData({...formData, time: e.target.value})} className="bg-[#111827] p-6 rounded-3xl border border-white/10 text-white outline-none">
+                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className={`bg-white/5 p-6 rounded-3xl border border-white/10 ${isDarkMode ? 'text-white' : 'text-black'}`} />
+                    <select value={formData.time} onChange={(e)=>setFormData({...formData, time: e.target.value})} className={`bg-white/5 p-6 rounded-3xl border border-white/10 outline-none ${isDarkMode ? 'text-white bg-[#111827]' : 'text-black bg-white'}`}>
                       {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
-                  <button onClick={()=>setStep(3)} className="w-full py-6 bg-white text-black rounded-3xl font-black text-xl">המשך לנהג</button>
+                  <button onClick={()=>setStep(3)} className="w-full py-6 bg-white text-black rounded-3xl font-black text-xl hover:bg-emerald-500">המשך לנהג</button>
                 </div>
               )}
 
