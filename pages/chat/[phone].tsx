@@ -3,187 +3,224 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  ShieldCheck, MapPin, Send, Truck, User, Sparkles, 
-  PlusCircle, X, Calendar, Clock, Share2, CheckCircle2
+  ShieldCheck, MapPin, Send, Truck, User, Sparkles, PlusCircle, 
+  X, Calendar, Clock, Share2, Edit2, Trash2, Sun, Moon, CheckCircle2 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-export default function SabanOS_Master() {
+const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 6;
+  const min = i % 2 === 0 ? '00' : '30';
+  return `${hour.toString().padStart(2, '0')}:${min}`;
+});
+
+export default function SabanMasterOS() {
   const [mounted, setMounted] = useState(false);
-  const [view, setView] = useState<'CHAT' | 'DRIVERS'>('CHAT');
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [orders, setOrders] = useState<any[]>([]);
   const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
   const [input, setInput] = useState('');
-  const [orders, setOrders] = useState<any[]>([]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  
-  // טופס דינמי
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Form State
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({ client: '', address: '', branch: '', driver: '', date: '', time: '' });
+  const [formData, setFormData] = useState({ client: '', address: '', branch: '', driver: '', date: new Date().toISOString().split('T')[0], time: '06:00' });
 
   useEffect(() => {
     setMounted(true);
     fetchOrders();
-    const sub = supabase.channel('orders_realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders).subscribe();
-    return () => { sub.unsubscribe(); };
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const sub = supabase.channel('orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders).subscribe();
+    return () => { clearInterval(timer); sub.unsubscribe(); };
   }, []);
 
   const fetchOrders = async () => {
-    const { data } = await supabase.from('orders').select('*').order('order_time', { ascending: true });
+    const { data } = await supabase.from('orders').select('*');
     if (data) setOrders(data);
   };
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-    const userMsg = input;
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setInput('');
-
+    const msg = input; setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: msg }]);
     const res = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMsg, senderPhone: 'admin' })
+      body: JSON.stringify({ message: msg, senderPhone: 'admin' })
     });
     const data = await res.json();
     setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
   };
 
-  const submitManualOrder = async () => {
+  const deleteOrder = async (id: string) => {
+    if (confirm("בוס, למחוק הזמנה?")) await supabase.from('orders').delete().eq('id', id);
+  };
+
+  const submitOrder = async () => {
     await supabase.from('orders').insert([{
-      client_info: formData.client,
-      location: formData.address,
-      source_branch: formData.branch,
-      driver_name: formData.driver,
-      delivery_date: formData.date || new Date().toISOString().split('T')[0],
-      order_time: formData.time || '08:00'
+      client_info: formData.client, location: formData.address, source_branch: formData.branch,
+      driver_name: formData.driver, delivery_date: formData.date, order_time: formData.time
     }]);
-    setIsOrderModalOpen(false);
-    setStep(1);
+    setIsOrderModalOpen(false); setStep(1);
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="h-screen flex bg-[#0B0F1A] text-white font-sans overflow-hidden" dir="rtl">
+    <div className={`h-screen flex ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F3F4F6] text-slate-900'} font-sans overflow-hidden`} dir="rtl">
       
-      {/* תפריט צד */}
-      <aside className="w-80 bg-[#111827] border-l border-white/5 p-6 flex flex-col">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="bg-emerald-500 p-2 rounded-xl text-black"><ShieldCheck size={24}/></div>
-          <h1 className="font-black text-xl tracking-tight">SABAN OS</h1>
-        </div>
-
-        <nav className="space-y-2 flex-1">
-          <NavBtn active={view === 'CHAT'} onClick={() => setView('CHAT')} icon={<Sparkles size={18}/>} label="צאט פקודות" />
-          <NavBtn active={view === 'DRIVERS'} onClick={() => setView('DRIVERS')} icon={<Truck size={18}/>} label="לוח נהגים" />
-        </nav>
-
-        <div className="pt-6 border-t border-white/5 space-y-3">
-          <button onClick={() => setIsOrderModalOpen(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black p-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all">
-            <PlusCircle size={20}/> יצירת הזמנה
-          </button>
-          <button className="w-full bg-[#25D366] p-4 rounded-2xl font-black flex items-center justify-center gap-2"><Share2 size={18}/> דוח בוקר</button>
-        </div>
-      </aside>
-
-      {/* אזור ראשי */}
-      <main className="flex-1 relative flex flex-col">
-        
-        {view === 'CHAT' ? (
-          <div className="flex-1 flex flex-col p-6 max-w-4xl mx-auto w-full">
-            <div className="flex-1 overflow-y-auto space-y-4 mb-6 scrollbar-hide">
-              {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl font-bold ${m.role === 'user' ? 'bg-white/5 border border-white/10' : 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'}`}>
-                    {m.content}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="relative">
-              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="בוס, מה להוסיף?" className="w-full bg-[#111827] border border-white/10 p-5 rounded-3xl outline-none focus:border-emerald-500 transition-all text-xl" />
-              <button onClick={handleSendMessage} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500"><Send/></button>
-            </div>
+      {/* Sidebar - Control Center */}
+      <aside className={`w-96 flex flex-col border-l ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-2xl'} p-6 z-20`}>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg shadow-emerald-500/30"><ShieldCheck size={24}/></div>
+            <h1 className="font-black text-2xl tracking-tighter">SABAN <span className="text-emerald-500">PRO</span></h1>
           </div>
-        ) : (
-          <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 overflow-y-auto">
-            {['חכמת', 'עלי'].map(driver => (
-              <div key={driver} className="bg-[#111827] rounded-[2.5rem] border border-white/5 overflow-hidden flex flex-col">
-                <div className="p-6 bg-white/5 flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full border-2 border-emerald-500 overflow-hidden bg-slate-800">
-                    <img src={driver === 'עלי' ? 'https://avatar.iran.liara.run/public/job/driver/male' : 'https://avatar.iran.liara.run/public/job/operator/male'} alt={driver} className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black">{driver}</h2>
-                    <p className="text-emerald-500 text-sm font-bold">פעיל בדרכים</p>
-                  </div>
-                </div>
-                <div className="p-4 flex-1 space-y-3">
-                  {orders.filter(o => o.driver_name === driver).map((o, i) => (
-                    <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
-                      <div>
-                        <p className="font-black text-lg">{o.client_info}</p>
-                        <p className="text-sm opacity-50 flex items-center gap-1"><MapPin size={12}/> {o.location}</p>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-emerald-500 font-black">{o.order_time}</p>
-                        <p className="text-[10px] opacity-40">{o.delivery_date}</p>
-                      </div>
-                    </div>
-                  ))}
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+            {isDarkMode ? <Sun size={20} className="text-yellow-400"/> : <Moon size={20} className="text-slate-600"/>}
+          </button>
+        </div>
+
+        {/* Brain Chat Interface */}
+        <div className={`flex-1 flex flex-col rounded-3xl overflow-hidden border ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="p-4 border-b border-white/5 bg-emerald-500/5 flex items-center gap-2">
+            <Sparkles size={16} className="text-emerald-500 animate-pulse"/>
+            <span className="text-xs font-black uppercase tracking-widest opacity-70">המוח של ראמי דרוך</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm font-bold ${m.role === 'user' ? 'bg-white/5 border border-white/10' : 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'}`}>
+                  {m.content}
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </main>
+          <div className="p-4 relative">
+            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="פקודה קולית או טקסט..." className={`w-full p-4 pr-12 rounded-2xl outline-none border focus:border-emerald-500 transition-all ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`} />
+            <button onClick={handleSendMessage} className="absolute left-7 top-1/2 -translate-y-1/2 text-emerald-500"><Send size={20}/></button>
+          </div>
+        </div>
 
-      {/* טופס דינמי מפוצל */}
-      <AnimatePresence>
-        {isOrderModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-lg bg-[#111827] p-8 rounded-[3rem] border border-white/10 shadow-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black">הזרקה ללוח</h2>
-                <div className="flex gap-1">
-                  {[1,2,3,4].map(s => <div key={s} className={`h-1 w-6 rounded-full ${step >= s ? 'bg-emerald-500' : 'bg-white/10'}`}/>)}
+        <div className="mt-6 space-y-3">
+          <button onClick={() => setIsOrderModalOpen(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black p-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl shadow-emerald-500/20 active:scale-95">
+            <PlusCircle size={22}/> הוסף הזמנה ידנית
+          </button>
+          <button className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white p-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all">
+            <Share2 size={20}/> שיתוף דוח בוקר
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Dashboard - The Grid */}
+      <main className="flex-1 flex flex-col p-8 overflow-hidden">
+        
+        {/* Header - Digital Clock */}
+        <header className="flex flex-col items-center mb-10">
+          <div className={`px-10 py-4 rounded-full border shadow-2xl mb-2 flex items-center gap-4 ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200'}`}>
+            <Clock className="text-emerald-500 animate-pulse" size={28}/>
+            <span className="text-5xl font-black font-mono tracking-tighter">
+              {currentTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
+          <p className="opacity-40 font-black uppercase tracking-[0.3em] text-xs">Logistic Master Control</p>
+        </header>
+
+        {/* Drivers Board - Timeline Grid */}
+        <div className="flex-1 flex gap-8 overflow-hidden">
+          {['חכמת', 'עלי'].map(driver => (
+            <div key={driver} className={`flex-1 flex flex-col rounded-[3rem] border shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200'}`}>
+              
+              {/* Driver Profile Header */}
+              <div className="p-6 bg-white/5 flex items-center gap-5 border-b border-white/5">
+                <div className="w-20 h-20 rounded-full border-4 border-emerald-500 p-1 shadow-lg shadow-emerald-500/20">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver === 'עלי' ? 'Ali' : 'Hachmat'}`} className="w-full h-full rounded-full bg-slate-800" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter">{driver.toUpperCase()}</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"/>
+                    <span className="text-emerald-500 font-black text-sm uppercase">Active Mission</span>
+                  </div>
                 </div>
               </div>
 
-              {step === 1 && <StepView label="שם לקוח" icon={<User/>} value={formData.client} onChange={(v)=>setFormData({...formData, client: v})} onNext={()=>setStep(2)}/>}
-              {step === 2 && <StepView label="כתובת אספקה" icon={<MapPin/>} value={formData.address} onChange={(v)=>setFormData({...formData, address: v})} onNext={()=>setStep(3)}/>}
-              {step === 3 && (
+              {/* Scrollable Timeline */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-2 scrollbar-hide">
+                {TIME_SLOTS.map(slot => {
+                  const order = orders.find(o => o.driver_name === driver && o.order_time === slot);
+                  return (
+                    <div key={slot} className={`group flex items-center gap-4 p-3 rounded-2xl transition-all ${order ? 'bg-emerald-500/10 border border-emerald-500/30' : 'hover:bg-white/5 border border-transparent opacity-30 hover:opacity-100'}`}>
+                      <span className="w-16 font-mono font-black text-lg text-emerald-500">{slot}</span>
+                      
+                      {order ? (
+                        <div className="flex-1 flex items-center justify-between">
+                          <div>
+                            <p className="font-black text-lg leading-none">{order.client_info}</p>
+                            <p className="text-xs opacity-60 mt-1 flex items-center gap-1"><MapPin size={10}/> {order.location}</p>
+                          </div>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button className="p-2 hover:bg-white/10 rounded-lg text-emerald-500"><Edit2 size={16}/></button>
+                            <button onClick={() => deleteOrder(order.id)} className="p-2 hover:bg-red-500/20 rounded-lg text-red-500"><Trash2 size={16}/></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex-1 border-t border-dashed border-white/10"></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {/* Manual Order Wizard - Same Logic, New Design */}
+      <AnimatePresence>
+        {isOrderModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`w-full max-w-xl p-10 rounded-[4rem] border ${isDarkMode ? 'bg-[#111827] border-white/10' : 'bg-white border-slate-200'}`}>
+              <div className="flex justify-between items-center mb-10">
+                <h2 className="text-3xl font-black italic">הזרקת הזמנה</h2>
+                <div className="flex gap-2">
+                  {[1,2,3].map(s => <div key={s} className={`h-2 w-10 rounded-full transition-all ${step >= s ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-white/10'}`}/>)}
+                </div>
+              </div>
+
+              {step === 1 && <StepView label="שם לקוח וכתובת" icon={<User/>} children={
                 <div className="space-y-4">
+                  <input placeholder="שם לקוח..." value={formData.client} onChange={(e)=>setFormData({...formData, client: e.target.value})} className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl text-xl outline-none focus:border-emerald-500" />
+                  <input placeholder="כתובת..." value={formData.address} onChange={(e)=>setFormData({...formData, address: e.target.value})} className="w-full bg-white/5 border border-white/10 p-6 rounded-3xl text-xl outline-none focus:border-emerald-500" />
+                  <button onClick={()=>setStep(2)} className="w-full py-6 bg-white text-black rounded-3xl font-black text-xl">המשך לשעה</button>
+                </div>
+              }/>}
+
+              {step === 2 && <StepView label="מועד אספקה" icon={<Clock/>} children={
+                <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold opacity-50 flex items-center gap-1"><Calendar size={12}/> תאריך</label>
-                      <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="w-full bg-white/5 p-4 rounded-xl border border-white/10" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold opacity-50 flex items-center gap-1"><Clock size={12}/> שעה</label>
-                      <input type="time" value={formData.time} onChange={(e)=>setFormData({...formData, time: e.target.value})} className="w-full bg-white/5 p-4 rounded-xl border border-white/10" />
-                    </div>
+                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="bg-white/5 p-6 rounded-3xl border border-white/10" />
+                    <select value={formData.time} onChange={(e)=>setFormData({...formData, time: e.target.value})} className="bg-white/5 p-6 rounded-3xl border border-white/10 outline-none">
+                      {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </div>
-                  <button onClick={()=>setStep(4)} className="w-full py-4 bg-white text-black rounded-2xl font-black">המשך לנהג</button>
+                  <button onClick={()=>setStep(3)} className="w-full py-6 bg-white text-black rounded-3xl font-black text-xl">המשך לנהג</button>
                 </div>
-              )}
-              {step === 4 && (
-                <div className="space-y-4">
-                  <p className="font-bold opacity-50">בחר נהג ומחסן:</p>
-                  <div className="grid grid-cols-2 gap-3">
+              }/>}
+
+              {step === 3 && <StepView label="שיבוץ סופי" icon={<Truck/>} children={
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
                     {['חכמת', 'עלי'].map(d => (
-                      <button key={d} onClick={()=>setFormData({...formData, driver: d})} className={`p-4 rounded-xl border font-black ${formData.driver === d ? 'bg-emerald-500 text-black' : 'bg-white/5 border-white/5'}`}>{d}</button>
+                      <button key={d} onClick={()=>setFormData({...formData, driver: d})} className={`p-8 rounded-[2rem] border-2 font-black text-2xl transition-all ${formData.driver === d ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-white/5 border-white/10'}`}>{d}</button>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['התלמיד', 'החרש'].map(b => (
-                      <button key={b} onClick={()=>setFormData({...formData, branch: b})} className={`p-4 rounded-xl border font-black ${formData.branch === b ? 'bg-white text-black' : 'bg-white/5 border-white/5'}`}>{b}</button>
-                    ))}
-                  </div>
-                  <button onClick={submitManualOrder} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black mt-4">הזרק ללוח 🚀</button>
+                  <button onClick={submitOrder} className="w-full py-8 bg-emerald-500 text-black rounded-[2.5rem] font-black text-2xl shadow-2xl shadow-emerald-500/30">הזרק ללוח 🚀</button>
                 </div>
-              )}
+              }/>}
             </motion.div>
           </div>
         )}
@@ -192,18 +229,11 @@ export default function SabanOS_Master() {
   );
 }
 
-function StepView({ label, icon, value, onChange, onNext }: any) {
+function StepView({ label, icon, children }: any) {
   return (
-    <div className="space-y-4">
-      <label className="font-bold opacity-50 flex items-center gap-2">{icon} {label}</label>
-      <input autoFocus value={value} onChange={(e)=>onChange(e.target.value)} onKeyDown={(e)=>e.key === 'Enter' && onNext()} className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-xl outline-none focus:border-emerald-500" />
-      <button onClick={onNext} className="w-full py-4 bg-white text-black rounded-2xl font-black">המשך</button>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 opacity-50 uppercase tracking-[0.2em] font-black text-sm">{icon} {label}</div>
+      {children}
     </div>
-  );
-}
-
-function NavBtn({ active, onClick, icon, label }: any) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black transition-all ${active ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:bg-white/5'}`}>{icon} {label}</button>
   );
 }
