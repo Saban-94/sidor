@@ -1,46 +1,35 @@
 // public/sw.js
 
-const CACHE_NAME = 'saban-os-v2-cache';
-const urlsToCache = [
-  '/',
-  '/manifest.json',
-  '/order-notification.mp3' // צליל ההתראה
-];
-
-// התקנת ה-Service Worker ושימור קבצים בסיסיים
+// התקנה ראשונית ושמירת קבצים בסיסיים במטמון (אופציונלי לאופליין)
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
-  );
+  self.skipWaiting();
 });
 
-// האזנה להתראות Push מהשרת (Supabase/Firebase)
+// האזנה להתראות Push מהשרת
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {
-    title: 'הזמנה חדשה!',
-    body: 'בוס, נכנסה הזמנה חדשה למערכת.',
+    title: 'הזמנה חדשה בסבן 94',
+    body: 'בוס, כנס למערכת לבדוק את הפרטים.',
     icon: 'https://iili.io/qstzfVf.jpg'
   };
 
   const options = {
     body: data.body,
     icon: data.icon,
-    badge: '/icon-192x192.png',
-    vibrate: [200, 100, 200],
-    data: {
-      url: '/admin/dashboard'
-    }
+    badge: '/icon-192x192.png', // האייקון הקטן בשורת המשימות
+    vibrate: [300, 100, 300, 100, 300], // רטט חזק
+    data: { url: '/admin/dashboard' },
+    actions: [
+      { action: 'open', title: 'פתח הזמנה' }
+    ]
   };
 
-  // הצגת ההתראה
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
 });
 
-// לחיצה על ההתראה - פתיחת האפליקציה
+// טיפול בלחיצה על ההתראה
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
