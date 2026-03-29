@@ -1,5 +1,7 @@
+// lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { getFirestore } from "firebase/firestore"; // שימוש ב-Firestore למאגר מקצועי
+import { getDatabase } from "firebase/database"; // שמירה על Realtime לגיבוי
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -10,8 +12,13 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
+// אתחול האפליקציה
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const database = getDatabase(app);
-const db = database; // Alias for backward compatibility
 
-export { app, database, db };
+// המאגר הראשי - Firestore (לבנייה מקצועית מ-0)
+const db = getFirestore(app);
+
+// המאגר המשני - Realtime Database (לצ'אטים מהירים וסנכרון מיידי)
+const rtdb = getDatabase(app);
+
+export { app, db, rtdb };
