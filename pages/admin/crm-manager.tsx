@@ -1,480 +1,265 @@
+'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { useRouter } from 'next/router';
+import { createClient } from '@supabase/supabase-js';
 import { 
-  getFirestore, collection, query, onSnapshot, doc, 
-  setDoc, serverTimestamp 
-} from 'firebase/firestore';
-import { 
-  Users, Save, BrainCircuit, Search, Smartphone, Plus, Edit2, 
-  Trash2, Activity, Send, Battery, Wifi, Signal, ArrowRight, Image as ImageIcon
+  ShieldCheck, UserCheck, Menu, X, PlusCircle, LayoutGrid, 
+  Briefcase, Lock, MapPin, Sun, Moon, MessageSquare, Send, 
+  Eye, Truck, Construction, User, Sparkles, Share2
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ==========================================
-// 1. אתחול Firebase בטוח
-// ==========================================
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "demo-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://demo-project.firebaseio.com",
-};
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-let app;
-let dbFS: any = null;
+const CRM_DIMENSIONS = { desktop: 280, mobile: 320 };
 
-try {
-  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  dbFS = getFirestore(app);
-} catch (error) {
-  console.error("🔥 Firebase Init Error:", error);
-}
-
-interface PromptRule {
-  id: string;
-  title: string;
-  content: string;
-}
-
-export default function CrmManager() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+export default function RamiAssistant_PWA() {
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [view, setView] = useState<'CHAT' | 'CONTROL' | 'DRIVERS'>('CHAT');
+  const [isDarkMode, setIsDarkMode] = useState(true);
   
-  // PWA Mobile Navigation State
-  const [showMobileList, setShowMobileList] = useState(true);
-  
-  // Profile & AI States
-  const [identity, setIdentity] = useState('');
-  const [editPhoto, setEditPhoto] = useState(''); // שדה חדש לתמונת פרופיל
-  const [rules, setRules] = useState<PromptRule[]>([]);
-  const [newRuleTitle, setNewRuleTitle] = useState('');
-  const [newRuleContent, setNewRuleContent] = useState('');
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  
-  // Simulator States
-  const [simMessages, setSimMessages] = useState<{role: 'ai'|'user', text: string}[]>([]);
-  const [simInput, setSimInput] = useState('');
-  const [isSimTyping, setIsSimTyping] = useState(false);
-  const simScrollRef = useRef<HTMLDivElement>(null);
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{type: 'idle'|'success'|'error', text: string}>({type: 'idle', text: ''});
+  const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
+  const [input, setInput] = useState('');
+  const [logs, setLogs] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setIsMounted(true);
+    setMounted(true);
+    const handleResize = () => setIsMobile(window.innerWidth < 1200);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    
+    setMessages([{ role: 'assistant', content: 'בוס, העוזר האישי שלך מחובר. המערכת מוכנה להזמנות של ח.סבן.' }]);
+
+    fetchData();
+    const channel = supabase.channel('realtime-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, fetchData)
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      channel.unsubscribe();
+    };
   }, []);
 
-  // שליפת לקוחות
   useEffect(() => {
-    if (!isMounted || !dbFS || firebaseConfig.projectId === "demo-project") return;
-    try {
-      const q = query(collection(dbFS, "customers"));
-      const unsubscribe = onSnapshot(q, (snap) => {
-        const custData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setCustomers(custData);
-      });
-      return () => unsubscribe();
-    } catch (err) {
-      console.error("Error fetching customers:", err);
-    }
-  }, [isMounted]);
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
 
-  // בחירת לקוח
-  const handleSelectCustomer = (c: any) => {
-    setSelectedCustomer(c);
-    setEditPhoto(c.photo || ''); // טעינת התמונה הקיימת
-    
-    try {
-      if (c.relation && c.relation.startsWith('{')) {
-        const parsed = JSON.parse(c.relation);
-        setIdentity(parsed.identity || '');
-        setRules(parsed.rules || []);
-      } else {
-        setIdentity(c.relation || '');
-        setRules([]);
-      }
-    } catch (e) {
-      setIdentity(c.relation || '');
-      setRules([]);
-    }
-    
-    setSimMessages([{ role: 'ai', text: `אהלן! אני המוח שמדמה את השיחה עם ${c.name || 'הלקוח'}. שלח הודעה כדי לבדוק את הפקודות שלך בלייב.` }]);
-    setStatusMsg({type: 'idle', text: ''});
-    setShowMobileList(false); // מעבר לתצוגת פנים במובייל
+  const fetchData = async () => {
+    const { data: ords } = await supabase.from('orders').select('*').order('order_time', { ascending: true });
+    const { data: custs } = await supabase.from('customers').select('*').order('last_seen', { ascending: false });
+    if (ords) setOrders(ords);
+    if (custs) setLogs(custs);
   };
 
-  // ניהול חוקים
-  const addOrUpdateRule = () => {
-    if (!newRuleTitle.trim() || !newRuleContent.trim()) return;
-    if (editingRuleId) {
-      setRules(rules.map(r => r.id === editingRuleId ? { ...r, title: newRuleTitle, content: newRuleContent } : r));
-      setEditingRuleId(null);
-    } else {
-      setRules([...rules, { id: Date.now().toString(), title: newRuleTitle, content: newRuleContent }]);
-    }
-    setNewRuleTitle('');
-    setNewRuleContent('');
-  };
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
 
-  const editRule = (rule: PromptRule) => {
-    setNewRuleTitle(rule.title);
-    setNewRuleContent(rule.content);
-    setEditingRuleId(rule.id);
-  };
+    const userMsg = input;
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setInput('');
 
-  const deleteRule = (id: string) => {
-    setRules(rules.filter(r => r.id !== id));
-  };
-
-  const analyzeRule = (content: string) => {
-    const length = content.length;
-    let score = 50;
-    let feedback = "בסיסי";
-    if (length > 30) score += 20;
-    if (content.includes("אם") || content.includes("כאשר")) score += 15;
-    if (content.includes("שאל") || content.includes("תאשר") || content.includes("ענה")) score += 15;
-    if (score > 90) feedback = "חד ולוגי";
-    else if (score > 70) feedback = "ברור וטוב";
-    else feedback = "חסר 'אם-אז'";
-    return { score: Math.min(score, 100), feedback };
-  };
-
-  // שמירה ל-Firestore
-  const handleSaveProfile = async () => {
-    if (!selectedCustomer || !dbFS) return;
-    setIsSaving(true);
-    
-    const compiledPromptObj = {
-      identity: identity,
-      rules: rules
-    };
-
-    try {
-      const docRef = doc(dbFS, "customers", selectedCustomer.id);
-      await setDoc(docRef, {
-        name: selectedCustomer.name || selectedCustomer.id,
-        photo: editPhoto, // שומר את התמונה במסד הנתונים
-        relation: JSON.stringify(compiledPromptObj),
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-      
-      setStatusMsg({type: 'success', text: 'המוח והפרופיל עודכנו בהצלחה!'});
-      setTimeout(() => setStatusMsg({type: 'idle', text: ''}), 3000);
-    } catch (e) {
-      console.error(e);
-      setStatusMsg({type: 'error', text: 'שגיאה בשמירת הנתונים'});
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // מנוע סימולטור
-  const handleSimulate = async () => {
-    if (!simInput.trim() || isSimTyping) return;
-    
-    const userText = simInput.trim();
-    setSimInput('');
-    setSimMessages(prev => [...prev, { role: 'user', text: userText }]);
-    setIsSimTyping(true);
-    
+    // כאן מתבצעת הפנייה ל-API של המוח לעיבוד ההזמנה והזרקה ל-Supabase
     setTimeout(() => {
-      if (simScrollRef.current) simScrollRef.current.scrollTop = simScrollRef.current.scrollHeight;
-    }, 100);
-
-    const compiledRulesText = rules.map(r => `[${r.title}]: ${r.content}`).join('\n');
-    const dynamicContext = `זהות וסגנון: ${identity}\n\nחוקי ברזל:\n${compiledRulesText}`;
-
-    try {
-      const res = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userText,
-          senderPhone: selectedCustomer?.id || "simulator",
-          context: dynamicContext
-        })
-      });
-      const data = await res.json();
-      setSimMessages(prev => [...prev, { role: 'ai', text: data.reply || 'שגיאה מהמוח' }]);
-    } catch (e) {
-      setSimMessages(prev => [...prev, { role: 'ai', text: 'שגיאת תקשורת עם השרת' }]);
-    } finally {
-      setIsSimTyping(false);
-      setTimeout(() => {
-        if (simScrollRef.current) simScrollRef.current.scrollTop = simScrollRef.current.scrollHeight;
-      }, 100);
-    }
+      setMessages(prev => [...prev, { role: 'assistant', content: 'ההזמנה נקלטה במוח והוזרקה ללוח הנהג הרלוונטי בזמן אמת. 🚀' }]);
+    }, 1000);
   };
 
-  const filteredCustomers = customers.filter(c => 
-    c.id.includes(search) || (c.name && c.name.includes(search))
-  );
+  // פונקציית שיתוף דוח בוקר לוואטסאפ
+  const shareMorningReport = () => {
+    let report = "📋 *דוח בוקר - ח.סבן*\n\n";
+    const drivers = ['חכמת', 'עלי'];
+    
+    drivers.forEach(driver => {
+      const driverOrders = orders.filter(o => o.driver_name === driver);
+      if (driverOrders.length > 0) {
+        report += `*${driver}:*\n`;
+        driverOrders.forEach(o => {
+          report += `⏰ ${o.order_time} | 👤 ${o.client_info} | 📍 ${o.location}\n`;
+        });
+        report += "\n";
+      }
+    });
 
-  if (!isMounted) return <div className="h-screen bg-slate-50 flex items-center justify-center font-bold">טוען PWA...</div>;
+    const encodedReport = encodeURIComponent(report);
+    window.open(`https://wa.me/?text=${encodedReport}`, '_blank');
+  };
+
+  if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden" dir="rtl">
-      <Head>
-        <title>Saban AI Lab | PWA</title>
-        <meta name="theme-color" content="#0f172a" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-      </Head>
+    <div className={`h-screen font-sans overflow-hidden transition-all duration-500 ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F0F2F5] text-slate-900'}`} dir="rtl">
+      
+      {/* תפריט צד - המבורגר מקצועי */}
+      <AnimatePresence>
+        {(showMenu || !isMobile) && (
+          <motion.aside 
+            initial={isMobile ? { x: 320 } : false}
+            animate={{ x: 0 }}
+            exit={{ x: 320 }}
+            style={{ width: CRM_DIMENSIONS.desktop }} 
+            className={`fixed top-0 right-0 h-screen z-50 p-6 flex flex-col gap-8 border-l ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-xl'}`}
+          >
+            <div className="flex justify-between items-center">
+              <LogoSection isDarkMode={isDarkMode}/>
+              {isMobile && <button onClick={() => setShowMenu(false)} className="p-2 bg-white/5 rounded-lg"><X size={20}/></button>}
+            </div>
+            <nav className="flex flex-col gap-2">
+              <NavBtn active={view === 'CHAT'} onClick={() => {setView('CHAT'); setShowMenu(false);}} icon={<MessageSquare size={18}/>} label="צאט פקודות" />
+              <NavBtn active={view === 'DRIVERS'} onClick={() => {setView('DRIVERS'); setShowMenu(false);}} icon={<Truck size={18}/>} label="לוח סידור הזמנות" />
+              <NavBtn active={view === 'CONTROL'} onClick={() => {setView('CONTROL'); setShowMenu(false);}} icon={<Eye size={18}/>} label="מרכז ניטור" />
+            </nav>
+            
+            {/* כפתור וואטסאפ שיתוף דוח בוקר */}
+            <button 
+              onClick={shareMorningReport}
+              className="mt-auto flex items-center justify-center gap-3 p-4 bg-[#25D366] text-white rounded-2xl font-black shadow-lg hover:scale-105 transition-transform"
+            >
+              <Share2 size={20}/> שיתוף דוח בוקר
+            </button>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
-      {/* תפריט צד (מוסתר במובייל כשנבחר לקוח) */}
-      <aside className={`${showMobileList ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 bg-white border-l shadow-2xl flex-col shrink-0 z-20 transition-all`}>
-        <header className="p-6 bg-slate-900 text-white border-b-4 border-blue-500 shrink-0">
-          <h1 className="text-xl font-black italic">SABAN <span className="text-blue-400">AI LAB</span></h1>
-          <p className="text-xs font-bold text-blue-300 mt-1">מעבדת אימון וסימולטור 🔬</p>
+      <main style={{ paddingRight: isMobile ? 0 : CRM_DIMENSIONS.desktop }} className="h-full flex flex-col relative transition-all">
+        
+        <header className={`h-16 flex items-center justify-between px-6 border-b z-30 ${isDarkMode ? 'bg-[#111827]/80 backdrop-blur-md border-white/5' : 'bg-white border-slate-200'}`}>
+          <div className="flex items-center gap-3">
+            {isMobile && <button onClick={() => setShowMenu(true)} className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500"><Menu size={20}/></button>}
+            <h2 className="font-black text-sm uppercase tracking-widest text-emerald-500">
+                {view === 'CHAT' ? 'העוזר של ראמי' : view === 'DRIVERS' ? 'סידור עבודה' : 'ניטור משתמשים'}
+            </h2>
+          </div>
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 hover:bg-white/5 rounded-xl transition-all">
+            {isDarkMode ? <Sun size={20} className="text-orange-400"/> : <Moon size={20}/>}
+          </button>
         </header>
 
-        <div className="p-4 border-b shrink-0">
-          <div className="relative">
-            <Search className="absolute right-3 top-3 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="חיפוש לפי טלפון או שם..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-100 pr-10 pl-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {filteredCustomers.map(c => (
-            <div 
-              key={c.id} 
-              onClick={() => handleSelectCustomer(c)}
-              className={`p-3 rounded-xl cursor-pointer flex items-center gap-3 transition-all ${selectedCustomer?.id === c.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'}`}
-            >
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-white overflow-hidden shadow-sm ${selectedCustomer?.id === c.id ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                {c.photo ? <img src={c.photo} alt={c.name} className="w-full h-full object-cover" /> : <Users size={20} />}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <h3 className="font-bold text-sm text-slate-800 truncate">{c.name || c.id}</h3>
-                <p className="text-[10px] font-mono text-slate-500">{c.id}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      {/* אזור העבודה הראשי */}
-      <main className={`${!showMobileList ? 'flex' : 'hidden'} lg:flex flex-1 p-0 lg:p-8 bg-slate-50 flex-col lg:flex-row gap-8 overflow-y-auto relative`}>
-        
-        {!selectedCustomer ? (
-          <div className="m-auto flex-col items-center justify-center text-slate-400 opacity-50 space-y-4 hidden lg:flex">
-            <BrainCircuit size={80} />
-            <h2 className="text-2xl font-bold">בחר לקוח מהרשימה כדי להתחיל אימון</h2>
-          </div>
-        ) : (
-          <>
-            {/* עמודה ימנית: ניהול פקודות (PWA Mobile View) */}
-            <div className="flex-1 w-full max-w-3xl space-y-4 lg:space-y-6 p-4 lg:p-0">
-              
-              {/* PWA Mobile Header Back Button */}
-              <div className="lg:hidden flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm mb-4">
-                <button onClick={() => setShowMobileList(true)} className="bg-slate-100 p-2 rounded-xl text-slate-600 active:scale-95"><ArrowRight size={20}/></button>
-                <span className="font-black text-slate-800">חזור לרשימה</span>
-              </div>
-
-              <header className="flex items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-200 shadow-inner overflow-hidden shrink-0">
-                  {editPhoto ? <img src={editPhoto} className="w-full h-full object-cover" alt="Profile" /> : <BrainCircuit size={32} />}
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <h1 className="text-xl lg:text-2xl font-black text-slate-900 truncate">קידוד: {selectedCustomer.name}</h1>
-                  <p className="text-sm font-bold text-slate-500 font-mono mt-1">{selectedCustomer.id}</p>
-                </div>
-              </header>
-
-              {/* זהות, סגנון ותמונת פרופיל */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-5">
-                <div className="flex items-center gap-2 text-slate-800 font-black border-b border-slate-100 pb-3">
-                  <Smartphone size={20} className="text-blue-500"/>
-                  <h2>1. פרופיל וזהות תקשורת (Identity)</h2>
-                </div>
-                
-                {/* שדה תמונה חדש */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide flex items-center gap-1"><ImageIcon size={14}/> לינק לתמונת פרופיל (URL)</label>
-                  <div className="flex gap-3 items-center">
-                    <input 
-                      type="text" 
-                      value={editPhoto}
-                      onChange={e => setEditPhoto(e.target.value)}
-                      className="flex-1 bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 text-sm dir-ltr text-left"
-                      placeholder="https://example.com/photo.jpg"
-                    />
-                    {editPhoto && <img src={editPhoto} className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm shrink-0" alt="Preview" />}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">זהות ה-AI מול הלקוח</label>
-                  <textarea 
-                    value={identity}
-                    onChange={e => setIdentity(e.target.value)}
-                    rows={3}
-                    className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:border-blue-500 text-sm leading-relaxed"
-                    placeholder='לדוגמה: אתה ראמי. הלקוח הוא הראל המנכ"ל...'
-                  />
-                </div>
-              </div>
-
-              {/* טבלת חוקים */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-2 text-slate-800 font-black">
-                    <Activity size={20} className="text-emerald-500"/>
-                    <h2>2. טבלת חוקי ברזל וניתוח AI</h2>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                  <input 
-                    type="text" placeholder="שם החוק (למשל: אישורי תשלום)" 
-                    value={newRuleTitle} onChange={e => setNewRuleTitle(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold"
-                  />
-                  <textarea 
-                    placeholder="תיאור החוק (אם-אז...)" 
-                    value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)}
-                    rows={2}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm"
-                  />
-                  <button 
-                    onClick={addOrUpdateRule}
-                    className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition w-full md:w-auto"
-                  >
-                    <Plus size={16} /> {editingRuleId ? 'עדכן חוק' : 'הוסף חוק לטבלה'}
-                  </button>
-                </div>
-
-                {rules.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-right min-w-[500px]">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-500 font-black text-xs uppercase tracking-wider">
-                          <th className="p-3 rounded-tr-xl">שם החוק</th>
-                          <th className="p-3">תיאור הפקודה</th>
-                          <th className="p-3 text-center">מדד עוצמה</th>
-                          <th className="p-3 rounded-tl-xl text-left">פעולות</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rules.map((rule, idx) => {
-                          const analysis = analyzeRule(rule.content);
-                          return (
-                            <tr key={rule.id} className="border-b border-slate-50">
-                              <td className="p-3 font-bold text-slate-800">{idx + 1}. {rule.title}</td>
-                              <td className="p-3 text-slate-600 max-w-[200px] truncate" title={rule.content}>{rule.content}</td>
-                              <td className="p-3">
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                    <div className={`h-full rounded-full ${analysis.score > 80 ? 'bg-emerald-500' : analysis.score > 60 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${analysis.score}%`}}></div>
-                                  </div>
-                                  <span className="text-[9px] font-bold text-slate-500">{analysis.feedback}</span>
-                                </div>
-                              </td>
-                              <td className="p-3 flex items-center justify-end gap-2">
-                                <button onClick={() => editRule(rule)} className="p-2 text-slate-400 hover:text-blue-600 bg-white rounded-lg shadow-sm border border-slate-100"><Edit2 size={14}/></button>
-                                <button onClick={() => deleteRule(rule.id)} className="p-2 text-slate-400 hover:text-red-600 bg-white rounded-lg shadow-sm border border-slate-100"><Trash2 size={14}/></button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <button 
-                  onClick={handleSaveProfile} disabled={isSaving || firebaseConfig.projectId === "demo-project"}
-                  className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
-                >
-                  <Save size={18} /> {isSaving ? 'מעדכן במסד הנתונים...' : 'שמור פרופיל למאגר'}
-                </button>
-
-                {statusMsg.type !== 'idle' && (
-                  <div className={`p-4 rounded-xl text-center text-sm font-bold ${statusMsg.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {statusMsg.text}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* עמודה שמאלית: סימולטור (נראה גם במובייל בתחתית הדף) */}
-            <div className="flex flex-col items-center shrink-0 w-full lg:w-[350px] pb-10 lg:pb-0">
-              <div className="bg-slate-200 text-slate-600 text-xs font-black px-4 py-1.5 rounded-full mb-4 flex items-center gap-2">
-                <Activity size={14} className="animate-pulse text-blue-500" />
-                Live AI Simulator
-              </div>
-
-              {/* iPhone Frame */}
-              <div className="w-[320px] h-[600px] lg:h-[650px] bg-white border-[12px] border-slate-800 rounded-[3rem] shadow-2xl relative flex flex-col overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-6 w-32 bg-slate-800 mx-auto rounded-b-2xl z-20 flex justify-center items-center">
-                  <div className="w-12 h-1.5 bg-slate-900 rounded-full"></div>
-                </div>
-
-                <div className="bg-[#00a884] h-12 w-full pt-1 px-5 flex justify-between items-center text-white shrink-0 z-10">
-                  <span className="text-[10px] font-bold mt-2">12:46</span>
-                  <div className="flex items-center gap-1 mt-2">
-                    <Signal size={10} /><Wifi size={10} /><Battery size={12} />
-                  </div>
-                </div>
-
-                <div className="bg-[#00a884] p-3 text-white flex items-center gap-3 shadow-md shrink-0 z-10">
-                  <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center overflow-hidden">
-                    {editPhoto ? <img src={editPhoto} className="w-full h-full object-cover" alt="User" /> : <BrainCircuit size={18} className="text-[#00a884]" />}
-                  </div>
-                  <div className="leading-tight">
-                    <div className="font-bold text-sm">ראמי (AI)</div>
-                    <div className="text-[10px] text-white/80">מקליד לפי הפקודות שלך...</div>
-                  </div>
-                </div>
-
-                <div ref={simScrollRef} className="flex-1 p-3 overflow-y-auto flex flex-col gap-2 bg-[#e5ddd5]" style={{backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: 'cover'}}>
-                  <div className="bg-amber-100 text-amber-800 text-[10px] text-center p-2 rounded-lg font-bold mx-4 shadow-sm">
-                    הסימולטור משתמש בזהות ובחוקים שהזנת עכשיו (גם טרם שמירה).
-                  </div>
-                  
-                  {simMessages.map((msg, i) => (
-                    <div key={i} className={`p-2.5 max-w-[85%] text-sm rounded-xl shadow-sm ${msg.role === 'ai' ? 'bg-white rounded-tr-none self-start border border-slate-100' : 'bg-[#dcf8c6] rounded-tl-none self-end'}`}>
-                      <div className="whitespace-pre-wrap">{msg.text}</div>
+        <div className="flex-1 overflow-hidden relative">
+          
+          {/* VIEW: CHAT */}
+          {view === 'CHAT' && (
+            <div className="h-full flex flex-col max-w-4xl mx-auto w-full p-4">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-hide">
+                {messages.map((m, i) => (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-[85%] p-4 rounded-[2rem] text-sm shadow-sm ${m.role === 'user' ? (isDarkMode ? 'bg-emerald-600 text-white rounded-tr-sm' : 'bg-emerald-500 text-white rounded-tr-sm') : (isDarkMode ? 'bg-[#1E293B] text-slate-200 rounded-tl-sm border border-white/5' : 'bg-white text-slate-700 rounded-tl-sm border border-slate-100')}`}>
+                      <div className="flex items-center gap-2 mb-1 opacity-50 text-[10px] font-black uppercase">
+                        {m.role === 'user' ? <User size={12}/> : <Sparkles size={12}/>}
+                        {m.role === 'user' ? 'ראמי' : 'העוזר של ראמי'}
+                      </div>
+                      {m.content}
                     </div>
-                  ))}
-                  
-                  {isSimTyping && (
-                    <div className="bg-white p-2.5 rounded-xl rounded-tr-none self-start shadow-sm flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></span>
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-[#f0f2f5] p-2 flex items-center gap-2 shrink-0 pb-6 lg:pb-2">
-                  <input 
-                    type="text" 
-                    value={simInput}
-                    onChange={e => setSimInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSimulate()}
-                    placeholder="שלח הודעה בסימולטור..."
-                    disabled={isSimTyping}
-                    className="flex-1 bg-white rounded-full px-4 py-2 text-sm outline-none border border-slate-200"
-                  />
-                  <button onClick={handleSimulate} disabled={isSimTyping || !simInput.trim()} className="w-10 h-10 bg-[#00a884] rounded-full flex justify-center items-center text-white disabled:opacity-50">
-                    <Send size={16} className="rotate-180 ml-1" />
-                  </button>
-                </div>
+                  </motion.div>
+                ))}
               </div>
+              <form onSubmit={handleSendMessage} className="p-4 mb-4">
+                <div className={`relative flex items-center p-2 rounded-[2.5rem] border shadow-2xl transition-all ${isDarkMode ? 'bg-[#1E293B] border-white/10' : 'bg-white border-slate-200'}`}>
+                  <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="כתוב פקודה (הובלה לחכמת...)" className="flex-1 bg-transparent px-6 py-3 text-sm focus:outline-none" />
+                  <button type="submit" className="bg-emerald-500 text-black p-3 rounded-full hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition-all"><Send size={18}/></button>
+                </div>
+              </form>
             </div>
-          </>
-        )}
+          )}
+
+          {/* VIEW: DRIVERS (הזרקה בזמן אמת לטבלאות) */}
+          {view === 'DRIVERS' && (
+            <div className="h-full overflow-y-auto p-6 space-y-10 max-w-6xl mx-auto">
+              <h3 className="text-2xl font-black text-emerald-500">לוח סידור הזמנות - ח.סבן</h3>
+              <DriverTable 
+                name="חכמת" img="https://i.postimg.cc/d3S0NJJZ/Screenshot-20250623-200646-Facebook.jpg" specs="משאית מנוף • הנפה 10 מטר" icon={<Construction className="text-orange-500"/>}
+                orders={orders.filter(o => o.driver_name === 'חכמת')} isDarkMode={isDarkMode}
+              />
+              <DriverTable 
+                name="עלי" img="https://i.postimg.cc/tCNbgXK3/Screenshot-20250623-200744-Tik-Tok.jpg" specs="משאית ללא מנוף • פריקה ידנית" icon={<Truck className="text-blue-500"/>}
+                orders={orders.filter(o => o.driver_name === 'עלי')} isDarkMode={isDarkMode}
+              />
+            </div>
+          )}
+
+          {/* VIEW: CONTROL */}
+          {view === 'CONTROL' && (
+            <div className="h-full overflow-y-auto p-6 space-y-6 max-w-5xl mx-auto">
+               <h3 className="text-xl font-black text-emerald-500 uppercase tracking-tighter">ניטור כניסות ושיחות</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {logs.map((log, i) => (
+                   <div key={i} className={`p-5 rounded-3xl border ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+                      <div className="flex justify-between items-center mb-4">
+                         <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center font-black text-emerald-500">{log.name[0]}</div>
+                           <span className="font-bold">{log.name}</span>
+                         </div>
+                         <span className="text-[10px] font-mono opacity-40">{new Date(log.last_seen).toLocaleTimeString()}</span>
+                      </div>
+                      <div className="p-3 bg-black/20 rounded-xl text-[11px] font-mono opacity-70 border border-white/5">
+                        {log.hobbies || "שיחה פעילה עם המוח..."}
+                      </div>
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
+
+        </div>
       </main>
+    </div>
+  );
+}
+
+// קומפוננטת טבלת נהג
+function DriverTable({ name, img, specs, icon, orders, isDarkMode }: any) {
+  return (
+    <div className={`rounded-[2rem] overflow-hidden border shadow-xl ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200'}`}>
+      <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-white/5">
+        <img src={img} className="w-16 h-16 rounded-2xl border-2 border-emerald-500 bg-white object-cover" alt={name}/>
+        <div>
+          <h4 className="text-xl font-black flex items-center gap-2">{icon} {name}</h4>
+          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{specs}</p>
+        </div>
+      </div>
+      <table className="w-full text-right text-xs">
+        <thead className="opacity-40 font-black uppercase tracking-tighter bg-black/20 text-slate-400">
+          <tr><th className="p-4">זמן</th><th className="p-4">לקוח</th><th className="p-4">יעד</th></tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {orders.length > 0 ? orders.map((o: any, i: number) => (
+            <tr key={i} className="hover:bg-white/5">
+              <td className="p-4 font-bold text-emerald-500">{o.order_time}</td>
+              <td className="p-4">{o.client_info}</td>
+              <td className="p-4 opacity-60"><MapPin size={12} className="inline ml-1"/>{o.location}</td>
+            </tr>
+          )) : (
+            <tr><td colSpan={3} className="p-6 text-center opacity-30 italic">אין הזמנות להיום...</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function NavBtn({ active, onClick, icon, label }: any) {
+  return (
+    <button onClick={onClick} className={`flex items-center gap-4 px-5 py-4 rounded-2xl font-black text-xs transition-all ${active ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 translate-x-[-4px]' : 'text-slate-500 hover:bg-white/5 hover:text-white'}`}>
+      {icon} {label}
+    </button>
+  );
+}
+
+function LogoSection({ isDarkMode }: any) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="bg-emerald-500 text-black p-2.5 rounded-xl shadow-lg"><ShieldCheck size={24}/></div>
+      <div>
+        <h1 className={`text-lg font-black tracking-tighter uppercase leading-none ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>ראמי</h1>
+        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em]">העוזר האישי</p>
+      </div>
     </div>
   );
 }
