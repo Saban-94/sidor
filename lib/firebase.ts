@@ -1,3 +1,4 @@
+// lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
@@ -12,13 +13,18 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// אתחול רק אם יש API KEY - מונע קריסה ב-Build
-const app = (typeof window !== "undefined" && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) 
+// פונקציית עזר לבדיקה אם המפתחות קיימים
+const isConfigValid = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+
+// אתחול האפליקציה רק אם יש הגדרות תקינות ורק פעם אחת
+const app = (isConfigValid) 
   ? (getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)) 
   : null;
 
+// ייצוא שירותים בצורה בטוחה
 export const db = app ? getFirestore(app) : null;
 export const rtdb = app ? getDatabase(app) : null;
-export const database = rtdb; 
+export const database = rtdb; // תאימות לקוד ישן
 export const auth = app ? getAuth(app) : null;
+
 export { app };
