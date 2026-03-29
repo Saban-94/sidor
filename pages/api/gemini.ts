@@ -1,10 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -21,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפה ויצירת משתמש אם חסר
+    // 1. שליפת זיכרון ויצירה אם חסר
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     if (!memory) {
       const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
@@ -31,27 +28,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let history = memory?.accumulated_knowledge || "";
     if (cleanMsg === "הוסף הזמנה") history = "";
 
-    // המפתח לתיקון: הזרקת ההודעה הנוכחית להיסטוריה לפני שהמוח מחליט מה לשאול
+    // המפתח: עדכון היסטוריה מקומי לפני הפנייה לבינה המלאכותית
     const updatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // 2. בניית ה-Prompt עם לוגיקה "קופצת"
+    // 2. בדיקת לקוח חוזר
+    let clientInsight = "";
+    if (updatedHistory.includes("שם לקוח?") && !updatedHistory.includes("כתובת?")) {
+        const { data: past } = await supabase.from('orders').select('location, client_info').ilike('client_info', `%${cleanMsg}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (past) clientInsight = `בוס, ${past.client_info} מוכר. פעם אחרונה: ${past.location}. לשם או כתובת חדשה?`;
+    }
+
+    // 3. Prompt עם הגנת לופים אגרסיבית
     const prompt = `
-      זהות: העוזר של ראמי. קצר (מילה-שתיים).
+      אתה העוזר של ראמי. קצר (מילה-שתיים).
       סדר עץ: 1. שם לקוח? -> 2. כתובת? -> 3. מחסן? -> 4. נהג?
 
-      היסטוריה מעודכנת (בדוק היטב מה המשתמש כתב אחרון):
+      היסטוריה מעודכנת:
       ${updatedHistory}
 
-      חוקים למניעת לופים:
-      - אם המשתמש כתב כתובת (כמו "זאב בלפר"), השלב בוצע. ענה אך ורק: "מחסן?".
-      - אם המשתמש כתב מחסן (החרש/התלמיד), ענה אך ורק: "נהג?".
-      - אל תחזור על שאלה שמופיעה לה תשובה בהיסטוריה.
-
-      חוק סיום: אם הכל הושלם, החזר JSON בסוף:
-      {"complete": true, "client": "שם", "address": "כתובת", "branch": "מחסן", "driver": "נהג"}
+      חוקי מעבר שלב קשיחים:
+      - אם המשתמש כתב כתובת (זאב בלפר), עבור מיד ל-"מחסן?". אל תשאל "כתובת?" שוב!
+      - אם המשתמש כתב מחסן (החרש/התלמיד), ענה אך ורק: "נהג? (חכמת/עלי)".
+      - אם הכל הושלם, החזר JSON בסוף: {"complete": true, "client": "שם", "address": "כתובת", "branch": "מחסן", "driver": "נהג"}
     `;
 
-    // 3. רוטציית מודלים
+    // 4. רוטציית מודלים
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -66,8 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { continue; }
     }
 
-    // 4. הזרקה ללוח ואיפוס
-    let finalReply = replyText;
+    // 5. הזרקה ללוח ואיפוס זיכרון
+    let finalReply = clientInsight || replyText;
     if (replyText.includes('"complete": true')) {
       const jsonMatch = replyText.match(/\{.*\}/s);
       if (jsonMatch) {
@@ -80,18 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
         }]);
         finalReply = "הוזרק ללוח. 🚀";
-        history = ""; 
+        await supabase.from('customer_memory').update({ accumulated_knowledge: "" }).eq('clientId', phone);
       }
     } else {
-      // שמירת ההיסטוריה כולל התשובה של המוח כדי "לנעול" את השלב
-      history = updatedHistory + `\nAssistant: ${replyText}`;
+      // שמירה קשיחה של הזיכרון
+      await supabase.from('customer_memory').update({ 
+        accumulated_knowledge: updatedHistory + `\nAssistant: ${finalReply}` 
+      }).eq('clientId', phone);
     }
-
-    // 5. עדכון זיכרון סופי
-    await supabase.from('customer_memory').upsert({
-      clientId: phone,
-      accumulated_knowledge: history
-    });
 
     return res.status(200).json({ reply: finalReply });
 
