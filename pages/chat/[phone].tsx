@@ -165,11 +165,11 @@ export default function SabanOS_MasterChat() {
           {view === 'DRIVERS' && (
             <div className="h-full overflow-y-auto p-6 space-y-10 max-w-6xl mx-auto">
               <DriverTable 
-                name="חכמת" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Hakmat" specs="משאית מנוף • הנפה 10 מטר" icon={<Construction className="text-orange-500"/>}
+                name="חכמת" img="https://i.postimg.cc/d3S0NJJZ/Screenshot-20250623-200646-Facebook.jpg" specs="משאית מנוף • הנפה 10 מטר" icon={<Construction className="text-orange-500"/>}
                 orders={orders.filter(o => o.driver_name === 'חכמת')} isDarkMode={isDarkMode}
               />
               <DriverTable 
-                name="עלי" img="https://api.dicebear.com/7.x/avataaars/svg?seed=Ali" specs="משאית ללא מנוף • פריקה ידנית" icon={<Truck className="text-blue-500"/>}
+                name="עלי" img="https://i.postimg.cc/tCNbgXK3/Screenshot-20250623-200744-Tik-Tok.jpg" specs="משאית ללא מנוף • פריקה ידנית" icon={<Truck className="text-blue-500"/>}
                 orders={orders.filter(o => o.driver_name === 'עלי')} isDarkMode={isDarkMode}
               />
             </div>
@@ -219,8 +219,8 @@ function LogoSection({ isDarkMode }: any) {
     <div className="flex items-center gap-3">
       <div className="bg-emerald-500 text-black p-2.5 rounded-xl shadow-lg"><ShieldCheck size={24}/></div>
       <div>
-        <h1 className={`text-lg font-black tracking-tighter uppercase leading-none ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Saban</h1>
-        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em]">Core Brain</p>
+        <h1 className={`text-lg font-black tracking-tighter uppercase leading-none ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>ראמי</h1>
+        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-[0.2em]">יווצאף ראמי</p>
       </div>
     </div>
   );
