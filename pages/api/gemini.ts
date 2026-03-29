@@ -14,7 +14,6 @@ const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // בדיקת מפתחות API (תמיכה ברוטציה עתידית)
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const { message, name, senderPhone, manualInjection, context: frontendContext } = req.body;
   const cleanMsg = (message || "").trim();
@@ -33,44 +32,94 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 2. שליפת DNA מה-Admin ומהזיכרון
+    // 2. שליפת דאטה משולבת (כולל DNA המוח והזיכרון)
     const [brainCoreSnap, memoryRes] = await Promise.all([
       getDoc(doc(dbFS, 'settings', 'brain-core')),
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
     const dna = brainCoreSnap.exists() ? brainCoreSnap.data() : {};
-    const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
+    const customerMemory = memoryRes.data?.accumulated_knowledge || "";
 
-    // 3. בניית ה-Prompt המקצועי
-// --- לוגיקת ניהול עץ שאלות קשיח ---
+    // --- לוגיקת דוח וואטסאפ (סוף יום) ---
+    let reportContent = "";
+    let whatsappLink = "";
+    const isReportRequest = cleanMsg.includes("דוח") || cleanMsg.includes("סיכום");
+
+    if (isReportRequest) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: orders } = await supabase.from('orders').select('*').eq('created_at', today).order('order_time', { ascending: true });
+
+      if (orders && orders.length > 0) {
+        reportContent = "📋 *דוח הזמנות - ח.סבן*\n\n";
+        ['חכמת', 'עלי'].forEach(driver => {
+          const dOrders = orders.filter(o => o.driver_name === driver);
+          if (dOrders.length > 0) {
+            reportContent += `*${driver}:*\n` + dOrders.map(o => `⏰ ${o.order_time} | 👤 ${o.client_info} | 📍 ${o.location}`).join('\n') + '\n\n';
+          }
+        });
+        whatsappLink = `https://wa.me/?text=${encodeURIComponent(reportContent)}`;
+      }
+    }
+
+    // 3. בניית ה-Prompt המקצועי - DNA מנהל משרד התקפי
     const prompt = `
-      הנחיית יסוד: אתה Saban OS, העוזר האישי והמנהל של ראמי. אתה פועל בנאמנות מוחלטת לחזון של ח.סבן.
+      הנחיית יסוד: אתה Saban OS, העוזר והמשרת האישי של ראמי. אתה לא צ'אטבוט - אתה מנהל משרד התקפי.
       
-      -- חוק הובלות ח.סבן (בל יעבור) --
-      ברגע שראמי אומר "הוסף הזמנה" או נמצא בתוך תהליך, עבוד אך ורק לפי הסדר הזה. 
-      אסור לשאול שאלות כלליות כמו "מה המשימה". שאל אך ורק:
-      1. אם אין שם לקוח: "מוכן להתחיל, ראמי. מה שם הלקוח?"
-      2. אם יש שם לקוח (כמו "חדד נועם") אך אין כתובת: "בוס, רשמתי את ${cleanMsg}. מה כתובת האספקה?"
-      3. אם יש כתובת אך אין מחסן: "הבנתי. מאיזה מחסן יוצאת ההזמנה? (התלמיד / החרש)"
-      4. אם יש מחסן אך אין נהג: "מי הנהג שמשויך להזמנה? (חכמת / עלי)"
+      -- DNA וזהות --
+      ${dna.coreIdentity || "יד ימינו של ראמי, מנהל תפעול חריף של ח.סבן."}
       
-      -- זיהוי לוגי אוטומטי --
+      -- חוק הובלות ח.סבן (קשיח) --
+      אם ראמי אומר "הוסף הזמנה" או נמצא בתוך תהליך איסוף נתונים, עבוד אך ורק לפי הסדר הבא. אל תשאל שאלות כלליות.
+      1. חסר שם לקוח? שאל: "מוכן להתחיל, בוס. מה שם הלקוח?"
+      2. חסרה כתובת? שאל: "רשמתי את הלקוח. מה כתובת האספקה?"
+      3. חסר מחסן? שאל: "מאיזה מחסן יוצאת ההזמנה? (התלמיד / החרש)"
+      4. חסר נהג? שאל: "מי הנהג המשויך? (חכמת / עלי)"
+      
+      -- לוגיקה אוטומטית --
       - חכמת = הובלת מנוף (10 מטר, 12 טון).
       - עלי = פריקה ידנית.
       
-      -- טון דיבור --
-      דבר חופשי, חברי והתקפי. השתמש במושגים: 'בוצע', 'סונכרן', 'בוס', 'שותף'.
-      
-      קונטקסט נוכחי:
-      הודעה אחרונה מראמי: "${cleanMsg}"
-      היסטוריית תהליך: ${customerMemory} (בדוק כאן מה השלב האחרון שבוצע).
-      
-      חוק מענה:
-      אם ראמי נתן שם לקוח (כמו "חדד נועם"), אל תשאל "מה המשימה". שאל מיד: "מה כתובת האספקה?".
-      תמיד סיים ב-TL;DR חד כתער.
+      -- טון ודיבור --
+      דבר חופשי, חברי והתקפי. השתמש בביטויים: 'בוס', 'שותף', 'בוצע', 'סונכרן'.
+      קונטקסט נוכחי: "${cleanMsg}"
+      זיכרון תהליך: ${customerMemory}
+
+      ${isReportRequest ? `הפק דוח וואטסאפ מהנתונים הבאים: ${reportContent}` : 'המשך בעץ השאלות או בצע פקודה.'}
+
+      חוק מענה: ענה בחדות, סיים תמיד ב-TL;DR מודגש.
     `;
+
+    // 4. הרצת רוטציית המודלים (Fallback Logic)
+    let replyText = "";
+    for (const modelName of modelPool) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          }
+        );
+        const data = await response.json();
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          replyText = data.candidates[0].content.parts[0].text;
+          break; 
+        }
+      } catch (err) { continue; }
+    }
+
+    if (!replyText) throw new Error("כל המודלים נכשלו.");
+
+    // 5. החזרת תשובה
+    return res.status(200).json({
+      reply: replyText,
+      reportLink: whatsappLink,
+      status: "SYNC_OK"
+    });
+
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח עמוס לרגע. שלח שוב ואני מבצע. 🛠️" });
+    return res.status(200).json({ reply: "בוס, המוח עמוס. שלח שוב ואני מבצע. 🛠️" });
   }
 }
