@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Message } from "@/types";
 
 interface MessageBubbleProps {
@@ -5,8 +8,13 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble = ({ message }: MessageBubbleProps) => {
+  const [mounted, setMounted] = useState(false);
   const isMe = message.fromMe;
   const bodyText = message.body || message.content || '';
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // פונקציה שמזהה ומציגה תמונות מתוך לינקים של גוגל דרייב
   const renderMessageBody = (body: string) => {
@@ -78,14 +86,18 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
         
         <div className="flex items-center justify-end mt-1 gap-1">
           <span className={`text-[10px] ${isMe ? 'opacity-60' : 'opacity-70 text-saban-muted'}`}>
-            {new Date(message.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {mounted ? (
+              new Date(message.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            ) : (
+              <span className="w-10 h-3 bg-gray-600 rounded animate-pulse" />
+            )}
           </span>
           {isMe && message.status && (
             <span className={`text-[10px] ${message.status === 'read' ? 'text-blue-500' : ''}`}>
-              {getStatusSymbol(message.status)}
+              {mounted ? getStatusSymbol(message.status) : ''}
             </span>
           )}
         </div>
