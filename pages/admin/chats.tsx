@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { database, app } from '../../lib/firebase';
-import { ref, onValue, push, serverTimestamp, query as rtQuery, limitToLast } from 'firebase/database';
-import { getFirestore, collection, query, orderBy, onSnapshot, limit, doc, getDoc } from 'firebase/firestore';
+import { ref, onValue, push, query as rtQuery, limitToLast } from 'firebase/database';
+import { getFirestore, collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { 
   Search, Phone, MessageSquare, MoreVertical, 
   Send, Smile, Paperclip, CheckCheck, User,
-  ArrowRight, ShieldCheck, Zap, Menu
+  ArrowRight, ShieldCheck, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,14 +22,12 @@ export default function SabanWhatsAppWeb() {
   const [newMessage, setNewMessage] = useState('');
   const [search, setSearch] = useState('');
   const [mounted, setMounted] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
-    
-    // הגנה בתוך ה-Effect
     if (!dbFS) return;
 
-    // מאזין לרשימת הלקוחות מ-Firestore
     const q = query(collection(dbFS, 'customers'), orderBy('last_message_time', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const custs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -40,7 +38,6 @@ export default function SabanWhatsAppWeb() {
   }, []);
 
   useEffect(() => {
-    // הגנה ל-RTDB
     if (!database || !selectedCustomer) return;
 
     const chatRef = rtQuery(ref(database, `chats/${selectedCustomer.id}`), limitToLast(100));
@@ -49,11 +46,17 @@ export default function SabanWhatsAppWeb() {
       if (data) {
         const msgList = Object.entries(data).map(([id, msg]: [string, any]) => ({ id, ...msg }));
         setMessages(msgList);
+      } else {
+        setMessages([]);
       }
     });
 
     return () => unsubscribe();
   }, [selectedCustomer]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,25 +80,23 @@ export default function SabanWhatsAppWeb() {
         <title>SABAN CHATS | WhatsApp Web Mode</title>
       </Head>
 
-      {/* Sidebar - Contacts List */}
       <aside className="w-[450px] bg-white border-l border-slate-200 flex flex-col h-full z-20 shadow-xl">
         <header className="p-4 bg-[#F0F2F5] flex items-center justify-between">
           <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center overflow-hidden">
             <User className="text-slate-500" />
           </div>
           <div className="flex gap-5 text-slate-500">
-            <Zap size={20} className="hover:text-blue-600 cursor-pointer transition-colors" />
+            <Zap size={20} className="hover:text-blue-600 cursor-pointer" />
             <MessageSquare size={20} className="hover:text-blue-600 cursor-pointer" />
             <MoreVertical size={20} className="hover:text-blue-600 cursor-pointer" />
           </div>
         </header>
 
-        {/* Search */}
         <div className="p-2 border-b border-slate-100 bg-white">
           <div className="bg-[#F0F2F5] flex items-center px-4 py-2 rounded-xl">
             <Search size={18} className="text-slate-400 ml-4" />
             <input 
-              placeholder="חפש לקוח או הודעה..." 
+              placeholder="חפש לקוח..." 
               className="bg-transparent border-none outline-none text-sm w-full font-bold"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -103,7 +104,6 @@ export default function SabanWhatsAppWeb() {
           </div>
         </div>
 
-        {/* Contacts */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {customers.filter(c => c.name?.includes(search)).map((customer) => (
             <button 
@@ -117,34 +117,27 @@ export default function SabanWhatsAppWeb() {
               <div className="flex-1 text-right">
                 <div className="flex justify-between items-baseline">
                   <h4 className="font-black text-slate-800">{customer.name}</h4>
-                  <span className="text-[10px] text-slate-400 font-bold">12:30</span>
                 </div>
-                <p className="text-xs text-slate-500 truncate w-64">{customer.last_message || 'לחץ להתחלת צאט...'}</p>
+                <p className="text-xs text-slate-500 truncate w-64">{customer.last_message || 'לחץ להתחלת צ'אט...'}</p>
               </div>
             </button>
           ))}
         </div>
       </aside>
 
-      {/* Main Chat Area */}
       <main className="flex-1 flex flex-col bg-[#E5DDD5] relative">
         <div className="absolute inset-0 opacity-10 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] pointer-events-none"></div>
 
         {selectedCustomer ? (
           <>
-            <header className="p-4 bg-[#F0F2F5] flex items-center justify-between z-10 shadow-sm">
+            <header className="p-4 bg-[#F0F2F5] flex items-center justify-between z-10 shadow-sm font-bold">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black shadow-md">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black">
                   {selectedCustomer.name?.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-800 leading-none">{selectedCustomer.name}</h3>
-                  <span className="text-[10px] text-emerald-600 font-black uppercase">מחובר כעת</span>
+                  <h3 className="font-black text-slate-800">{selectedCustomer.name}</h3>
                 </div>
-              </div>
-              <div className="flex gap-6 text-slate-500">
-                <Search size={20} className="cursor-pointer" />
-                <MoreVertical size={20} className="cursor-pointer" />
               </div>
             </header>
 
@@ -153,16 +146,15 @@ export default function SabanWhatsAppWeb() {
                 <div key={msg.id} className={`max-w-[60%] p-3 rounded-2xl text-sm font-bold shadow-sm ${msg.sender === 'admin' ? 'bg-[#D9FDD3] self-start rounded-tr-none' : 'bg-white self-end rounded-tl-none'}`}>
                   {msg.text}
                   <div className="text-[9px] text-slate-400 mt-1 flex justify-end gap-1">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     {msg.sender === 'admin' && <CheckCheck size={12} className="text-blue-500" />}
                   </div>
                 </div>
               ))}
+              <div ref={scrollRef} />
             </div>
 
             <footer className="p-4 bg-[#F0F2F5] flex items-center gap-4 z-10">
               <Smile className="text-slate-500 cursor-pointer" />
-              <Paperclip className="text-slate-500 cursor-pointer" />
               <form onSubmit={sendMessage} className="flex-1 flex gap-4">
                 <input 
                   value={newMessage}
@@ -170,21 +162,18 @@ export default function SabanWhatsAppWeb() {
                   placeholder="הקלד הודעה..." 
                   className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm"
                 />
-                <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all">
+                <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl shadow-lg">
                   <Send size={20} />
                 </button>
               </form>
-            </aside>
+            </footer>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 z-10">
             <div className="bg-white p-10 rounded-[3rem] shadow-2xl text-center border border-white">
               <ShieldCheck size={80} className="mx-auto text-blue-600 mb-6 opacity-20" />
-              <h3 className="text-2xl font-black text-slate-800">SABAN CHATS</h3>
+              <h3 className="text-2xl font-black text-slate-800 italic">SABAN CHATS</h3>
               <p className="mt-2 font-bold text-sm">בחר לקוח מהרשימה כדי להתחיל בניהול השיחה</p>
-              <div className="mt-8 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-300">
-                <Zap size={12} /> מקודד ב-End-to-End
-              </div>
             </div>
           </div>
         )}
