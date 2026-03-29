@@ -65,28 +65,33 @@ export default function RamiAssistant_PWA() {
     const userMsg = input;
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setInput('');
+    setIsTyping(true); // להוסיף State של "כותב..." אם תרצה
 
-    // כאן מתבצעת הפנייה ל-API של המוח לעיבוד ההזמנה והזרקה ל-Supabase
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'ההזמנה נקלטה במוח והוזרקה ללוח הנהג הרלוונטי בזמן אמת. 🚀' }]);
-    }, 1000);
+    try {
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: userMsg, 
+          senderPhone: cleanPhone, 
+          name: 'ראמי' 
+        })
+      });
+      
+      const data = await res.json();
+      
+      // הזרקת התשובה האמיתית מהמוח (Gemini)
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      
+      // אם המוח ביצע הזרקה ל-DB, נרענן את הלוח
+      fetchData(); 
+
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'בוס, יש תקלה בתקשורת עם המוח. נסה שוב.' }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
-
-  // פונקציית שיתוף דוח בוקר לוואטסאפ
-  const shareMorningReport = () => {
-    let report = "📋 *דוח בוקר - ח.סבן*\n\n";
-    const drivers = ['חכמת', 'עלי'];
-    
-    drivers.forEach(driver => {
-      const driverOrders = orders.filter(o => o.driver_name === driver);
-      if (driverOrders.length > 0) {
-        report += `*${driver}:*\n`;
-        driverOrders.forEach(o => {
-          report += `⏰ ${o.order_time} | 👤 ${o.client_info} | 📍 ${o.location}\n`;
-        });
-        report += "\n";
-      }
-    });
 
     const encodedReport = encodeURIComponent(report);
     window.open(`https://wa.me/?text=${encodedReport}`, '_blank');
