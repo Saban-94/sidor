@@ -8,7 +8,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, limit } from 'fir
 import { 
   Search, Phone, MessageSquare, MoreVertical, 
   Send, Smile, Paperclip, CheckCheck, User,
-  ArrowRight, ShieldCheck, Zap
+  ShieldCheck, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -97,7 +97,7 @@ export default function SabanWhatsAppWeb() {
             <Search size={18} className="text-slate-400 ml-4" />
             <input 
               placeholder="חפש לקוח..." 
-              className="bg-transparent border-none outline-none text-sm w-full font-bold"
+              className="bg-transparent border-none outline-none text-sm w-full font-bold text-right"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -115,10 +115,10 @@ export default function SabanWhatsAppWeb() {
                 {customer.name?.charAt(0)}
               </div>
               <div className="flex-1 text-right">
-                <div className="flex justify-between items-baseline">
-                  <h4 className="font-black text-slate-800">{customer.name}</h4>
-                </div>
-                <p className="text-xs text-slate-500 truncate w-64">{customer.last_message || 'לחץ להתחלת צ'אט...'}</p>
+                <h4 className="font-black text-slate-800">{customer.name}</h4>
+                <p className="text-xs text-slate-500 truncate w-64">
+                  {customer.last_message || "לחץ להתחלת צ'אט..."}
+                </p>
               </div>
             </button>
           ))}
@@ -141,9 +141,9 @@ export default function SabanWhatsAppWeb() {
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-10 flex flex-col gap-2 z-10 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-10 flex flex-col gap-2 z-10 custom-scrollbar text-right">
               {messages.map((msg) => (
-                <div key={msg.id} className={`max-w-[60%] p-3 rounded-2xl text-sm font-bold shadow-sm ${msg.sender === 'admin' ? 'bg-[#D9FDD3] self-start rounded-tr-none' : 'bg-white self-end rounded-tl-none'}`}>
+                <div key={msg.id} className={`max-w-[60%] p-3 rounded-2xl text-sm font-bold shadow-sm ${msg.sender === 'admin' ? 'bg-[#D9FDD3] self-start rounded-tr-none text-right' : 'bg-white self-end rounded-tl-none text-right'}`}>
                   {msg.text}
                   <div className="text-[9px] text-slate-400 mt-1 flex justify-end gap-1">
                     {msg.sender === 'admin' && <CheckCheck size={12} className="text-blue-500" />}
@@ -160,9 +160,9 @@ export default function SabanWhatsAppWeb() {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="הקלד הודעה..." 
-                  className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm"
+                  className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-right"
                 />
-                <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl shadow-lg">
+                <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all">
                   <Send size={20} />
                 </button>
               </form>
@@ -172,7 +172,7 @@ export default function SabanWhatsAppWeb() {
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 z-10">
             <div className="bg-white p-10 rounded-[3rem] shadow-2xl text-center border border-white">
               <ShieldCheck size={80} className="mx-auto text-blue-600 mb-6 opacity-20" />
-              <h3 className="text-2xl font-black text-slate-800 italic">SABAN CHATS</h3>
+              <h3 className="text-2xl font-black text-slate-800 italic uppercase">SABAN CHATS</h3>
               <p className="mt-2 font-bold text-sm">בחר לקוח מהרשימה כדי להתחיל בניהול השיחה</p>
             </div>
           </div>
