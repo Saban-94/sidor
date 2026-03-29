@@ -14,15 +14,16 @@ const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // בדיקת מפתחות API (תמיכה ברוטציה עתידית)
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const { message, name, senderPhone, manualInjection, context: frontendContext } = req.body;
   const cleanMsg = (message || "").trim();
 
-  // הגנות בסיס
+  // הגנות בסיס - חוקי ראמי
   if (!cleanMsg && !manualInjection) return res.status(200).json({ reply: "בוס, קיבלתי הודעה ריקה. איך אני יכול לשרת אותך?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API בשרת." });
 
-  // בריכת המודלים ברוטציה
+  // 🔄 בריכת המודלים ברוטציה (לפי סדר עדיפויות ביצועי)
   const modelPool = [
     "gemini-3.1-flash-lite-preview", 
     "gemini-2.0-flash",
@@ -32,84 +33,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 2. שליפת דאטה משולבת (כולל DNA המוח החדש)
-    const [flowSnap, brainCoreSnap, memoryRes] = await Promise.all([
-      getDoc(doc(dbFS, 'system', 'bot_flow_config')),
+    // 2. שליפת DNA מה-Admin ומהזיכרון
+    const [brainCoreSnap, memoryRes] = await Promise.all([
       getDoc(doc(dbFS, 'settings', 'brain-core')),
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
-    const flowData = flowSnap.exists() ? flowSnap.data() : { nodes: [], globalDNA: "" };
     const dna = brainCoreSnap.exists() ? brainCoreSnap.data() : {};
-    const nodes = flowData.nodes || [];
     const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
 
-    // --- לוגיקת דוח בוקר (WhatsApp Report) ---
-    let reportContent = "";
-    let whatsappLink = "";
-    const isReportRequest = cleanMsg.includes("דוח") || cleanMsg.includes("סיכום");
-
-    if (isReportRequest) {
-      const today = new Date().toISOString().split('T')[0];
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('created_at', today)
-        .order('order_time', { ascending: true });
-
-      if (orders && orders.length > 0) {
-        reportContent = "📋 *דוח הזמנות נבחרות*\n\n";
-        const drivers = [...new Set(orders.map(o => o.driver_name))];
-        
-        drivers.forEach(driver => {
-          reportContent += `*${driver}*\n`;
-          orders.filter(o => o.driver_name === driver).forEach(o => {
-            reportContent += `⏰ ${o.order_time} | 👤 ${o.client_info} | 📍 ${o.location} | 🏠 ${o.source_branch}\n`;
-          });
-          reportContent += "\n";
-        });
-        
-        whatsappLink = `https://wa.me/?text=${encodeURIComponent(reportContent)}`;
-      }
-    }
-
-    // 3. זיהוי ענף דינמי
-    let activeNode = nodes.find((n: any, index: number) => {
-      const nodeNumber = (index + 1).toString();
-      return cleanMsg === nodeNumber || cleanMsg === n.name || cleanMsg.includes(n.name);
-    });
-
-    // 4. שליפת מוצרים
-    let attachedProducts: any[] = [];
-    if (activeNode?.name.includes("1") || cleanMsg.includes("מוצר") || cleanMsg.includes("מלאי") || cleanMsg.includes("כמה עולה")) {
-      const { data } = await supabase.from('inventory').select('product_name, sku, price, image_url, youtube_url').limit(3);
-      attachedProducts = data || [];
-    }
-
-    // 5. בניית ה-Prompt הקשיח - חוקי ראמי
+    // 3. בניית ה-Prompt המקצועי
     const prompt = `
-      הנחיית יסוד: אתה Saban OS, העוזר והמשרת האישי של ראמי מסארוה. אתה פועל רק לפי חוקיו.
+      הנחיית יסוד: אתה סדרן ח.סבן חומרי בנין , העוזר האישי של ראמי. 
+      DNA: ${dna.coreIdentity || "עוזר לוגיסטי חריף."}
+      טון: ${dna.toneAndVoice || "חד, ענייני, חברי (בוס, אח)."}
       
-      -- DNA וזהות --
-      ${dna.coreIdentity || "משרת נאמן ושותף ביצועי של ראמי."}
-      -- פרוטוקול ביצוע --
-      ${dna.executionProtocol || "בצע פקודות בחדות."}
-      ${isReportRequest ? `שים לב: ראמי ביקש דוח. הנה הנתונים שנשלפו: ${reportContent || 'אין הזמנות להיום'}` : ''}
-      
-      -- טון דיבור --
-      ${dna.toneAndVoice || "חד, ענייני, חברי (בוס, אח)."}
+      פרוטוקול ביצוע: ${dna.executionProtocol || "בצע פקודות בחדות."}
+      זיכרון לקוח: ${customerMemory}
 
-      חוקים למענה:
-      1. אם מדובר בדוח, הצג אותו במבנה המקצועי שביקש ראמי עם האימוג'ים.
-      2. צרף תמיד את לינק השיתוף לוואטסאפ בסוף הדוח: ${whatsappLink}
-      3. אל תמציא נתונים. סיים כל הודעה ב-TL;DR מודגש.
-
-      הודעה: "${cleanMsg}"
+      הודעת ראמי: "${cleanMsg}"
       תשובת המוח:
     `;
 
-    // 6. הרצת רוטציית המודלים
+    // 4. הרצת רוטציית המודלים (Fallback Logic)
     let replyText = "";
+    let usedModel = "";
+
     for (const modelName of modelPool) {
       try {
         const response = await fetch(
@@ -123,21 +72,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const data = await response.json();
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           replyText = data.candidates[0].content.parts[0].text;
+          usedModel = modelName;
           break; 
         }
-      } catch (err) { continue; }
+      } catch (err) {
+        console.warn(`Model ${modelName} failed, trying next...`);
+        continue; 
+      }
     }
 
-    if (!replyText) throw new Error("כל המודלים נכשלו.");
+    if (!replyText) throw new Error("כל המודלים ברוטציה נכשלו.");
 
-    // 7. החזרת תשובה
+    // 5. החזרת תשובה מסונכרנת
     return res.status(200).json({
       reply: replyText,
-      products: attachedProducts,
-      mediaUrl: activeNode ? null : BRAND_LOGO
+      model: usedModel,
+      status: "SYNC_OK"
     });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח עמוס. שלח שוב ואני מבצע. 🛠️" });
+    return res.status(200).json({ reply: "בוס, המוח עמוס לרגע. שלח שוב ואני מבצע. 🛠️" });
   }
 }
