@@ -108,3 +108,41 @@ export interface SuccessMetrics {
   automationRate: number;  // percentage of AI-handled messages
   peakHourActivity: Array<{ hour: number; count: number }>;
 }
+
+// Logistics Dashboard Types
+export interface DispatchOrder {
+  id: string;
+  customer_name: string;
+  phone: string;
+  delivery_address: string;
+  order_time: string;  // HH:MM format
+  order_date: string;  // YYYY-MM-DD format
+  items?: string;
+  notes?: string;
+  status: 'pending' | 'assigned' | 'in_transit' | 'delivered';
+  assigned_driver?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DriverTimeline {
+  driver_id: string;
+  driver_name: string;
+  orders: DispatchOrder[];
+  status: 'available' | 'busy' | 'offline';
+  current_location?: string;
+}
+
+export interface TimeSlot {
+  time: string;        // HH:MM format
+  orders: DispatchOrder[];
+  isEmpty: boolean;
+}
+
+export interface LogisticsStats {
+  totalOrders: number;
+  deliveredToday: number;
+  pendingOrders: number;
+  activeDrivers: number;
+  avgDeliveryTime: number;
+}
