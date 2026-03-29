@@ -58,6 +58,19 @@ export const LogisticsDashboard = ({
     }
   };
 
+  const handleEditOrder = (orderId: string) => {
+    const order = [...todayOrders, ...tomorrowOrders].find(o => o.id === orderId);
+    if (order && onEditOrder) {
+      onEditOrder(order);
+    }
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    if (onDeleteOrder) {
+      onDeleteOrder(orderId);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-saban-dark via-saban-surface to-saban-dark text-white p-6">
       {/* Header Section */}
@@ -144,8 +157,8 @@ export const LogisticsDashboard = ({
                           <OrderCard
                             key={order.id}
                             order={order}
-                            onEdit={onEditOrder}
-                            onDelete={onDeleteOrder}
+                            onEdit={handleEditOrder}
+                            onDelete={handleDeleteOrder}
                           />
                         ))
                       )}
