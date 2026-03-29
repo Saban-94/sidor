@@ -13,27 +13,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  // --- הגנות בסיס - חוקי ראמי ---
+  // הגנות בסיס - חוקי ראמי
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח." });
 
-  // --- בריכת המודלים ברוטציה ---
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash", "gemini-1.5-flash"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון תהליך
-    const { data: memory } = await supabase
+    // 1. חקירה וצבירת זיכרון - אם אין משתמש, יוצרים חדש
+    let { data: memory, error: fetchError } = await supabase
       .from('customer_memory')
       .select('accumulated_knowledge')
       .eq('clientId', phone)
       .maybeSingle();
 
+    // לוגיקת יצירת משתמש חדש בשידור חי
+    if (!memory) {
+      const { data: newUser, error: createError } = await supabase
+        .from('customer_memory')
+        .insert([{ clientId: phone, name: 'ראמי', accumulated_knowledge: '' }])
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      memory = newUser;
+    }
+
     let history = memory?.accumulated_knowledge || "";
     if (cleanMsg === "הוסף הזמנה") history = "";
 
-    // 2. לוגיקת לקוח חוזר - בדיקה אם השם שנכתב קיים במערכת
+    // 2. בדיקת לקוח חוזר (היסטוריית הזמנות)
     let clientInsight = "";
     if (history.includes("שם לקוח?") && !history.includes("כתובת?")) {
       const { data: pastOrder } = await supabase
@@ -49,78 +60,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. בניית ה-Prompt (קצר, חריף, ממוקד עץ)
+    // 3. בניית ה-Prompt הקצר
     const prompt = `
-      אתה העוזר של ראמי. דבר קצר (מילה-שתיים).
-      סדר עץ: 1. שם לקוח? 2. כתובת? 3. מחסן? (התלמיד/החרש) 4. נהג? (חכמת/עלי)
+      אתה העוזר של ראמי. קצר (מילה-שתיים).
+      עץ: 1. שם לקוח? 2. כתובת? 3. מחסן? 4. נהג?
       
       היסטוריה: ${history}
       הודעה: "${cleanMsg}"
-      תובנת לקוח חוזר: ${clientInsight}
+      תובנה: ${clientInsight}
 
-      חוק הזרקה:
-      אם כל הפרטים קיימים, החזר JSON בסוף התשובה:
+      חוק סיום: אם הכל הושלם, החזר JSON בסוף:
       {"complete": true, "client": "שם", "address": "כתובת", "branch": "מחסן", "driver": "נהג"}
     `;
 
-    // 4. הרצת רוטציית מודלים
+    // 4. רוטציית מודלים
     let replyText = "";
     for (const modelName of modelPool) {
       try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-          }
-        );
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
         const data = await response.json();
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text.trim();
-          break; 
-        }
-      } catch (err) { continue; }
+        replyText = data.candidates[0].content.parts[0].text.trim();
+        if (replyText) break;
+      } catch (e) { continue; }
     }
 
-    if (!replyText) throw new Error("Models failed");
-
-    // 5. זיהוי סיום והזרקה לטבלה עם העמודות החדשות
+    // 5. הזרקה ללוח ואיפוס
     let finalReply = clientInsight || replyText;
-    
     if (replyText.includes('"complete": true')) {
-      const jsonMatch = replyText.match(/\{.*\}/s);
-      if (jsonMatch) {
-        const d = JSON.parse(jsonMatch[0]);
-        
-        // הזרקה ל-Supabase כולל תאריך ומספר הזמנה (SERIAL)
-        await supabase.from('orders').insert([{
-          client_info: d.client,
-          location: d.address,
-          source_branch: d.branch,
-          driver_name: d.driver,
-          delivery_date: new Date().toISOString().split('T')[0],
-          order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-        }]);
-
-        finalReply = "הוזרק ללוח. 🚀";
-        history = ""; 
-      }
+      const d = JSON.parse(replyText.match(/\{.*\}/s)![0]);
+      await supabase.from('orders').insert([{
+        client_info: d.client,
+        location: d.address,
+        source_branch: d.branch,
+        driver_name: d.driver,
+        order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+      }]);
+      finalReply = "הוזרק ללוח. 🚀";
+      history = "";
     } else {
-      // אם אנחנו בתוך תובנת לקוח חוזר, נעדכן את הזיכרון שהלקוח זוהה
       history += `\nUser: ${cleanMsg}\nAssistant: ${finalReply}`;
     }
 
-    // 6. שמירת מצב בזיכרון
+    // 6. עדכון זיכרון סופי
     await supabase.from('customer_memory').upsert({
       clientId: phone,
-      accumulated_knowledge: history,
-      last_update: new Date().toISOString()
+      accumulated_knowledge: history
     });
 
     return res.status(200).json({ reply: finalReply });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח עמוס. שוב?" });
+    return res.status(200).json({ reply: "בוס, תקלה ברישום. נסה שוב." });
   }
 }
