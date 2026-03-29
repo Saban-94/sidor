@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
-   // בתוך פונקציית ה-handler, אחרי שליפת ה-customerMemory
+// בתוך פונקציית ה-handler, אחרי שליפת ה-customerMemory
 let currentDNA = customerMemory;
 
 // 1. הזרקת הנתון החדש לזיכרון הזמני כדי שהמוח ידע מה הוא הרגע קיבל
