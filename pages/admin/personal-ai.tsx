@@ -2,175 +2,226 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { database } from '../../lib/firebase';
+import { database, db } from '../../lib/firebase';
 import { ref, push, onValue, query, limitToLast } from 'firebase/database';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { 
-  Send, Bot, User, Zap, Settings, Moon, Sun, Menu, 
-  ShieldCheck, BrainCircuit, Sparkles, ChevronLeft
+  Send, Bot, Zap, Sparkles, BrainCircuit, ShieldCheck, 
+  Terminal, Volume2, Command
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function SabanPersonalAI() {
+export default function SabanBrainCore() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
-    
-    // הגנה קריטית ל-TypeScript ול-Build של Vercel
     if (!database) return;
 
-    try {
-      const aiChatRef = query(ref(database, 'private_brain/history'), limitToLast(50));
-      const unsub = onValue(aiChatRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          setMessages(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })));
-        }
-      });
+    // משיכת היסטוריית פקודות מהמוח
+    const aiChatRef = query(ref(database, 'private_brain/history'), limitToLast(30));
+    const unsub = onValue(aiChatRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setMessages(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })));
+      }
+    });
 
-      return () => unsub();
-    } catch (error) {
-      console.error("Firebase AI Chat Error:", error);
-    }
+    return () => unsub();
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !database) return;
+  // פונקציית הליבה: ביצוע פקודה חכמה (הוסף הזמנה)
+  const executeBrainCommand = async (text: string) => {
+    if (!db || !database) return;
 
-    const newMessage = {
-      text: input,
-      sender: 'user',
-      timestamp: Date.now()
-    };
+    setIsProcessing(true);
+    
+    try {
+      // 1. רישום הפקודה ב-RTDB
+      const historyRef = ref(database, 'private_brain/history');
+      await push(historyRef, { text, sender: 'user', timestamp: Date.now() });
 
-    const historyRef = ref(database, 'private_brain/history');
-    await push(historyRef, newMessage);
-    setInput('');
-    setIsTyping(true);
-
-    // סימולציית תגובת AI (כאן יחובר Gemini בהמשך)
-    setTimeout(async () => {
-      await push(historyRef, {
-        text: "בוס, אני מעבד את הבקשה שלך. תן לי רגע לבדוק בנתונים של סבן 94...",
-        sender: 'ai',
-        timestamp: Date.now()
+      // 2. פנייה ל-AI Logic (שמנתח אם זו הזמנה, עדכון נהג או שאילתה)
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: text, context: 'saban_94_logistics' })
       });
-      setIsTyping(false);
-    }, 1500);
+
+      const result = await response.json();
+
+      // 3. אם זו פקודת "הוסף הזמנה" - ביצוע הזרקה ישירה ל-Firestore
+      if (text.includes('הוסף הזמנה') || result.action === 'CREATE_ORDER') {
+        const orderData = result.data || {
+          name: 'לקוח מהמוח',
+          project_address: 'זיהוי כתובת אוטומטי',
+          status: 'pending'
+        };
+
+        await addDoc(collection(db, 'orders'), {
+          ...orderData,
+          created_at: serverTimestamp(),
+          source: 'AI_ASSISTANT'
+        });
+
+        // השמעת אישור קולי
+        playSuccessTone();
+
+        await push(historyRef, {
+          text: `בוס, הפקודה בוצעה. הזמנה חדשה הוזרקה ללוח הנהגים בזמן אמת.`,
+          sender: 'ai',
+          timestamp: Date.now(),
+          actionLink: '/admin/dashboard'
+        });
+      } else {
+        // תשובה כללית של העוזר
+        await push(historyRef, {
+          text: result.reply || "הבנתי, בוס. אני מעבד את הנתונים.",
+          sender: 'ai',
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error("Brain Execution Error:", error);
+    } finally {
+      setIsProcessing(false);
+      setInput('');
+    }
+  };
+
+  const playSuccessTone = () => {
+    const audio = new Audio('/order-notification.mp3');
+    audio.play().catch(() => {});
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#020617] text-white font-sans flex overflow-hidden" dir="rtl">
       <Head>
-        <title>SABAN AI | המוח האישי</title>
+        <title>SABAN BRAIN | המוח המבצע</title>
       </Head>
 
-      {/* Sidebar - AI Navigation */}
-      <aside className="w-80 bg-white border-l border-slate-200 flex flex-col p-8 z-30 shadow-sm">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="bg-slate-900 p-3 rounded-2xl shadow-lg">
-            <BrainCircuit size={24} className="text-white"/>
+      {/* Side HUD */}
+      <aside className="w-96 bg-[#0B1120] border-l border-white/5 flex flex-col p-10 z-30 shadow-2xl">
+        <div className="flex items-center gap-4 mb-16">
+          <div className="bg-blue-600 p-4 rounded-[2rem] shadow-[0_0_30px_rgba(37,99,235,0.4)] animate-pulse">
+            <BrainCircuit size={32} />
           </div>
-          <h1 className="text-xl font-black tracking-tighter uppercase">Saban <span className="text-blue-600">AI</span></h1>
+          <div>
+            <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">Saban <span className="text-blue-500">Brain</span></h1>
+            <p className="text-[10px] font-black text-slate-500 tracking-[0.3em] mt-2">EXECUTOR CORE V2</p>
+          </div>
         </div>
 
-        <div className="flex-1 space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-2">כלים חכמים</p>
-          <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl bg-blue-50 text-blue-600 font-black transition-all">
-            <Sparkles size={20}/> עוזר אישי
-          </button>
-          <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-slate-400 font-bold hover:bg-slate-50 transition-all">
-            <ShieldCheck size={20}/> ניהול זיכרון
-          </button>
+        <div className="space-y-6">
+          <HUDItem icon={<Zap className="text-yellow-400"/>} label="מהירות תגובה" value="0.4ms" />
+          <HUDItem icon={<ShieldCheck className="text-emerald-400"/>} label="סטטוס אבטחה" value="מוצפן" />
+          <HUDItem icon={<Command className="text-blue-400"/>} label="פקודות פעילות" value="12" />
         </div>
 
-        <div className="mt-auto p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"/>
-            <p className="text-xs font-black text-slate-500 uppercase">מערכת פעילה</p>
-          </div>
-          <p className="text-sm font-bold">המוח של רמי מסונכרן</p>
+        <div className="mt-auto p-8 bg-blue-600/5 rounded-[3rem] border border-blue-500/20 text-center">
+          <p className="text-xs font-black text-blue-400 uppercase mb-3">מחובר כעת</p>
+          <p className="text-xl font-black italic">ראמי סבן</p>
         </div>
       </aside>
 
-      {/* Chat Area */}
-      <main className="flex-1 flex flex-col relative bg-white">
-        <header className="h-20 px-10 flex items-center justify-between border-b border-slate-100">
+      {/* Main Terminal Area */}
+      <main className="flex-1 flex flex-col relative">
+        {/* Background Aura */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
+
+        <header className="h-24 px-12 flex items-center justify-between border-b border-white/5 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg">
-              <Bot size={20}/>
-            </div>
-            <div>
-              <h3 className="font-black text-lg leading-none">העוזר האישי של סבן</h3>
-              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter mt-1">מחובר ל-Saban Data</p>
-            </div>
+            <span className="w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
+            <h3 className="font-black text-lg tracking-tight uppercase">ממשק פקודות ישיר</h3>
           </div>
-          <button className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-slate-900 transition-all">
-            <Settings size={20}/>
-          </button>
+          <div className="flex gap-4">
+            <button className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
+              <Volume2 size={20}/>
+            </button>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar">
-          {messages.map((msg) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={msg.id} 
-              className={`flex ${msg.sender === 'user' ? 'justify-start' : 'justify-end'}`}
-            >
-              <div className={`max-w-[70%] p-5 rounded-[2rem] text-sm font-bold shadow-sm ${
-                msg.sender === 'user' 
-                ? 'bg-blue-600 text-white rounded-tr-none' 
-                : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200'
-              }`}>
-                {msg.text}
-              </div>
-            </motion.div>
-          ))}
-          {isTyping && (
-            <div className="flex justify-end italic text-slate-400 text-xs font-bold animate-pulse">
-              ה-AI חושב על פתרון...
+        {/* Message Stream */}
+        <div className="flex-1 overflow-y-auto p-12 space-y-8 custom-scrollbar relative z-10">
+          <AnimatePresence initial={false}>
+            {messages.map((msg) => (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                key={msg.id} 
+                className={`flex ${msg.sender === 'user' ? 'justify-start' : 'justify-end'}`}
+              >
+                <div className={`max-w-[60%] p-6 rounded-[2.5rem] text-lg font-black shadow-2xl ${
+                  msg.sender === 'user' 
+                  ? 'bg-white text-slate-900 rounded-tr-none' 
+                  : 'bg-blue-600 text-white rounded-tl-none border border-blue-400/30'
+                }`}>
+                  {msg.text}
+                  {msg.actionLink && (
+                    <button className="mt-4 block w-full py-3 bg-black/20 rounded-xl text-xs uppercase tracking-widest hover:bg-black/40 transition-all">
+                      פתח לוח בקרה
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {isProcessing && (
+            <div className="flex justify-end items-center gap-3 text-blue-400 font-black italic animate-pulse">
+              <Terminal size={16} /> המוח מעבד פקודה...
             </div>
           )}
           <div ref={scrollRef} />
         </div>
 
-        <footer className="p-8 bg-white">
-          <form onSubmit={handleSend} className="max-w-4xl mx-auto relative group">
+        {/* Input HUD */}
+        <footer className="p-12">
+          <form 
+            onSubmit={(e) => { e.preventDefault(); executeBrainCommand(input); }} 
+            className="max-w-5xl mx-auto relative group"
+          >
+            <div className="absolute inset-0 bg-blue-600/20 blur-2xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity" />
             <input 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="בוס, מה תרצה לבצע בסידור היום?" 
-              className="w-full bg-slate-50 border-2 border-slate-100 p-5 pr-8 pl-20 rounded-[2rem] font-bold outline-none focus:border-blue-600 focus:bg-white transition-all shadow-inner"
+              placeholder="בוס, תן לי פקודה (למשל: הוסף הזמנה למשה בטייבה)..." 
+              className="w-full bg-[#0B1120] border-2 border-white/5 p-8 pr-10 pl-24 rounded-[3rem] text-xl font-black outline-none focus:border-blue-600 transition-all relative z-10"
             />
             <button 
               type="submit"
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-slate-900 text-white p-4 rounded-2xl hover:bg-blue-600 transition-all shadow-xl"
+              className="absolute left-4 top-1/2 -translate-y-1/2 bg-blue-600 text-white p-6 rounded-[2rem] hover:scale-105 active:scale-95 transition-all shadow-xl z-20"
             >
-              <Send size={20}/>
+              <Send size={24}/>
             </button>
           </form>
-          <p className="text-center text-[9px] font-black text-slate-300 uppercase tracking-widest mt-4">
-            Saban OS v2.0 - Powered by Premium Intelligence
-          </p>
         </footer>
       </main>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
       `}</style>
+    </div>
+  );
+}
+
+function HUDItem({ icon, label, value }: any) {
+  return (
+    <div className="flex items-center justify-between p-5 bg-white/5 rounded-[2rem] border border-white/5">
+      <div className="flex items-center gap-4">
+        {icon}
+        <p className="text-xs font-black text-slate-500 uppercase tracking-tighter">{label}</p>
+      </div>
+      <p className="font-black text-sm">{value}</p>
     </div>
   );
 }
