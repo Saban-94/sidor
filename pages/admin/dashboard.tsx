@@ -10,7 +10,10 @@ import {
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
+const playNotificationSound = () => {
+  const audio = new Audio('/order-notification.mp3'); // וודא שהקובץ קיים ב-public
+  audio.play().catch(e => console.log("Audio play blocked by browser"));
+};
 export default function SabanPremiumOS() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('DASHBOARD');
