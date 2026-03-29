@@ -26,28 +26,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle()
     ]);
 
-    const customerMemory = memoryRes.data?.accumulated_knowledge || "";
+   // בתוך פונקציית ה-handler, אחרי שליפת ה-customerMemory
+let currentDNA = customerMemory;
 
-    // --- ה-DNA הקצר והחריף ---
-    const prompt = `
-      זהות: העוזר של ראמי. 
-      חוק: דבר קצר. מילה-שתיים מקסימום. בלי הסברים. בלי "מערכות דרוכות".
-      
-      פרוטוקול הוספת הזמנה:
-      1. ראמי: "הוסף הזמנה" -> העוזר: "שם לקוח?"
-      2. ראמי: "[שם]" -> העוזר: "כתובת?"
-      3. ראמי: "[כתובת]" -> העוזר: "מחסן?"
-      4. ראמי: "[מחסן]" -> העוזר: "נהג? (חכמת/עלי)"
-      5. סיום -> העוזר: "הוזרק ללוח."
+// 1. הזרקת הנתון החדש לזיכרון הזמני כדי שהמוח ידע מה הוא הרגע קיבל
+currentDNA += `\nUser said: ${cleanMsg}`;
 
-      לוגיקה: חכמת=מנוף, עלי=ידני.
-      
-      מצב נוכחי: "${cleanMsg}"
-      זיכרון: ${customerMemory}
+const prompt = `
+  חוק ברזל: אתה העוזר של ראמי. דבר קצר (מילה-שתיים).
+  סדר עץ הזמנה (אל תסטה!):
+  1. שם לקוח?
+  2. כתובת?
+  3. מחסן? (התלמיד/החרש)
+  4. נהג? (חכמת/עלי)
 
-      תשובה (מילה-שתיים):
-    `;
+  בדיקת מצב נוכחי בזיכרון:
+  ${currentDNA}
 
+  הנחיה לביצוע:
+  - אם המשתמש אמר "הוסף הזמנה" -> שאל "שם לקוח?"
+  - אם יש שם ("דרך עפר") ואין כתובת -> שאל "כתובת?"
+  - אם יש כתובת ("ויצמן 4") ואין מחסן -> שאל "מחסן?"
+  - אם יש מחסן ואין נהג -> שאל "נהג?"
+
+  תשובה (מילה-שתיים בלבד):
+`;
+
+// 2. אחרי קבלת התשובה מהמודל (replyText), חובה לעדכן את Supabase!
+await supabase.from('customer_memory').upsert({
+  clientId: phone,
+  accumulated_knowledge: currentDNA + `\nAssistant asked: ${replyText}`
+});
     let replyText = "";
     for (const modelName of modelPool) {
       try {
