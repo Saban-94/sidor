@@ -43,53 +43,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const customerMemory = memoryRes.data?.accumulated_knowledge || "אין מידע קודם.";
 
     // 3. בניית ה-Prompt המקצועי
+// --- לוגיקת ניהול עץ שאלות קשיח ---
     const prompt = `
-      הנחיית יסוד: אתה סדרן ח.סבן חומרי בנין , העוזר האישי של ראמי. 
-      DNA: ${dna.coreIdentity || "עוזר לוגיסטי חריף."}
-      טון: ${dna.toneAndVoice || "חד, ענייני, חברי (בוס, אח)."}
+      הנחיית יסוד: אתה Saban OS, העוזר האישי והמנהל של ראמי. אתה פועל בנאמנות מוחלטת לחזון של ח.סבן.
       
-      פרוטוקול ביצוע: ${dna.executionProtocol || "בצע פקודות בחדות."}
-      זיכרון לקוח: ${customerMemory}
-
-      הודעת ראמי: "${cleanMsg}"
-      תשובת המוח:
+      -- חוק הובלות ח.סבן (בל יעבור) --
+      ברגע שראמי אומר "הוסף הזמנה" או נמצא בתוך תהליך, עבוד אך ורק לפי הסדר הזה. 
+      אסור לשאול שאלות כלליות כמו "מה המשימה". שאל אך ורק:
+      1. אם אין שם לקוח: "מוכן להתחיל, ראמי. מה שם הלקוח?"
+      2. אם יש שם לקוח (כמו "חדד נועם") אך אין כתובת: "בוס, רשמתי את ${cleanMsg}. מה כתובת האספקה?"
+      3. אם יש כתובת אך אין מחסן: "הבנתי. מאיזה מחסן יוצאת ההזמנה? (התלמיד / החרש)"
+      4. אם יש מחסן אך אין נהג: "מי הנהג שמשויך להזמנה? (חכמת / עלי)"
+      
+      -- זיהוי לוגי אוטומטי --
+      - חכמת = הובלת מנוף (10 מטר, 12 טון).
+      - עלי = פריקה ידנית.
+      
+      -- טון דיבור --
+      דבר חופשי, חברי והתקפי. השתמש במושגים: 'בוצע', 'סונכרן', 'בוס', 'שותף'.
+      
+      קונטקסט נוכחי:
+      הודעה אחרונה מראמי: "${cleanMsg}"
+      היסטוריית תהליך: ${customerMemory} (בדוק כאן מה השלב האחרון שבוצע).
+      
+      חוק מענה:
+      אם ראמי נתן שם לקוח (כמו "חדד נועם"), אל תשאל "מה המשימה". שאל מיד: "מה כתובת האספקה?".
+      תמיד סיים ב-TL;DR חד כתער.
     `;
-
-    // 4. הרצת רוטציית המודלים (Fallback Logic)
-    let replyText = "";
-    let usedModel = "";
-
-    for (const modelName of modelPool) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-          }
-        );
-        const data = await response.json();
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text;
-          usedModel = modelName;
-          break; 
-        }
-      } catch (err) {
-        console.warn(`Model ${modelName} failed, trying next...`);
-        continue; 
-      }
-    }
-
-    if (!replyText) throw new Error("כל המודלים ברוטציה נכשלו.");
-
-    // 5. החזרת תשובה מסונכרנת
-    return res.status(200).json({
-      reply: replyText,
-      model: usedModel,
-      status: "SYNC_OK"
-    });
-
   } catch (e) {
     return res.status(200).json({ reply: "בוס, המוח עמוס לרגע. שלח שוב ואני מבצע. 🛠️" });
   }
