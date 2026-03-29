@@ -1,200 +1,191 @@
+'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { database, app } from '../../lib/firebase';
 import { ref, onValue, push, serverTimestamp, query as rtQuery, limitToLast } from 'firebase/database';
 import { getFirestore, collection, query, orderBy, onSnapshot, limit, doc, getDoc } from 'firebase/firestore';
 import { 
-  Search, MoreVertical, MessageSquare, Menu, 
-  CheckCheck, Clock, Bot, User, ShieldCheck, 
-  Send, Paperclip, Smile, Phone, Video
+  Search, Phone, MessageSquare, MoreVertical, 
+  Send, Smile, Paperclip, CheckCheck, User,
+  ArrowRight, ShieldCheck, Zap, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const dbFS = getFirestore(app);
+// הגנה ל-TypeScript ול-Build של Vercel
+const dbFS = app ? getFirestore(app) : null;
 
 export default function SabanWhatsAppWeb() {
   const [customers, setCustomers] = useState<any[]>([]);
-  const [activeCustomer, setActiveCustomer] = useState<any | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
   const [search, setSearch] = useState('');
-  const [inputText, setInputText] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // 1. טעינת רשימת הלקוחות מה-CRM (Firestore)
   useEffect(() => {
-    const q = query(collection(dbFS, 'customers'), orderBy('lastMessageAt', 'desc'), limit(50));
-    const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setCustomers(docs);
+    setMounted(true);
+    
+    // הגנה בתוך ה-Effect
+    if (!dbFS) return;
+
+    // מאזין לרשימת הלקוחות מ-Firestore
+    const q = query(collection(dbFS, 'customers'), orderBy('last_message_time', 'desc'), limit(50));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const custs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCustomers(custs);
     });
-    return () => unsub();
+
+    return () => unsubscribe();
   }, []);
 
-  // 2. טעינת הודעות בזמן אמת עבור הלקוח הנבחר (RTDB)
   useEffect(() => {
-    if (!activeCustomer) return;
+    // הגנה ל-RTDB
+    if (!database || !selectedCustomer) return;
 
-    const chatRef = rtQuery(ref(database, `chats/${activeCustomer.id}/messages`), limitToLast(100));
-    const unsub = onValue(chatRef, (snapshot) => {
+    const chatRef = rtQuery(ref(database, `chats/${selectedCustomer.id}`), limitToLast(100));
+    const unsubscribe = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const msgList = Object.entries(data).map(([key, val]: [string, any]) => ({
-          id: key,
-          ...val
-        }));
+        const msgList = Object.entries(data).map(([id, msg]: [string, any]) => ({ id, ...msg }));
         setMessages(msgList);
-      } else {
-        setMessages([]);
       }
     });
 
-    return () => unsub();
-  }, [activeCustomer]);
+    return () => unsubscribe();
+  }, [selectedCustomer]);
 
-  // גלילה אוטומטית להודעה האחרונה
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const handleSend = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !activeCustomer) return;
+    if (!newMessage.trim() || !database || !selectedCustomer) return;
 
-    const newMessage = {
-      text: inputText,
+    const chatRef = ref(database, `chats/${selectedCustomer.id}`);
+    await push(chatRef, {
+      text: newMessage,
       sender: 'admin',
-      timestamp: serverTimestamp(),
-      type: 'out'
-    };
-
-    // הזרקה לתור השליחה ולצ'אט המקומי
-    await push(ref(database, `chats/${activeCustomer.id}/messages`), newMessage);
-    await push(ref(database, 'outgoing'), {
-      to: activeCustomer.id + "@c.us",
-      body: inputText,
-      timestamp: serverTimestamp()
+      timestamp: Date.now(),
+      status: 'sent'
     });
-
-    setInputText('');
+    setNewMessage('');
   };
 
-  return (
-    <div className="flex h-screen bg-[#111b21] text-[#e9edef] font-sans antialiased overflow-hidden text-right" dir="rtl">
-      <Head><title>WhatsApp - Saban Hub</title></Head>
+  if (!mounted) return null;
 
-      {/* Sidebar: רשימת צ'אטים */}
-      <aside className="w-[400px] flex flex-col border-l border-[#222d34] bg-[#111b21]">
-        <header className="h-[60px] bg-[#202c33] px-4 flex items-center justify-between">
-          <div className="w-10 h-10 rounded-full bg-[#374045] flex items-center justify-center">
-            <User size={24} className="text-[#aebac1]" />
+  return (
+    <div className="h-screen bg-[#F0F2F5] flex overflow-hidden font-sans" dir="rtl">
+      <Head>
+        <title>SABAN CHATS | WhatsApp Web Mode</title>
+      </Head>
+
+      {/* Sidebar - Contacts List */}
+      <aside className="w-[450px] bg-white border-l border-slate-200 flex flex-col h-full z-20 shadow-xl">
+        <header className="p-4 bg-[#F0F2F5] flex items-center justify-between">
+          <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center overflow-hidden">
+            <User className="text-slate-500" />
           </div>
-          <div className="flex gap-6 text-[#aebac1]">
-            <MessageSquare size={20} className="cursor-pointer" />
-            <MoreVertical size={20} className="cursor-pointer" />
+          <div className="flex gap-5 text-slate-500">
+            <Zap size={20} className="hover:text-blue-600 cursor-pointer transition-colors" />
+            <MessageSquare size={20} className="hover:text-blue-600 cursor-pointer" />
+            <MoreVertical size={20} className="hover:text-blue-600 cursor-pointer" />
           </div>
         </header>
 
-        <div className="p-2 bg-[#111b21]">
-          <div className="relative bg-[#202c33] rounded-lg flex items-center px-4 py-1.5">
-            <Search size={18} className="text-[#8696a0] ml-4" />
+        {/* Search */}
+        <div className="p-2 border-b border-slate-100 bg-white">
+          <div className="bg-[#F0F2F5] flex items-center px-4 py-2 rounded-xl">
+            <Search size={18} className="text-slate-400 ml-4" />
             <input 
+              placeholder="חפש לקוח או הודעה..." 
+              className="bg-transparent border-none outline-none text-sm w-full font-bold"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="חפש או התחל צ'אט חדש"
-              className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#8696a0]"
             />
           </div>
         </div>
 
+        {/* Contacts */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {customers.filter(c => c.id.includes(search) || c.name?.includes(search)).map((customer) => (
-            <div 
+          {customers.filter(c => c.name?.includes(search)).map((customer) => (
+            <button 
               key={customer.id}
-              onClick={() => setActiveCustomer(customer)}
-              className={`flex items-center px-3 h-[72px] cursor-pointer border-b border-[#222d34] hover:bg-[#202c33] ${activeCustomer?.id === customer.id ? 'bg-[#2a3942]' : ''}`}
+              onClick={() => setSelectedCustomer(customer)}
+              className={`w-full p-4 flex items-center gap-4 border-b border-slate-50 transition-all ${selectedCustomer?.id === customer.id ? 'bg-[#F0F2F5]' : 'hover:bg-slate-50'}`}
             >
-              <div className="w-12 h-12 rounded-full bg-[#374045] ml-3 flex items-center justify-center shrink-0">
-                <span className="font-bold text-lg">{customer.name?.charAt(0) || 'L'}</span>
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-black">
+                {customer.name?.charAt(0)}
               </div>
-              <div className="flex-1 min-w-0 border-b border-transparent">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-[17px] truncate">{customer.name || customer.id}</span>
-                  <span className="text-xs text-[#8696a0]">12:45</span>
+              <div className="flex-1 text-right">
+                <div className="flex justify-between items-baseline">
+                  <h4 className="font-black text-slate-800">{customer.name}</h4>
+                  <span className="text-[10px] text-slate-400 font-bold">12:30</span>
                 </div>
-                <div className="flex items-center text-sm text-[#8696a0]">
-                  <CheckCheck size={16} className="ml-1 text-[#53bdeb]" />
-                  <p className="truncate italic">מענה אוטומטי פעיל...</p>
-                </div>
+                <p className="text-xs text-slate-500 truncate w-64">{customer.last_message || 'לחץ להתחלת צאט...'}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col bg-[#0b141a] relative">
-        {activeCustomer ? (
+      <main className="flex-1 flex flex-col bg-[#E5DDD5] relative">
+        <div className="absolute inset-0 opacity-10 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] pointer-events-none"></div>
+
+        {selectedCustomer ? (
           <>
-            <header className="h-[60px] bg-[#202c33] px-4 flex items-center justify-between z-10">
-              <div className="flex items-center cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-[#374045] ml-3 flex items-center justify-center">
-                  <User size={20} />
+            <header className="p-4 bg-[#F0F2F5] flex items-center justify-between z-10 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black shadow-md">
+                  {selectedCustomer.name?.charAt(0)}
                 </div>
                 <div>
-                  <h2 className="text-[16px] font-medium leading-tight">{activeCustomer.name || activeCustomer.id}</h2>
-                  <p className="text-[13px] text-[#8696a0]">מחובר (ניהול AI)</p>
+                  <h3 className="font-black text-slate-800 leading-none">{selectedCustomer.name}</h3>
+                  <span className="text-[10px] text-emerald-600 font-black uppercase">מחובר כעת</span>
                 </div>
               </div>
-              <div className="flex gap-5 text-[#aebac1]">
-                <Phone size={20} />
-                <Video size={22} />
-                <Search size={20} />
-                <MoreVertical size={20} />
+              <div className="flex gap-6 text-slate-500">
+                <Search size={20} className="cursor-pointer" />
+                <MoreVertical size={20} className="cursor-pointer" />
               </div>
             </header>
 
-            {/* רקע ווטסאפ קלאסי */}
-            <div 
-              className="flex-1 overflow-y-auto p-6 flex flex-col gap-2 relative bg-[#0b141a]"
-              style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', opacity: 0.9 }}
-              ref={scrollRef}
-            >
-              {messages.map((m) => (
-                <div key={m.id} className={`max-w-[65%] p-2 rounded-lg text-[14.2px] shadow-sm relative ${m.type === 'in' ? 'bg-[#202c33] self-start rounded-tr-none' : 'bg-[#005c4b] self-end rounded-tl-none'}`}>
-                  <div className="pb-1">{m.text}</div>
-                  <div className="text-[11px] text-[#8696a0] flex items-center justify-end gap-1">
-                    {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {m.type === 'out' && <CheckCheck size={15} className="text-[#53bdeb]" />}
+            <div className="flex-1 overflow-y-auto p-10 flex flex-col gap-2 z-10 custom-scrollbar">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`max-w-[60%] p-3 rounded-2xl text-sm font-bold shadow-sm ${msg.sender === 'admin' ? 'bg-[#D9FDD3] self-start rounded-tr-none' : 'bg-white self-end rounded-tl-none'}`}>
+                  {msg.text}
+                  <div className="text-[9px] text-slate-400 mt-1 flex justify-end gap-1">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {msg.sender === 'admin' && <CheckCheck size={12} className="text-blue-500" />}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Input Area */}
-            <footer className="h-[62px] bg-[#202c33] px-4 flex items-center gap-4">
-              <Smile className="text-[#8696a0] cursor-pointer" />
-              <Paperclip className="text-[#8696a0] cursor-pointer" />
-              <form onSubmit={handleSend} className="flex-1">
+            <footer className="p-4 bg-[#F0F2F5] flex items-center gap-4 z-10">
+              <Smile className="text-slate-500 cursor-pointer" />
+              <Paperclip className="text-slate-500 cursor-pointer" />
+              <form onSubmit={sendMessage} className="flex-1 flex gap-4">
                 <input 
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="הקלד הודעה"
-                  className="w-full bg-[#2a3942] border-none outline-none py-2.5 px-4 rounded-lg text-sm"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="הקלד הודעה..." 
+                  className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm"
                 />
+                <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all">
+                  <Send size={20} />
+                </button>
               </form>
-              <Send 
-                className={`cursor-pointer ${inputText.trim() ? 'text-[#00a884]' : 'text-[#8696a0]'}`} 
-                onClick={handleSend} 
-              />
-            </footer>
+            </aside>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center bg-[#222e35] border-b-4 border-[#00a884]">
-            <img src="https://iili.io/qstzfVf.jpg" className="w-64 opacity-20 mb-8 rounded-full" alt="Saban Hub" />
-            <h1 className="text-[#e9edef] text-3xl font-light mb-4">SABAN HUB Web</h1>
-            <p className="text-[#8696a0] text-sm">שלח והעבר הודעות מבלי להשאיר את הטלפון מחובר.<br/>השתמש ב-Saban Hub ב-4 מכשירים בו-זמנית.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <div className="bg-white p-10 rounded-[3rem] shadow-2xl text-center border border-white">
+              <ShieldCheck size={80} className="mx-auto text-blue-600 mb-6 opacity-20" />
+              <h3 className="text-2xl font-black text-slate-800">SABAN CHATS</h3>
+              <p className="mt-2 font-bold text-sm">בחר לקוח מהרשימה כדי להתחיל בניהול השיחה</p>
+              <div className="mt-8 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-300">
+                <Zap size={12} /> מקודד ב-End-to-End
+              </div>
+            </div>
           </div>
         )}
       </main>
