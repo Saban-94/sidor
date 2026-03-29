@@ -1,63 +1,68 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { database } from '@/lib/firebase';
 import { ref, set, onValue } from 'firebase/database';
 import { Plus, Save, GitBranch, Zap, Trash2, Package, Link as LinkIcon } from 'lucide-react';
 
-// הגדרה מפורשת של ה-Props - קריטי למניעת שגיאת ה-Build
 interface AIStudioProps {
   customerId?: string;
 }
 
 export const AIStudio: React.FC<AIStudioProps> = ({ customerId }) => {
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [globalDNA, setGlobalDNA] = useState('');
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [config, setConfig] = useState<any>(null);
 
   useEffect(() => {
-    // טעינת ה-Flow
-    const flowRef = ref(database, 'system/bot_flow_config');
-    const unsubFlow = onValue(flowRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.val();
-        setNodes(data.nodes || []);
-        setGlobalDNA(data.globalDNA || '');
-      }
+    if (!database || !customerId) return;
+
+    const configRef = ref(database, `ai_config/${customerId}`);
+    const unsubscribe = onValue(configRef, (snapshot) => {
+      setConfig(snapshot.val() || { enabled: true, mode: 'auto' });
     });
 
-    // טעינת מלאי ללינקי קסם
-    const fetchInv = async () => {
-      const { data } = await supabase.from('inventory').select('sku, product_name').limit(5);
-      if (data) setInventory(data);
-    };
+    return () => unsubscribe();
+  }, [customerId]);
 
-    fetchInv();
-    return () => unsubFlow();
-  }, [customerId]); // מאזין לשינוי לקוח
-
-  const saveFlow = async () => {
-    setSaving(true);
-    await set(ref(database, 'system/bot_flow_config'), { nodes, globalDNA, lastUpdated: Date.now() });
-    setSaving(false);
-    alert('סונכרן!');
+  const saveConfig = async () => {
+    if (!database || !customerId) return;
+    const configRef = ref(database, `ai_config/${customerId}`);
+    await set(configRef, config);
+    alert('הגדרות AI נשמרו בהצלחה');
   };
 
+  if (!customerId) return (
+    <div className="h-full flex items-center justify-center text-slate-500 font-bold italic">
+      בחר לקוח כדי לערוך הגדרות AI
+    </div>
+  );
+
   return (
-    <div className="h-full bg-[#0f172a]/30 p-6 overflow-y-auto" dir="rtl">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="font-black italic text-white">SABAN STUDIO</h2>
-        <button onClick={saveFlow} className="p-2 bg-emerald-500 rounded-lg"><Save size={18}/></button>
+    <div className="p-6 space-y-8 overflow-y-auto h-full custom-scrollbar">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-black text-white flex items-center gap-2">
+          <Zap className="text-yellow-400" /> AI STUDIO PRO
+        </h3>
+        <button onClick={saveConfig} className="p-2 bg-brand rounded-lg text-white">
+          <Save size={20} />
+        </button>
       </div>
-      
-      {/* תצוגת המלאי עם לינקי קסם */}
-      <div className="space-y-2">
-        {inventory.map(item => (
-          <div key={item.sku} className="p-2 bg-white/5 rounded flex justify-between items-center text-[10px]">
-            <span className="text-white/70">{item.product_name}</span>
-            <a href={`/product/${item.sku}`} target="_blank" className="text-emerald-500"><LinkIcon size={12}/></a>
-          </div>
-        ))}
+
+      <div className="space-y-4">
+        <label className="block text-xs font-black text-slate-400 uppercase">מצב פעולה</label>
+        <select 
+          value={config?.mode} 
+          onChange={(e) => setConfig({...config, mode: e.target.value})}
+          className="w-full bg-slate-800 border-white/10 p-3 rounded-xl text-white outline-none"
+        >
+          <option value="auto">אוטומטי מלא</option>
+          <option value="assist">עוזר אישי (אישור ידני)</option>
+          <option value="off">כבוי</option>
+        </select>
+      </div>
+
+      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+        <p className="text-sm font-bold text-blue-400">ה-AI מנתח כרגע היסטוריית הזמנות כדי לייעל את הסידור הבא.</p>
       </div>
     </div>
   );
