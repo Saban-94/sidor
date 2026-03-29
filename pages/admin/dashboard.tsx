@@ -1,164 +1,219 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
+import { createClient } from '@supabase/supabase-js';
 import { 
-  collection, query, onSnapshot, orderBy, 
-  addDoc, serverTimestamp, updateDoc, doc 
-} from 'firebase/firestore';
-import { 
-  ShieldCheck, LayoutDashboard, Truck, Users, 
-  Search, Bell, Plus, ChevronLeft, MapPin, 
-  Clock, AlertCircle, MessageSquare, CheckCircle2, Phone, Navigation
+  ShieldCheck, LayoutDashboard, Database, BrainCircuit, Users,
+  Menu, X, Plus, Edit2, Trash2, Search, Download, Save, Phone, MapPin, Briefcase
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function SabanPremiumDashboard() {
-  const [mounted, setMounted] = useState(false);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('DASHBOARD');
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-  const [drivers] = useState([
-    { id: 'd1', name: 'איציק סבן', status: 'בדרך', location: 'טייבה', color: 'bg-blue-600' },
-    { id: 'd2', name: 'מוחמד עיסא', status: 'פריקה', location: 'נתניה', color: 'bg-emerald-600' },
-  ]);
+export default function SabanAdminOS() {
+  const [mounted, setMounted] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ORDERS' | 'CUSTOMERS' | 'MEMORY'>('DASHBOARD');
+  
+  // Data States
+  const [orders, setOrders] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [memory, setMemory] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+
+  // Edit Modal States
+  const [isEditModal, setIsEditModal] = useState(false);
+  const [editingRow, setEditingRow] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    fetchData();
+  }, []);
 
-    // הגנה קריטית ל-TypeScript ול-Build של Vercel
-    if (!db) return;
-
-    // מאזין Realtime ל-Firestore - מושך הזמנות וממיין לפי זמן
-    const q = query(collection(db, 'orders'), orderBy('created_at', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData: any[] = [];
-      snapshot.forEach((docSnap) => {
-        ordersData.push({ id: docSnap.id, ...docSnap.data() });
-      });
-
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && !snapshot.metadata.hasPendingWrites) {
-          playNotification();
-        }
-      });
-
-      setOrders(ordersData);
-    });
-
-    return () => unsubscribe();
-  }, [mounted]);
-
-  const playNotification = () => {
-    const audio = new Audio('/order-notification.mp3');
-    audio.play().catch(() => {});
-    if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+  const fetchData = async () => {
+    const { data: ords } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data: custs } = await supabase.from('customers').select('*').order('id', { ascending: true });
+    const { data: mems } = await supabase.from('customer_memory').select('*');
+    if (ords) setOrders(ords);
+    if (custs) setCustomers(custs);
+    if (mems) setMemory(mems);
   };
 
-  const handleCreateOrder = async () => {
-    if (!db) return;
-    try {
-      await addDoc(collection(db, 'orders'), {
-        name: 'לקוח חדש',
-        project_address: 'טייבה - אתר בנייה',
-        phone: '050-0000000',
-        status: 'pending',
-        created_at: serverTimestamp(),
-      });
-    } catch (e) {
-      console.error("Error creating order:", e);
+  // פונקציית שמירה/עריכה פעילה
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const table = activeTab === 'CUSTOMERS' ? 'customers' : activeTab === 'ORDERS' ? 'orders' : 'customer_memory';
+    
+    if (editingRow.id) {
+      const { error } = await supabase.from(table).update(editingRow).eq('id', editingRow.id);
+      if (!error) {
+        setIsEditModal(false);
+        fetchData();
+      }
+    } else {
+      const { error } = await supabase.from(table).insert([editingRow]);
+      if (!error) {
+        setIsEditModal(false);
+        fetchData();
+      }
     }
   };
 
-  const markAsDone = async (id: string) => {
-    if (!db) return;
-    const orderRef = doc(db, 'orders', id);
-    await updateDoc(orderRef, { status: 'done' });
+  const handleDelete = async (table: string, id: string) => {
+    if (confirm("בוס, למחוק לצמיתות?")) {
+      await supabase.from(table).delete().eq('id', id);
+      fetchData();
+    }
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-[#0F172A] font-sans flex overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex" dir="rtl">
       
       {/* Sidebar */}
-      <aside className="w-80 bg-white/80 backdrop-blur-2xl border-l border-white shadow-2xl flex flex-col p-8 z-30">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-200">
-            <ShieldCheck size={28} className="text-white"/>
-          </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase italic text-[#0F172A]">Saban <span className="text-blue-600">OS</span></h1>
-        </div>
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.aside initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} className="fixed lg:relative z-50 w-72 h-screen bg-[#111827] text-white p-6 flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg shadow-emerald-500/30"><ShieldCheck size={24}/></div>
+                <h1 className="font-black text-xl italic text-white">SABAN <span className="text-emerald-500 text-sm">OS</span></h1>
+              </div>
+              <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2"><X/></button>
+            </div>
 
-        <nav className="flex-1 space-y-2">
-          <SidebarBtn active={activeTab === 'DASHBOARD'} icon={<LayoutDashboard/>} label="לוח סידור" onClick={() => setActiveTab('DASHBOARD')} />
-          <SidebarBtn active={activeTab === 'DRIVERS'} icon={<Truck/>} label="סטטוס נהגים" onClick={() => setActiveTab('DRIVERS')} />
-          <SidebarBtn active={activeTab === 'CUSTOMERS'} icon={<Users/>} label="לקוחות" onClick={() => setActiveTab('CUSTOMERS')} />
-          <SidebarBtn active={activeTab === 'AI'} icon={<MessageSquare/>} label="צ'אט עוזר AI" onClick={() => setActiveTab('AI')} />
-        </nav>
+            <nav className="flex-1 space-y-2">
+              <NavBtn active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<LayoutDashboard size={20}/>} label="דאשבורד" />
+              <NavBtn active={activeTab === 'ORDERS'} onClick={() => setActiveTab('ORDERS')} icon={<Database size={20}/>} label="ניהול הזמנות" />
+              <NavBtn active={activeTab === 'CUSTOMERS'} onClick={() => setActiveTab('CUSTOMERS')} icon={<Users size={20}/>} label="טבלת לקוחות" />
+              <NavBtn active={activeTab === 'MEMORY'} onClick={() => setActiveTab('MEMORY')} icon={<BrainCircuit size={20}/>} label="זיכרון המוח" />
+            </nav>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
-        <div className="mt-auto bg-blue-50/50 p-6 rounded-[2.5rem] border border-blue-100">
-          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2 italic">מנהל מערכת</p>
-          <p className="font-black text-[#0F172A] text-lg">רמי סבן</p>
-        </div>
-      </aside>
-
-      {/* Main Area */}
-      <main className="flex-1 flex flex-col relative overflow-hidden bg-white/20">
-        <header className="h-24 px-10 flex items-center justify-between bg-white/40 backdrop-blur-md border-b border-white/50 z-20">
-          <h2 className="text-2xl font-black italic">ניהול סידור <span className="text-blue-600 underline decoration-4 underline-offset-8">LIVE</span></h2>
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <header className="bg-white border-b p-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-4">
-            <input 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="חיפוש מהיר..." 
-              className="bg-white border-none shadow-sm p-3 pr-4 rounded-2xl w-64 font-bold text-sm outline-none" 
-            />
-            <button onClick={handleCreateOrder} className="bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black text-sm shadow-xl shadow-blue-500/30 flex items-center gap-2">
-              <Plus size={20}/> הזמנה חדשה
-            </button>
+            {!isSidebarOpen && <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-slate-100 rounded-lg"><Menu/></button>}
+            <h2 className="font-black text-xl">
+              {activeTab === 'CUSTOMERS' ? 'ניהול לקוחות' : activeTab === 'ORDERS' ? 'ניהול הזמנות' : 'מערכת אדמין'}
+            </h2>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-          <div className="grid grid-cols-12 gap-10">
-            <div className="col-span-12 xl:col-span-8 space-y-6">
-              <AnimatePresence>
-                {orders.filter(o => JSON.stringify(o).includes(search)).map((order) => (
-                  <motion.div 
-                    layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    key={order.id}
-                    className="bg-white/90 backdrop-blur-sm p-6 rounded-[2.5rem] shadow-sm border border-white hover:border-blue-200 transition-all flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-6">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${order.status === 'done' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {order.status === 'done' ? <CheckCircle2 size={24}/> : <Clock size={24}/>}
-                      </div>
-                      <div>
-                        <h4 className="font-black text-xl text-[#0F172A]">{order.name}</h4>
-                        <p className="text-slate-500 font-bold text-sm italic">{order.project_address}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => markAsDone(order.id)} className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-emerald-600 hover:text-white transition-all">
-                      <CheckCircle2 size={22}/>
-                    </button>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+        {/* Main Area */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          
+          <div className="bg-white rounded-3xl shadow-xl border overflow-hidden">
+            {/* Toolbar */}
+            <div className="p-6 border-b flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                <input placeholder="חיפוש חופשי..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-slate-50 border p-3 pr-12 rounded-2xl outline-none focus:border-emerald-500" />
+              </div>
+              <button onClick={() => {setEditingRow({}); setIsEditModal(true)}} className="bg-emerald-500 text-black px-6 py-3 rounded-2xl font-black flex items-center gap-2">
+                <Plus size={18}/> הוסף לקוח/שורה
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b">
+                    {activeTab === 'CUSTOMERS' ? (
+                      <>
+                        <th className="p-4 italic"># מספר</th>
+                        <th className="p-4">שם לקוח</th>
+                        <th className="p-4">פרויקט</th>
+                        <th className="p-4">כתובת</th>
+                        <th className="p-4">איש קשר</th>
+                        <th className="p-4">נייד</th>
+                      </>
+                    ) : (
+                      <th className="p-4">מידע</th>
+                    )}
+                    <th className="p-4 text-center">פעולות</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(activeTab === 'CUSTOMERS' ? customers : activeTab === 'ORDERS' ? orders : memory)
+                    .filter(i => JSON.stringify(i).includes(search)).map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50/50 group transition-colors">
+                      {activeTab === 'CUSTOMERS' ? (
+                        <>
+                          <td className="p-4 font-mono text-emerald-600 font-bold">{row.customer_number || '---'}</td>
+                          <td className="p-4 font-black">{row.name}</td>
+                          <td className="p-4 text-sm font-medium">{row.project_name}</td>
+                          <td className="p-4 text-sm opacity-60 italic">{row.project_address}</td>
+                          <td className="p-4 font-bold">{row.contact_person}</td>
+                          <td className="p-4 font-mono text-blue-600">{row.phone}</td>
+                        </>
+                      ) : (
+                        <td className="p-4 font-black">{row.client_info || row.accumulated_knowledge}</td>
+                      )}
+                      <td className="p-4 flex justify-center gap-2">
+                        <button onClick={() => {setEditingRow(row); setIsEditModal(true)}} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16}/></button>
+                        <button onClick={() => handleDelete(activeTab === 'CUSTOMERS' ? 'customers' : 'orders', row.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
+
+      {/* Edit Modal - חלונית עריכה פעילה */}
+      <AnimatePresence>
+        {isEditModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden">
+              <div className="p-8 border-b bg-slate-50 flex items-center justify-between">
+                <h3 className="font-black text-2xl tracking-tighter italic uppercase text-slate-800">SABAN <span className="text-emerald-500">EDITOR</span></h3>
+                <button onClick={() => setIsEditModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X/></button>
+              </div>
+              <form onSubmit={handleSave} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input label="שם לקוח" value={editingRow?.name || ''} onChange={(v) => setEditingRow({...editingRow, name: v})} icon={<Users size={18}/>} />
+                <Input label="מספר לקוח" value={editingRow?.customer_number || ''} onChange={(v) => setEditingRow({...editingRow, customer_number: v})} icon={<Database size={18}/>} />
+                <Input label="שם פרויקט" value={editingRow?.project_name || ''} onChange={(v) => setEditingRow({...editingRow, project_name: v})} icon={<Briefcase size={18}/>} />
+                <Input label="כתובת פרויקט" value={editingRow?.project_address || ''} onChange={(v) => setEditingRow({...editingRow, project_address: v})} icon={<MapPin size={18}/>} />
+                <Input label="איש קשר" value={editingRow?.contact_person || ''} onChange={(v) => setEditingRow({...editingRow, contact_person: v})} icon={<ShieldCheck size={18}/>} />
+                <Input label="נייד" value={editingRow?.phone || ''} onChange={(v) => setEditingRow({...editingRow, phone: v})} icon={<Phone size={18}/>} />
+                <div className="md:col-span-2 mt-4 flex gap-4">
+                  <button type="submit" className="flex-1 bg-emerald-500 text-black py-4 rounded-2xl font-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all flex items-center justify-center gap-2"><Save size={20}/> שמור שינויים</button>
+                  <button type="button" onClick={() => setIsEditModal(false)} className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all">ביטול</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function SidebarBtn({ active, icon, label, onClick }: any) {
+// UI Components
+function NavBtn({ active, onClick, icon, label }: any) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white font-black shadow-lg' : 'text-slate-400 hover:bg-white hover:text-slate-900 font-bold'}`}>
-      {icon} <span className="text-sm uppercase tracking-tighter">{label}</span>
+    <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all ${active ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+      {icon} {label}
     </button>
+  );
+}
+
+function Input({ label, value, onChange, icon }: any) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">{label}</label>
+      <div className="relative">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">{icon}</div>
+        <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-50 border p-3 pr-12 rounded-xl outline-none focus:border-emerald-500 font-bold" />
+      </div>
+    </div>
   );
 }
