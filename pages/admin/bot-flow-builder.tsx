@@ -1,219 +1,100 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { database, db } from '../../lib/firebase'; // RTDB
+import { database, db, app } from '../../lib/firebase'; // RTDB ו-App
 import { ref, onValue } from 'firebase/database';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'; // Firestore
-import { app } from '../../lib/firebase';
 import { 
-  Save, Plus, Trash2, Zap, Layout, Cpu, Globe, 
-  MessageSquare, ChevronRight, Settings, Info
+  Plus, Save, Trash2, Zap, MessageSquare, 
+  Settings, Play, GitBranch, Layout
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const dbFS = getFirestore(app);
+// הגנה ל-TypeScript ול-Build של Vercel
+const dbFS = app ? getFirestore(app) : null;
 const BRAND_LOGO = "https://iili.io/qstzfVf.jpg";
 
 export default function SabanStudio() {
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [globalDNA, setGlobalDNA] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [bridgeStatus, setBridgeStatus] = useState<'online' | 'offline'>('offline');
+  const [mounted, setMounted] = useState(false);
+  const [flow, setFlow] = useState<any>(null);
 
-  // 1. טעינת הקונפיגורציה הקיימת מה-Studio (Firestore)
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const docRef = doc(dbFS, 'system', 'bot_flow_config');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          setNodes(data.nodes || []);
-          setGlobalDNA(data.globalDNA || "");
-        }
-      } catch (err) {
-        console.error("Studio Fetch Error:", err);
-      } finally {
-        setLoading(false);
+    setMounted(true);
+    
+    // הגנה בתוך ה-Effect
+    if (!dbFS || !database) return;
+
+    // לוגיקת טעינת ה-Flow
+    const loadFlow = async () => {
+      const flowDoc = doc(dbFS, 'bot_configs', 'main_flow');
+      const snap = await getDoc(flowDoc);
+      if (snap.exists()) {
+        setFlow(snap.data());
       }
     };
-    fetchConfig();
 
-    // בדיקת סטטוס Bridge בזמן אמת (RTDB)
-    const statusRef = ref(database, 'system/bridge_status');
-    return onValue(statusRef, (snapshot) => {
-      setBridgeStatus(snapshot.val() === 'active' ? 'online' : 'offline');
-    });
+    loadFlow();
   }, []);
 
-  // 2. שמירת שינויים ופרסום ל-AI
-  const saveToStudio = async () => {
-    setIsPublishing(true);
-    try {
-      await setDoc(doc(dbFS, 'system', 'bot_flow_config'), {
-        nodes,
-        globalDNA,
-        updatedAt: new Date().toISOString(),
-        publishedBy: "Admin"
-      });
-      alert("🚀 ה-DNA עודכן! ראמי מסתנכרן עם ההנחיות החדשות.");
-    } catch (err) {
-      alert("❌ שגיאה בשמירת הנתונים.");
-    } finally {
-      setIsPublishing(false);
-    }
+  const saveFlow = async () => {
+    if (!dbFS) return;
+    await setDoc(doc(dbFS, 'bot_configs', 'main_flow'), flow);
+    alert('הסידור נשמר במאגר בהצלחה!');
   };
 
-  const addNode = () => {
-    const newNode = {
-      id: `NODE_${Date.now()}`,
-      label: "ענף חדש",
-      prompt: "מה הבוט צריך לעשות בשלב זה?",
-      keywords: ""
-    };
-    setNodes([...nodes, newNode]);
-  };
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div>
-    </div>
-  );
+  if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans antialiased pb-20 text-right" dir="rtl">
-      <Head><title>Saban Studio | AI Architect</title></Head>
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex" dir="rtl">
+      <Head>
+        <title>SABAN STUDIO | Bot Builder</title>
+      </Head>
 
-      {/* Header */}
-      <nav className="sticky top-0 z-50 border-b border-white/5 bg-[#020617]/80 backdrop-blur-xl px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Cpu className="text-white" size={24} />
-          </div>
-          <div>
-            <h1 className="text-xl font-black italic tracking-tighter">SABAN <span className="text-emerald-500">STUDIO</span></h1>
-            <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 font-bold">Bot Logic Architect</p>
-          </div>
+      {/* Sidebar - Premium Design */}
+      <aside className="w-80 bg-white border-l border-slate-200 flex flex-col p-8 shadow-sm z-30">
+        <div className="flex items-center gap-4 mb-12">
+          <img src={BRAND_LOGO} alt="Saban" className="w-12 h-12 rounded-2xl shadow-lg" />
+          <h1 className="text-xl font-black tracking-tighter uppercase">Studio <span className="text-blue-600">v2</span></h1>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold border ${bridgeStatus === 'online' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${bridgeStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-            {bridgeStatus === 'online' ? 'BRIDGE ACTIVE' : 'BRIDGE OFFLINE'}
-          </div>
-          <button 
-            onClick={saveToStudio}
-            disabled={isPublishing}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl font-black transition-all shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
-          >
-            <Save size={18} />
-            {isPublishing ? 'מפרסם...' : 'שמור ופרסם'}
+        <nav className="flex-1 space-y-2">
+          <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20">
+            <Layout size={20}/> בונה תזרים
           </button>
-        </div>
-      </nav>
+          <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-slate-400 font-bold hover:bg-slate-50 transition-all">
+            <Settings size={20}/> הגדרות AI
+          </button>
+        </nav>
 
-      <main className="max-w-7xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* DNA & Global Config */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="p-6 rounded-3xl border border-white/5 bg-[#0f172a] shadow-xl">
-            <div className="flex items-center gap-3 mb-6">
-              <Zap className="text-emerald-500" />
-              <h3 className="font-black text-lg text-white">DNA גלובלי</h3>
-            </div>
-            <textarea 
-              value={globalDNA}
-              onChange={(e) => setGlobalDNA(e.target.value)}
-              placeholder="הגדר את האישיות של ראמי..."
-              className="w-full h-64 p-4 rounded-2xl bg-[#020617] border border-white/5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-none text-right"
-            />
-            <div className="mt-4 flex items-start gap-2 text-[11px] opacity-40 italic">
-              <Info size={14} className="shrink-0 mt-0.5" />
-              הנחיות אלו יוזרקו לכל שיחה ויגדירו את סגנון הדיבור והחוקים הבסיסיים.
-            </div>
+        <button onClick={saveFlow} className="mt-auto bg-slate-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-xl">
+          <Save size={20}/> שמור תרשים
+        </button>
+      </aside>
+
+      {/* Main Builder Area */}
+      <main className="flex-1 p-12 bg-slate-50 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-12">
+          <div>
+            <h2 className="text-3xl font-black tracking-tight">בונה תזרים הודעות</h2>
+            <p className="text-slate-400 font-bold mt-1">נהל את חוכמת האפליקציה של סבן 94</p>
           </div>
-        </div>
-
-        {/* Flow Branches */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Layout className="text-emerald-500" />
-              <h3 className="font-black text-xl italic uppercase tracking-wider text-white">ענפי שיחה (Nodes)</h3>
-            </div>
-            <button onClick={addNode} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all font-bold text-xs">
-              <Plus size={16} /> הוסף ענף
+          <div className="flex gap-4">
+            <button className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-600"><Play size={20}/></button>
+            <button className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg flex items-center gap-2">
+              <Plus size={20}/> שלב חדש
             </button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <AnimatePresence>
-              {nodes.map((node, index) => (
-                <motion.div 
-                  key={node.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="group p-6 rounded-3xl border border-white/5 bg-[#0f172a] hover:border-emerald-500/30 transition-all"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-black text-xs">
-                        {index + 1}
-                      </div>
-                      <input 
-                        value={node.label}
-                        onChange={(e) => {
-                          const newNodes = [...nodes];
-                          newNodes[index].label = e.target.value;
-                          setNodes(newNodes);
-                        }}
-                        className="bg-transparent border-none outline-none font-black text-white text-lg w-full"
-                      />
-                    </div>
-                    <button 
-                      onClick={() => setNodes(nodes.filter(n => n.id !== node.id))}
-                      className="opacity-0 group-hover:opacity-100 p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] uppercase font-black opacity-30 mb-2 block tracking-widest text-white">הנחיית ביצוע (AI Instruction)</label>
-                      <textarea 
-                        value={node.prompt}
-                        onChange={(e) => {
-                          const newNodes = [...nodes];
-                          newNodes[index].prompt = e.target.value;
-                          setNodes(newNodes);
-                        }}
-                        className="w-full p-4 rounded-2xl bg-[#020617] border border-white/5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-none text-right"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+        {/* Canvas Placeholder */}
+        <div className="w-full h-[600px] bg-white rounded-[3rem] border-2 border-dashed border-slate-200 flex items-center justify-center">
+          <div className="text-center opacity-30">
+            <GitBranch size={64} className="mx-auto mb-4" />
+            <p className="font-black text-xl">גרור אלמנטים לכאן כדי לבנות סידור</p>
           </div>
         </div>
       </main>
-
-      {/* Preview Tooltip */}
-      <div className="fixed bottom-8 left-8">
-        <div className="w-72 bg-[#0f172a] border border-white/10 rounded-[2.5rem] p-1 shadow-2xl overflow-hidden">
-          <div className="p-4 border-b border-white/5 flex items-center gap-3">
-            <img src={BRAND_LOGO} className="w-10 h-10 rounded-full border border-white/10" alt="Rami" />
-            <div>
-              <h4 className="text-xs font-black text-white leading-none mb-1">תצוגה מקדימה</h4>
-              <p className="text-[9px] text-emerald-500 font-bold uppercase">AI Active</p>
-            </div>
-          </div>
-          <div className="p-4 text-[11px] opacity-50 italic">
-            כאן תוכל לראות איך ה-AI יפרש את ההנחיות שבנית בסטודיו...
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
