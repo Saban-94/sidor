@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -10,6 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
+  // --- הגנות בסיס - חוקי ראמי ---
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח." });
 
@@ -18,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון ויצירה אם חסר
+    // 1. שליפה ויצירת משתמש אם חסר
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     if (!memory) {
       const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
@@ -27,32 +31,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let history = memory?.accumulated_knowledge || "";
     if (cleanMsg === "הוסף הזמנה") history = "";
+    const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // המפתח: עדכון היסטוריה מקומי לפני הפנייה לבינה המלאכותית
-    const updatedHistory = history + `\nUser: ${cleanMsg}`;
-
-    // 2. בדיקת לקוח חוזר
-    let clientInsight = "";
-    if (updatedHistory.includes("שם לקוח?") && !updatedHistory.includes("כתובת?")) {
-        const { data: past } = await supabase.from('orders').select('location, client_info').ilike('client_info', `%${cleanMsg}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (past) clientInsight = `בוס, ${past.client_info} מוכר. פעם אחרונה: ${past.location}. לשם או כתובת חדשה?`;
-    }
-
-    // 3. Prompt עם הגנת לופים אגרסיבית
+    // 2. בניית ה-Prompt עם דגש על JSON קשיח להזרקה
     const prompt = `
-      אתה העוזר של ראמי. קצר (מילה-שתיים).
-      סדר עץ: 1. שם לקוח? -> 2. כתובת? -> 3. מחסן? -> 4. נהג?
+      זהות: העוזר של ראמי. קצר (מילה-שתיים).
+      סדר עץ: 1. לקוח? 2. כתובת? 3. מחסן? 4. נהג?
+      
+      היסטוריה: ${localUpdatedHistory}
 
-      היסטוריה מעודכנת:
-      ${updatedHistory}
-
-      חוקי מעבר שלב קשיחים:
-      - אם המשתמש כתב כתובת (זאב בלפר), עבור מיד ל-"מחסן?". אל תשאל "כתובת?" שוב!
-      - אם המשתמש כתב מחסן (החרש/התלמיד), ענה אך ורק: "נהג? (חכמת/עלי)".
-      - אם הכל הושלם, החזר JSON בסוף: {"complete": true, "client": "שם", "address": "כתובת", "branch": "מחסן", "driver": "נהג"}
+      חוק הזרקה (קריטי):
+      אם המשתמש נתן נהג (חכמת/עלי), ענה "הוזרק ללוח. 🚀" וחייב להוסיף JSON כזה:
+      DATA_START{"complete": true, "client": "שם הלקוח", "address": "הכתובת", "branch": "המחסן", "driver": "שם הנהג"}DATA_END
     `;
 
-    // 4. רוטציית מודלים
+    // 3. רוטציית מודלים
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -67,32 +60,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { continue; }
     }
 
-    // 5. הזרקה ללוח ואיפוס זיכרון
-    let finalReply = clientInsight || replyText;
-    if (replyText.includes('"complete": true')) {
-      const jsonMatch = replyText.match(/\{.*\}/s);
-      if (jsonMatch) {
-        const d = JSON.parse(jsonMatch[0]);
-        await supabase.from('orders').insert([{
-          client_info: d.client,
-          location: d.address,
-          source_branch: d.branch,
-          driver_name: d.driver,
-          order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-        }]);
-        finalReply = "הוזרק ללוח. 🚀";
-        await supabase.from('customer_memory').update({ accumulated_knowledge: "" }).eq('clientId', phone);
-      }
-    } else {
-      // שמירה קשיחה של הזיכרון
-      await supabase.from('customer_memory').update({ 
-        accumulated_knowledge: updatedHistory + `\nAssistant: ${finalReply}` 
-      }).eq('clientId', phone);
+    let finalReply = replyText;
+    let isComplete = false;
+
+    // 4. חילוץ נתונים והזרקה פיזית ללוח
+    if (replyText.includes('complete": true') || replyText.includes('DATA_START')) {
+      try {
+        const jsonMatch = replyText.match(/\{.*\}/s);
+        if (jsonMatch) {
+          const d = JSON.parse(jsonMatch[0]);
+          
+          // הזרקה לטבלת orders
+          const { error: insertError } = await supabase.from('orders').insert([{
+            client_info: d.client,
+            location: d.address,
+            source_branch: d.branch,
+            driver_name: d.driver,
+            order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+            delivery_date: new Date().toISOString().split('T')[0]
+          }]);
+
+          if (!insertError) {
+            finalReply = "הוזרק ללוח. 🚀";
+            isComplete = true;
+          }
+        }
+      } catch (e) { console.error("JSON Parse Error", e); }
     }
+
+    // 5. עדכון זיכרון (איפוס אם הוזרק, אחרת צבירה)
+    const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${finalReply}`;
+    await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
     return res.status(200).json({ reply: finalReply });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח עמוס. שוב?" });
+    return res.status(200).json({ reply: "בוס, תקלה בביצוע. נסה שוב." });
   }
 }
