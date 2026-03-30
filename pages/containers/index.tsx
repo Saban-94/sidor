@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head'; // תיקון הייבוא כאן
+import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Box, Truck, RefreshCcw, Trash2, Calendar, MapPin, 
-  User, Bot, Send, AlertTriangle, CheckCircle2, Clock 
+  Box, Truck, RefreshCcw, Trash2, MapPin, Bot, Send, Clock 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,35 +24,32 @@ export default function ContainerOS() {
   useEffect(() => {
     setMounted(true);
     fetchActiveSites();
-    
     const sub = supabase.channel('container_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'container_management' }, fetchActiveSites)
       .subscribe();
-      
     return () => { sub.unsubscribe(); };
   }, []);
 
+  // גלילה אוטומטית בכל פעם שהודעות משתנות
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages, loading]);
+
   const fetchActiveSites = async () => {
-    const { data } = await supabase
-      .from('container_management')
-      .select('*')
-      .eq('is_active', true)
-      .order('start_date', { ascending: true });
+    const { data } = await supabase.from('container_management').select('*').eq('is_active', true).order('start_date', { ascending: true });
     if (data) setSites(data);
   };
 
   const calculateDays = (startDate: string) => {
     if (!startDate) return 0;
-    const start = new Date(startDate);
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
+    return Math.floor((new Date().getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
   };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || loading) return;
-    
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -67,126 +63,102 @@ export default function ContainerOS() {
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-    } catch (err) {
-      console.error(err);
-    } finally { setLoading(false); }
+    } catch (err) { console.error(err); } finally { setLoading(true); setLoading(false); }
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col lg:flex-row overflow-hidden" dir="rtl">
-      <Head>
-        <title>SABAN | Container Control</title>
-      </Head>
+    <div className="fixed inset-0 bg-[#F8FAFC] font-sans flex flex-col lg:flex-row overflow-hidden selection:bg-emerald-100" dir="rtl">
+      <Head><title>SABAN | Container Control</title></Head>
 
-      {/* לוח ניהול אתרים */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scrollbar-hide">
-        <header className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-black tracking-tighter text-slate-900 italic uppercase">SABAN CONTAINER OS</h1>
-            <p className="text-sm text-slate-500 font-bold">פיקוח מלאי וזמני שכירות בזמן אמת</p>
+      {/* לוח ניהול אתרים (Scrollable Sidebar) */}
+      <aside className="w-full lg:w-[450px] bg-white border-l border-slate-200 flex flex-col shadow-2xl z-10 overflow-hidden shrink-0">
+        <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Truck size={24} className="text-emerald-400" />
+            <h2 className="font-black italic uppercase tracking-tighter">SABAN SITES</h2>
           </div>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-             <span className="text-[10px] font-black text-slate-400 uppercase block tracking-widest">אתרים פעילים</span>
-             <span className="text-2xl font-mono font-black text-emerald-600">{sites.length}</span>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20 lg:pb-0">
+          <div className="px-3 py-1 bg-emerald-500/20 rounded-full border border-emerald-500/30 text-[10px] font-black text-emerald-400 animate-pulse">LIVE</div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-slate-50">
           <AnimatePresence>
             {sites.map((site) => {
               const days = calculateDays(site.start_date);
               const isUrgent = days >= 9;
-              
               return (
-                <motion.div 
-                  key={site.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={`bg-white rounded-[2.5rem] border-2 p-6 shadow-xl transition-all ${isUrgent ? 'border-red-500 shadow-red-100' : 'border-transparent'}`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`p-3 rounded-2xl ${isUrgent ? 'bg-red-500 text-white animate-pulse' : 'bg-emerald-500/10 text-emerald-600'}`}>
-                      {site.action_type === 'PLACEMENT' ? <Box size={24}/> : <RefreshCcw size={24}/>}
+                <motion.div key={site.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }} 
+                  className={`bg-white p-5 rounded-3xl border-2 shadow-sm transition-all active:scale-[0.98] cursor-pointer touch-manipulation ${isUrgent ? 'border-red-500' : 'border-transparent'}`}>
+                  <div className="flex justify-between mb-3">
+                    <div className={`p-2 rounded-xl ${isUrgent ? 'bg-red-500 text-white' : 'bg-emerald-500 text-slate-900'}`}>
+                      {site.action_type === 'PLACEMENT' ? <Box size={18}/> : <RefreshCcw size={18}/>}
                     </div>
-                    <div className="text-left font-mono text-[10px] font-black opacity-30">ID: {site.id.slice(0,6)}</div>
+                    <span className="text-[10px] font-mono font-black opacity-20 italic uppercase">{site.contractor_name}</span>
                   </div>
-
-                  <div className="space-y-1 mb-6">
-                    <h3 className="text-xl font-black text-slate-900 leading-tight">{site.client_name}</h3>
-                    <div className="flex items-center gap-1 text-slate-500 font-bold text-sm">
-                      <MapPin size={14} className="text-emerald-500"/> {site.delivery_address}
+                  <h3 className="font-black text-slate-900 text-lg leading-tight">{site.client_name}</h3>
+                  <div className="flex items-center gap-1 text-slate-400 text-xs font-bold mt-1"><MapPin size={12}/> {site.delivery_address}</div>
+                  
+                  <div className="mt-4 flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${isUrgent ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} style={{ width: `${Math.min(days * 10, 100)}%` }} />
                     </div>
-                  </div>
-
-                  {/* פרוגרס בר 10 ימים */}
-                  <div className="space-y-2 mb-6">
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span className={isUrgent ? 'text-red-500' : 'text-slate-400'}>ימי שכירות: {days}/10</span>
-                      <span>{Math.min(Math.max(days * 10, 0), 100)}%</span>
-                    </div>
-                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min(days * 10, 100)}%` }}
-                        className={`h-full rounded-full ${isUrgent ? 'bg-red-500' : 'bg-emerald-500'}`}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-black opacity-40 uppercase tracking-tighter">קבלן אחראי</span>
-                      <span className="text-xs font-black text-slate-700">{site.contractor_name}</span>
-                    </div>
-                    <div className="flex gap-2">
-                       <button className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors"><Clock size={16}/></button>
-                       <button onClick={async () => await supabase.from('container_management').update({is_active: false}).eq('id', site.id)} className="p-2.5 bg-red-50 hover:bg-red-500 hover:text-white rounded-xl text-red-500 transition-all shadow-sm"><Trash2 size={16}/></button>
-                    </div>
+                    <span className={`text-[10px] font-black ${isUrgent ? 'text-red-500' : 'text-slate-400'}`}>{days}/10d</span>
                   </div>
                 </motion.div>
               );
             })}
           </AnimatePresence>
         </div>
-      </main>
-
-      {/* צ'אט פקודות */}
-      <aside className="w-full lg:w-[420px] bg-slate-900 flex flex-col border-r border-white/10 shadow-2xl z-30">
-        <div className="p-6 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20"><Bot size={20} className="text-slate-900"/></div>
-            <h2 className="text-white font-black italic uppercase tracking-tighter">Container Brain</h2>
-          </div>
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 scrollbar-hide">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[85%] p-4 rounded-3xl text-sm font-bold shadow-xl ${m.role === 'user' ? 'bg-white text-slate-900 rounded-tr-none' : 'bg-emerald-500 text-slate-900 rounded-tl-none'}`}>
-                {m.content}
-              </div>
-            </div>
-          ))}
-          {loading && <div className="text-[10px] font-black text-emerald-500 animate-pulse uppercase tracking-widest mr-2">המפקח מסנכרן נתונים...</div>}
-          <div ref={scrollRef} />
-        </div>
-
-        <form onSubmit={handleSend} className="p-6 bg-white/5 border-t border-white/10 flex gap-2">
-          <input 
-            value={input} 
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="פקודה חדשה (למשל: החלפה לאבי לוי)"
-            className="flex-1 bg-white/10 border border-white/5 p-4 rounded-2xl text-white text-sm outline-none focus:border-emerald-500 transition-all placeholder-white/20"
-          />
-          <button type="submit" className="bg-emerald-500 text-slate-900 w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-emerald-400 transition-all shadow-lg active:scale-95">
-            <Send size={20} className="transform rotate-180"/>
-          </button>
-        </form>
       </aside>
+
+      {/* צ'אט מרוכז (Main UI) */}
+      <div className="flex-1 flex flex-col relative h-full bg-[#F8FAFC]">
+        {/* Header קבוע */}
+        <header className="h-16 px-6 flex items-center justify-between bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-slate-900 rounded-xl"><Bot size={18} className="text-emerald-400"/></div>
+            <span className="font-black text-slate-900 text-sm tracking-widest uppercase italic">The Supervisor</span>
+          </div>
+        </header>
+
+        {/* גוף הצ'אט מרוכז */}
+        <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth scrollbar-hide">
+          <div className="max-w-2xl mx-auto space-y-6">
+            {messages.map((m, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] px-6 py-4 rounded-[2rem] text-sm font-bold shadow-sm transition-all ${
+                  m.role === 'user' 
+                  ? 'bg-slate-900 text-white rounded-tr-none' 
+                  : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none shadow-emerald-500/5'
+                }`}>
+                  {m.content}
+                </div>
+              </motion.div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">המפקח חושב...</div>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* Input קבוע בתחתית */}
+        <footer className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-200">
+          <form onSubmit={handleSend} className="max-w-2xl mx-auto relative flex items-center">
+            <input 
+              type="text" value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder="כתוב פקודה (למשל: הזמנה חדשה)"
+              className="w-full bg-slate-100 border-none rounded-full py-4 pr-6 pl-16 text-sm font-bold outline-none focus:ring-2 ring-emerald-500/20 transition-all placeholder-slate-400"
+            />
+            <button type="submit" className="absolute left-2 bg-slate-900 text-emerald-400 w-11 h-11 rounded-full flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all active:scale-90 touch-manipulation">
+              <Send size={18} className="transform rotate-180" />
+            </button>
+          </form>
+        </footer>
+      </div>
     </div>
   );
 }
