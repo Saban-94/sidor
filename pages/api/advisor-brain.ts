@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { phone, message, chatHistory } = req.body;
   const cleanMsg = message?.trim();
-const apiKey = process.env.GOOGLE_AI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   // --- הגנות בסיס ---
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (API Key missing)." });
