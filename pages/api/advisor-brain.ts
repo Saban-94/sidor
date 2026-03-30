@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (API Key missing)." });
 
   // --- Expert Core: Model Pool ---
-  const modelPool = ["gemini-3.1-flash-lite-preview","gemini-2.0-flash","gemini-1.5-flash"];
+  const modelPool = ["gemini-3.1-flash-lite-preview","gemini-2.0-flash";
   const genAI = new GoogleGenerativeAI(apiKey);
 
   try {
