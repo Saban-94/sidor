@@ -4,11 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, LayoutDashboard, Database, BrainCircuit, Users,
-  Menu, X, Plus, Edit2, Trash2, Search, Save, Phone, MapPin, Briefcase
+  Menu, X, Plus, Edit2, Trash2, Search, Save, Phone, MapPin, Briefcase, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function SabanAdminMaster() {
   const [mounted, setMounted] = useState(false);
@@ -18,54 +21,40 @@ export default function SabanAdminMaster() {
   const [memory, setMemory] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   
-  // State למודל עריכה
   const [isEditModal, setIsEditModal] = useState(false);
   const [editingRow, setEditingRow] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
     fetchData();
-  }, [activeTab]); // טעינה מחדש בכל החלפת טאב
+  }, [activeTab]);
 
-const fetchData = async () => {
-  // 1. שליפת הזמנות - רק עמודות של הזמנות
-  if (activeTab === 'ORDERS' || activeTab === 'DASHBOARD') {
-    const { data: ords, error } = await supabase
-      .from('orders')
-      .select('id, created_at, client_info, location, source_branch, driver_name, order_time, delivery_date')
-      .order('created_at', { ascending: false });
-    if (ords) setOrders(ords);
-  }
-
-  // 2. שליפת לקוחות - רק עמודות של לקוחות
-  if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
-    const { data: custs, error } = await supabase
-      .from('customers')
-      .select('id, customer_number, name, project_name, project_address, contact_person, phone')
-      .order('customer_number', { ascending: true });
-    if (custs) setCustomers(custs);
-  }
-
-  // 3. שליפת זיכרון - רק עמודות של זיכרון (כאן הייתה השגיאה!)
-  if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
-    const { data: mems, error } = await supabase
-      .from('customer_memory')
-      .select('id, clientId, accumulated_knowledge, last_update'); // בלי עמודות של לקוחות!
-    if (mems) setMemory(mems);
-  }
-};
+  const fetchData = async () => {
+    if (activeTab === 'ORDERS' || activeTab === 'DASHBOARD') {
+      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (data) setOrders(data);
+    }
+    if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
+      const { data } = await supabase.from('customers').select('*').order('customer_number', { ascending: true });
+      if (data) setCustomers(data);
+    }
+    if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
+      const { data } = await supabase.from('customer_memory').select('*');
+      if (data) setMemory(data);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const table = activeTab === 'CUSTOMERS' ? 'customers' : activeTab === 'ORDERS' ? 'orders' : 'customer_memory';
     
-    // מניעת שליחת שדות שלא קיימים בטבלה הספציפית
     const payload = { ...editingRow };
+    const rowId = payload.id;
     delete payload.id;
     delete payload.created_at;
 
-    const { error } = editingRow.id 
-      ? await supabase.from(table).update(payload).eq('id', editingRow.id)
+    const { error } = rowId 
+      ? await supabase.from(table).update(payload).eq('id', rowId)
       : await supabase.from(table).insert([payload]);
 
     if (!error) {
@@ -78,9 +67,13 @@ const fetchData = async () => {
 
   if (!mounted) return null;
 
+  const getFilteredData = () => {
+    const data = activeTab === 'CUSTOMERS' ? customers : activeTab === 'ORDERS' ? orders : memory;
+    return data.filter(i => JSON.stringify(i).includes(search));
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex" dir="rtl">
-      {/* Sidebar */}
       <aside className="w-72 bg-[#111827] text-white p-6 hidden lg:flex flex-col shadow-2xl">
         <div className="flex items-center gap-3 mb-10">
           <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg"><ShieldCheck size={24}/></div>
@@ -133,8 +126,7 @@ const fetchData = async () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(activeTab === 'CUSTOMERS' ? customers : activeTab === 'ORDERS' ? orders : memory)
-                    .filter(i => JSON.stringify(i).includes(search)).map((row) => (
+                  {getFilteredData().map((row: any) => (
                     <tr key={row.id} className="hover:bg-emerald-50/30 transition-colors group">
                       {activeTab === 'CUSTOMERS' ? (
                         <>
@@ -160,7 +152,6 @@ const fetchData = async () => {
         </main>
       </div>
 
-      {/* Edit Modal - עריכה ידנית */}
       <AnimatePresence>
         {isEditModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
@@ -172,14 +163,14 @@ const fetchData = async () => {
               <form onSubmit={handleSave} className="p-8 space-y-4">
                 {activeTab === 'CUSTOMERS' ? (
                   <>
-                    <InputItem label="שם לקוח" value={editingRow?.name || ''} onChange={(v)=>setEditingRow({...editingRow, name: v})} icon={<Users size={16}/>}/>
-                    <InputItem label="מספר לקוח" value={editingRow?.customer_number || ''} onChange={(v)=>setEditingRow({...editingRow, customer_number: v})} icon={<Database size={16}/>}/>
-                    <InputItem label="פרויקט" value={editingRow?.project_name || ''} onChange={(v)=>setEditingRow({...editingRow, project_name: v})} icon={<Briefcase size={16}/>}/>
-                    <InputItem label="כתובת" value={editingRow?.project_address || ''} onChange={(v)=>setEditingRow({...editingRow, project_address: v})} icon={<MapPin size={16}/>}/>
-                    <InputItem label="נייד" value={editingRow?.phone || ''} onChange={(v)=>setEditingRow({...editingRow, phone: v})} icon={<Phone size={16}/>}/>
+                    <InputItem label="שם לקוח" value={editingRow?.name || ''} onChange={(v: string)=>setEditingRow({...editingRow, name: v})} icon={<Users size={16}/>}/>
+                    <InputItem label="מספר לקוח" value={editingRow?.customer_number || ''} onChange={(v: string)=>setEditingRow({...editingRow, customer_number: v})} icon={<Database size={16}/>}/>
+                    <InputItem label="פרויקט" value={editingRow?.project_name || ''} onChange={(v: string)=>setEditingRow({...editingRow, project_name: v})} icon={<Briefcase size={16}/>}/>
+                    <InputItem label="כתובת" value={editingRow?.project_address || ''} onChange={(v: string)=>setEditingRow({...editingRow, project_address: v})} icon={<MapPin size={16}/>}/>
+                    <InputItem label="נייד" value={editingRow?.phone || ''} onChange={(v: string)=>setEditingRow({...editingRow, phone: v})} icon={<Phone size={16}/>}/>
                   </>
                 ) : (
-                  <InputItem label="תוכן" value={editingRow?.client_info || editingRow?.accumulated_knowledge || ''} onChange={(v)=>setEditingRow({...editingRow, client_info: v})} icon={<Sparkles size={16}/>}/>
+                  <InputItem label="תוכן" value={editingRow?.client_info || editingRow?.accumulated_knowledge || ''} onChange={(v: string)=>setEditingRow({...editingRow, client_info: v})} icon={<Sparkles size={16}/>}/>
                 )}
                 <div className="flex gap-4 pt-4">
                   <button type="submit" className="flex-1 bg-emerald-500 text-black py-5 rounded-[1.5rem] font-black shadow-xl shadow-emerald-500/20 active:scale-95 transition-transform"><Save size={20} className="inline ml-2"/> שמור שינויים</button>
