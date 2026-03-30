@@ -105,7 +105,7 @@ export default function SabanMasterOS() {
             <span className="text-3xl font-mono font-black tracking-tighter">
               {currentTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Logistic Control</span>
+            <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Logistic Control Center</span>
           </div>
           <div className="flex items-center gap-4">
              <div className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-full text-xs font-black animate-pulse border border-emerald-500/20">LIVE SERVER ACTIVE</div>
@@ -114,7 +114,7 @@ export default function SabanMasterOS() {
 
         <section className="flex-1 overflow-hidden p-6">
           {view === 'CHAT' && (
-            <div className="h-full max-w-4xl mx-auto flex flex-col bg-black/10 rounded-[3rem] border border-white/5 overflow-hidden">
+            <div className="h-full max-w-4xl mx-auto flex flex-col bg-black/10 rounded-[3rem] border border-white/5 overflow-hidden shadow-inner">
                <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-hide">
                   {messages.map((m, i) => (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
@@ -124,9 +124,9 @@ export default function SabanMasterOS() {
                     </motion.div>
                   ))}
                </div>
-               <form onSubmit={handleSendMessage} className="p-6 bg-black/20 flex gap-3">
+               <form onSubmit={handleSendMessage} className="p-6 bg-black/20 flex gap-3 border-t border-white/5">
                   <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="כתוב פקודה למוח..." className="flex-1 bg-white/5 border border-white/10 p-4 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
-                  <button type="submit" className="bg-emerald-500 text-black p-4 rounded-2xl hover:bg-emerald-400 transition-all"><Send size={20}/></button>
+                  <button type="submit" className="bg-emerald-500 text-black p-4 rounded-2xl hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"><Send size={20}/></button>
                </form>
             </div>
           )}
@@ -139,7 +139,7 @@ export default function SabanMasterOS() {
                     <div className="w-16 h-16 rounded-full border-2 border-emerald-500 p-1 bg-slate-800">
                       <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver === 'עלי' ? 'Ali' : 'Hachmat'}`} className="w-full h-full rounded-full" alt={driver} />
                     </div>
-                    <h2 className="text-2xl font-black italic tracking-tighter">{driver.toUpperCase()}</h2>
+                    <h2 className="text-2xl font-black italic tracking-tighter uppercase">{driver}</h2>
                   </div>
                   <div className="flex-1 p-6 space-y-2">
                     {TIME_SLOTS.map(slot => {
@@ -150,7 +150,9 @@ export default function SabanMasterOS() {
                           {order ? (
                             <div className="flex-1 flex items-center justify-between">
                               <span className="font-black text-sm">{order.client_info}</span>
-                              <span className="text-[10px] opacity-60"><MapPin size={10} className="inline ml-1"/>{order.location}</span>
+                              <div className="flex flex-col items-end">
+                                <span className="text-[10px] opacity-60 font-bold"><MapPin size={10} className="inline ml-1"/>{order.location}</span>
+                              </div>
                             </div>
                           ) : <div className="flex-1 border-t border-dashed border-white/10"></div>}
                         </div>
