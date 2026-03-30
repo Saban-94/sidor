@@ -19,9 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // רשימת המודלים להתאמה
   const modelPool = [
-    "gemini-3.1-flash-lite-preview", // המעודכן ביותר ל-3.1 lite
-    "gemini-2.0-flash", 
-    "gemini-1.5-flash"
+    "gemini-3.1-flash-live-preview", // המעודכן ביותר ל-3.1 lite
   ];
 
   try {
