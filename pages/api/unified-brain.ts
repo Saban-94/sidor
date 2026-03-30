@@ -32,6 +32,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       מסלול ב' (מכולה): לקוח -> כתובת -> פעולה -> מחסן (שארק/כראדי) -> תאריך -> שעה.
       JSON סופי: {"type": "CONTAINER", "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "מחסן", "date": "YYYY-MM-DD", "time": "HH:mm"}
 
+       מסלול ג' (העברה בין סניפים):
+      זיהוי: מילים כמו "העברה", "מסניף לסניף", "מהחרש לתלמיד".
+      עץ שאלות: מאיזה סניף? -> לאיזה סניף? -> איזה חומר/ציוד? -> תאריך ושעה -> נהג (עלי בלבד).
+      
+      חוק הזרקה למסלול ג':
+      ב-JSON הסופי, שדה ה-client יהיה "העברה: [סניף מקבל]", וה-address יהיה שם הסניף.
+      JSON: {"type": "ORDER", "client": "העברה: התלמיד", "address": "סניף התלמיד", "driver": "עלי", "time": "HH:mm", "date": "YYYY-MM-DD"}
       היסטוריה: ${localUpdatedHistory}
       חוק: רק בסיום ענה "בוצע 🚀" + JSON בתוך DATA_START ו-DATA_END.
     `;
