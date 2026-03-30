@@ -18,12 +18,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API." });
 
   // רשימת המודלים להתאמה
-  const modelPool = [
-    "gemini-3.1-flash-live-preview",
-    "gemini-3.1-flash-image-preview",  
-    "gemini-3.1-pro-preview",  
-  ];
-
+const modelPool = [
+  "gemini-3.1-flash-lite-preview", // 1. המהיר והחדש ביותר (מרץ 2026)
+  "gemini-3.1-pro-preview",       // 2. הגיבוי החזק למשימות מורכבות
+  "gemini-1.5-flash"              // 3. הגיבוי היציב והותיק (נשאר GA)
+];
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
