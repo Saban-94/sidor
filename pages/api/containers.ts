@@ -12,7 +12,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
-
+  const modelPool = [
+  "gemini-2.0-flash", 
+  "gemini-2.0-flash-lite-preview-02-05", 
+  "gemini-1.5-flash"
+  ];
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
