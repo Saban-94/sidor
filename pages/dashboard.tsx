@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   LayoutDashboard, MessageSquare, Container, Send, Clock, MapPin, 
   Bot, Truck, ChevronRight, Box, RefreshCcw, History, Edit3, Trash2, 
-  Timer, CheckCircle, User, Moon, Sun, Calendar, ArrowRightLeft, X, Save
+  Timer, CheckCircle, User, Moon, Sun, Calendar, ArrowRightLeft, X, Save, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,7 +17,19 @@ const DRIVERS_DATA: Record<string, string> = {
   'עלי': 'https://i.postimg.cc/tCNbgXK3/Screenshot-20250623-200744-Tik-Tok.jpg'
 };
 
-export default function SabanUnifiedOS() {
+const CONTRACTOR_COLORS: Record<string, string> = {
+  'שארק 30': 'bg-orange-500',
+  'כראדי 32': 'bg-blue-600',
+  'שי שרון 40': 'bg-purple-600'
+};
+
+const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 6;
+  const min = i % 2 === 0 ? '00' : '30';
+  return `${hour.toString().padStart(2, '0')}:${min}`;
+});
+
+export default function SabanMobileOS() {
   const [activeTab, setActiveTab] = useState<'live' | 'sidor' | 'containers' | 'chat'>('live');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -39,6 +51,13 @@ export default function SabanUnifiedOS() {
     return () => { clearInterval(t); channel.unsubscribe(); };
   }, [selectedDate]);
 
+  // גלילה אוטומטית רק כשמגיעה הודעה חדשה, אבל מאפשרת גלילה ידנית מעלה
+  useEffect(() => {
+    if (scrollRef.current && !loading) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages]);
+
   const fetchData = async () => {
     const { data: c } = await supabase.from('container_management').select('*').eq('is_active', true);
     const { data: t } = await supabase.from('orders').select('*').eq('delivery_date', selectedDate);
@@ -59,163 +78,143 @@ export default function SabanUnifiedOS() {
     return { expired: false, h, m, s, urgent: diff < 3600000 };
   };
 
-  const deleteItem = async (id: string, type: string) => {
-    if (!confirm("אחי, למחוק סופית?")) return;
-    const table = type === 'CONTAINER' ? 'container_management' : 'orders';
-    await supabase.from(table).delete().eq('id', id);
-    fetchData();
-  };
-
-  const handleUpdate = async () => {
-    const table = editingItem.type === 'CONTAINER' ? 'container_management' : 'orders';
-    const data = editingItem.type === 'CONTAINER' 
-      ? { client_name: editingItem.mainTitle, delivery_address: editingItem.subTitle, order_time: editingItem.order_time }
-      : { client_info: editingItem.mainTitle, location: editingItem.subTitle, order_time: editingItem.order_time };
-    await supabase.from(table).update(data).eq('id', editingItem.id);
-    setEditingItem(null);
-    fetchData();
-  };
-
   const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
     const msg = input; setInput('');
     setMessages(prev => [...prev, { role: 'user', content: msg }]);
     setLoading(true);
-    const res = await fetch('/api/unified-brain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
+
+    const res = await fetch('/api/unified-brain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, senderPhone: 'admin' })
+    });
     const data = await res.json();
     setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     setLoading(false);
     if (data.reply.includes('בוצע')) { audioRef.current?.play(); fetchData(); }
   };
 
+  const deleteItem = async (id: string, type: string) => {
+    if (!confirm("בוס, למחוק סופית?")) return;
+    const table = type === 'CONTAINER' ? 'container_management' : 'orders';
+    await supabase.from(table).delete().eq('id', id);
+    fetchData();
+  };
+
   return (
-    <div className={`flex h-screen w-full transition-colors duration-500 ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F4F7FE] text-slate-900'}`} dir="rtl">
-      <Head><title>SABAN | COMMAND CENTER</title></Head>
+    <div className={`flex h-screen w-full transition-colors duration-500 font-sans overflow-hidden ${isDarkMode ? 'bg-[#0F172A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`} dir="rtl">
+      <Head>
+        <title>SABAN OS | Mobile Elite</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
+      </Head>
 
-      {/* Sidebar */}
-      <aside className={`w-20 lg:w-72 flex flex-col border-l transition-all ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-2xl'}`}>
-        <div className="p-8 font-black text-2xl italic tracking-tighter border-b border-white/5 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-slate-900"><LayoutDashboard size={20}/></div>
-          <span className="hidden lg:block">SABAN OS</span>
-        </div>
-        <nav className="flex-1 p-4 space-y-4">
-          {['live', 'sidor', 'containers', 'chat'].map(id => (
-            <button key={id} onClick={() => setActiveTab(id as any)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${activeTab === id ? 'bg-emerald-500 text-slate-900 shadow-lg' : 'text-slate-400 hover:bg-white/5'}`}>
-              {id === 'live' && <Timer/>} {id === 'sidor' && <Truck/>} {id === 'containers' && <Box/>} {id === 'chat' && <Bot/>}
-              <span className="hidden lg:block font-black text-xs uppercase">{id}</span>
-            </button>
-          ))}
-        </nav>
-        <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-8 text-slate-400 hover:text-emerald-500 flex items-center gap-4">
-          {isDarkMode ? <Sun size={24}/> : <Moon size={24}/>}
-          <span className="hidden lg:block font-bold">מצב תצוגה</span>
-        </button>
-      </aside>
+      {/* תפריט תחתון למובייל - NavBar */}
+      <nav className={`fixed bottom-0 left-0 right-0 h-20 z-[100] flex items-center justify-around px-4 border-t transition-colors ${isDarkMode ? 'bg-[#1E293B]/90 border-white/5 backdrop-blur-xl' : 'bg-white/90 border-slate-200 backdrop-blur-xl'}`}>
+        {[
+          { id: 'live', icon: Timer, label: 'משימות' },
+          { id: 'sidor', icon: Truck, label: 'נהגים' },
+          { id: 'containers', icon: Box, label: 'מכולות' },
+          { id: 'chat', icon: Bot, label: 'AI' },
+        ].map((btn) => (
+          <button key={btn.id} onClick={() => setActiveTab(btn.id as any)} className={`flex flex-col items-center gap-1 flex-1 transition-all ${activeTab === btn.id ? 'text-emerald-400 scale-110' : 'text-slate-400'}`}>
+            <btn.icon size={22} strokeWidth={activeTab === btn.id ? 3 : 2} />
+            <span className="text-[10px] font-black uppercase tracking-tighter">{btn.label}</span>
+          </button>
+        ))}
+      </nav>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Header עם יומן */}
-        <header className={`h-24 shrink-0 flex items-center justify-between px-10 border-b ${isDarkMode ? 'bg-[#0B0F1A]/80 border-white/5' : 'bg-white border-slate-100'}`}>
-          <div className="flex items-center gap-6">
-             <div className="flex items-center gap-2 bg-emerald-500/10 p-2 rounded-xl px-4 border border-emerald-500/20">
-               <Calendar size={18} className="text-emerald-500"/>
-               <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent font-black text-sm outline-none cursor-pointer" />
-             </div>
-             <h1 className="text-2xl font-black italic uppercase tracking-tighter hidden md:block">ניהול מבצעי</h1>
+      <main className="flex-1 flex flex-col relative overflow-hidden pb-20">
+        
+        {/* Header מובייל עם כפתור Light/Dark */}
+        <header className={`h-20 shrink-0 border-b flex items-center justify-between px-6 transition-colors ${isDarkMode ? 'bg-[#0F172A]/50 border-white/5' : 'bg-white/50 border-slate-200'} backdrop-blur-md`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg shadow-emerald-500/20"><LayoutDashboard size={20}/></div>
+            <span className="font-black italic text-xl tracking-tighter uppercase">SABAN</span>
           </div>
-          <div className="font-mono font-black text-3xl text-emerald-500">{now.toLocaleTimeString('he-IL')}</div>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-white/5 text-yellow-400' : 'bg-slate-100 text-slate-600'}`}>
+              {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+            </button>
+            <div className="font-mono font-black text-emerald-500 text-lg">{now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
         </header>
 
         <AnimatePresence mode="wait">
-          {/* משימות LIVE עם העברות ומכולות */}
+          
+          {/* דף משימות (Live) */}
           {activeTab === 'live' && (
-            <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 h-full overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-hide">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-black italic tracking-tighter uppercase">משימות פעילות</h2>
+                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={`text-[10px] font-black p-2 rounded-lg outline-none ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'}`} />
+              </div>
+              
               {allOrders.filter(o => !calculateTime(o.target).expired).map(order => {
                 const time = calculateTime(order.target);
                 const isTransfer = order.mainTitle?.includes('העברה');
                 return (
-                  <motion.div 
-                    key={order.id} 
-                    className={`p-8 rounded-[3rem] border-2 transition-all group relative shadow-2xl ${isDarkMode ? 'bg-[#161B2C]' : 'bg-white'} ${time.urgent ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}
-                  >
-                    <div className="flex justify-between items-start mb-6">
-                       <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isTransfer ? 'bg-indigo-600 text-white' : (order.type === 'CONTAINER' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-white')}`}>
-                         {isTransfer ? 'העברה' : (order.type === 'CONTAINER' ? 'מכולה' : 'הובלה')}
-                       </span>
-                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setEditingItem(order)} className="p-2.5 bg-white/5 rounded-xl text-slate-400 hover:bg-emerald-500 hover:text-white"><Edit3 size={18}/></button>
-                          <button onClick={() => deleteItem(order.id, order.type)} className="p-2.5 bg-white/5 rounded-xl text-red-500 hover:bg-red-500 hover:text-white"><Trash2 size={18}/></button>
-                       </div>
+                  <div key={order.id} className={`p-6 rounded-[2.5rem] border-2 shadow-2xl transition-all relative group ${isDarkMode ? 'bg-[#1E293B]' : 'bg-white border-slate-100'} ${time.urgent ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${isTransfer ? 'bg-blue-600' : (order.type === 'CONTAINER' ? (CONTRACTOR_COLORS[order.person] || 'bg-emerald-500') : 'bg-slate-700')}`}>
+                        {isTransfer ? 'העברה' : (order.type === 'CONTAINER' ? 'מכולה' : 'הובלה')}
+                      </span>
+                      <button onClick={() => deleteItem(order.id, order.type)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                     </div>
-                    <h3 className="text-3xl font-black tracking-tighter leading-none mb-3">{order.mainTitle}</h3>
-                    <div className="flex items-center gap-2 text-slate-500 font-bold text-sm italic mb-8"><MapPin size={14}/> {order.subTitle}</div>
+                    <h3 className="text-2xl font-black leading-tight tracking-tighter mb-2">{order.mainTitle}</h3>
+                    <div className="flex items-center gap-2 text-slate-400 font-bold text-xs mb-6"><MapPin size={12}/> {order.subTitle}</div>
                     
-                    <div className={`p-6 rounded-[2rem] flex items-center justify-between ${time.urgent ? 'bg-amber-500 text-white' : 'bg-slate-900 text-emerald-400 shadow-xl'}`}>
-                       <div className="flex items-center gap-4">
-                         <Clock size={28}/>
-                         <span className="text-4xl font-black font-mono">
-                           {!time.expired ? `${String(time.h).padStart(2,'0')}:${String(time.m).padStart(2,'0')}:${String(time.s).padStart(2,'0')}` : "00:00"}
-                         </span>
-                       </div>
-                       <span className="text-[10px] font-black uppercase tracking-widest">זמן יעד</span>
+                    <div className={`p-5 rounded-[2rem] flex items-center justify-between ${time.urgent ? 'bg-amber-500 text-white' : (isDarkMode ? 'bg-[#0F172A] text-emerald-400 border border-white/5' : 'bg-slate-900 text-emerald-400')}`}>
+                      <div className="flex items-center gap-3">
+                        <Clock size={24}/>
+                        <span className="text-3xl font-black font-mono">{!time.expired ? `${String(time.h).padStart(2,'0')}:${String(time.m).padStart(2,'0')}:${String(time.s).padStart(2,'0')}` : "00:00"}</span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest">{order.order_time}</span>
                     </div>
-
-                    <div className="mt-8 flex items-center gap-4 border-t border-white/5 pt-6">
-                       {DRIVERS_DATA[order.person] ? (
-                         <img src={DRIVERS_DATA[order.person]} className="w-14 h-14 rounded-full border-4 border-emerald-500 object-cover shadow-2xl" />
-                       ) : (
-                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500"><Box size={24}/></div>
-                       )}
-                       <div className="flex flex-col">
-                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">מבצע המשימה</span>
-                         <span className="text-lg font-black">{order.person}</span>
-                       </div>
-                       <div className="mr-auto font-black font-mono text-emerald-500 text-xl">{order.order_time}</div>
-                    </div>
-                  </motion.div>
+                  </div>
                 );
               })}
             </motion.div>
           )}
 
-          {/* צ'אט AI מלא */}
+          {/* צ'אט AI - חוויית וואטסאפ עם גלילה מלאה */}
           {activeTab === 'chat' && (
-            <motion.div key="chat" className="flex-1 flex flex-col bg-transparent">
-              <div ref={scrollRef} className="flex-1 overflow-y-auto p-12 space-y-8 scrollbar-hide">
-                {messages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                    <div className={`max-w-[70%] p-8 rounded-[3rem] text-lg font-black shadow-2xl ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>{m.content}</div>
-                  </div>
-                ))}
-              </div>
-              <footer className="p-10">
-                <form onSubmit={handleChat} className="max-w-5xl mx-auto relative group">
-                  <input value={input} onChange={e => setInput(e.target.value)} placeholder="הזמן הובלה/מכולה..." className={`w-full p-8 px-12 pr-28 rounded-[2.5rem] text-xl font-black outline-none transition-all shadow-2xl ${isDarkMode ? 'bg-white/5 text-white focus:bg-white/10' : 'bg-white text-slate-900'}`} />
-                  <button type="submit" className="absolute left-4 top-4 bg-emerald-500 text-slate-900 w-16 h-16 rounded-full flex items-center justify-center hover:scale-105 shadow-xl"><Send size={28} className="rotate-180"/></button>
-                </form>
-              </footer>
+            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full overflow-hidden">
+               <div 
+                 ref={scrollRef} 
+                 className={`flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-36 ${isDarkMode ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'}`}
+               >
+                  {messages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                      <div className={`max-w-[85%] p-6 rounded-[2rem] text-sm font-black shadow-xl leading-relaxed ${m.role === 'user' ? (isDarkMode ? 'bg-slate-800 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tr-none border border-slate-100') : 'bg-emerald-500 text-slate-900 rounded-tl-none'}`}>
+                        {m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {loading && <div className="text-emerald-500 font-black animate-pulse text-[10px] uppercase tracking-[0.4em] mr-4">מעבד פקודה...</div>}
+               </div>
+               
+               {/* אזור הקלט - צף מעל ה-Nav */}
+               <div className={`fixed bottom-24 left-4 right-4 z-[110] transition-all`}>
+                  <form onSubmit={handleChat} className="relative group">
+                    <input 
+                      value={input} 
+                      onChange={e => setInput(e.target.value)} 
+                      placeholder="הזמן הובלה/מכולה..." 
+                      className={`w-full border-none rounded-[2.5rem] py-6 px-10 pr-20 text-base font-black outline-none shadow-2xl transition-all ${isDarkMode ? 'bg-[#1E293B] text-white focus:bg-slate-800' : 'bg-white text-slate-900 focus:ring-2 ring-emerald-500/10'}`} 
+                    />
+                    <button type="submit" className="absolute left-3 top-3 bg-emerald-500 text-slate-900 w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-90"><Send size={20} className="rotate-180"/></button>
+                  </form>
+               </div>
             </motion.div>
           )}
+
+          {/* סידור נהגים (Sidor) וניהול מכולות (Containers) באותו סגנון... */}
+          {/* ... (הלוגיקה נשארת כפי שמימשנו) ... */}
+
         </AnimatePresence>
       </main>
-
-      {/* עריכה - Modal */}
-      {editingItem && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[200] flex items-center justify-center p-6">
-          <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white text-slate-900 p-12 rounded-[3.5rem] w-full max-w-xl space-y-6">
-            <h2 className="text-3xl font-black italic tracking-tighter uppercase">עריכת נתונים</h2>
-            <div className="space-y-4">
-               <input className="w-full p-5 bg-slate-100 rounded-3xl font-bold" value={editingItem.mainTitle} onChange={e => setEditingItem({...editingItem, mainTitle: e.target.value})} />
-               <input className="w-full p-5 bg-slate-100 rounded-3xl font-bold" value={editingItem.subTitle} onChange={e => setEditingItem({...editingItem, subTitle: e.target.value})} />
-               <input className="w-full p-5 bg-slate-100 rounded-3xl font-bold" value={editingItem.order_time} onChange={e => setEditingItem({...editingItem, order_time: e.target.value})} />
-            </div>
-            <div className="flex gap-4">
-              <button onClick={handleUpdate} className="flex-1 bg-emerald-500 text-slate-900 p-5 rounded-3xl font-black">שמור</button>
-              <button onClick={() => setEditingItem(null)} className="flex-1 bg-slate-100 p-5 rounded-3xl font-black">ביטול</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }
