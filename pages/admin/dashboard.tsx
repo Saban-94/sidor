@@ -27,20 +27,33 @@ export default function SabanAdminMaster() {
     fetchData();
   }, [activeTab]); // טעינה מחדש בכל החלפת טאב
 
-  const fetchData = async () => {
-    if (activeTab === 'ORDERS' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (data) setOrders(data);
-    }
-    if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('customers').select('*').order('customer_number', { ascending: true });
-      if (data) setCustomers(data);
-    }
-    if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('customer_memory').select('*');
-      if (data) setMemory(data);
-    }
-  };
+const fetchData = async () => {
+  // 1. שליפת הזמנות - רק עמודות של הזמנות
+  if (activeTab === 'ORDERS' || activeTab === 'DASHBOARD') {
+    const { data: ords, error } = await supabase
+      .from('orders')
+      .select('id, created_at, client_info, location, source_branch, driver_name, order_time, delivery_date')
+      .order('created_at', { ascending: false });
+    if (ords) setOrders(ords);
+  }
+
+  // 2. שליפת לקוחות - רק עמודות של לקוחות
+  if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
+    const { data: custs, error } = await supabase
+      .from('customers')
+      .select('id, customer_number, name, project_name, project_address, contact_person, phone')
+      .order('customer_number', { ascending: true });
+    if (custs) setCustomers(custs);
+  }
+
+  // 3. שליפת זיכרון - רק עמודות של זיכרון (כאן הייתה השגיאה!)
+  if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
+    const { data: mems, error } = await supabase
+      .from('customer_memory')
+      .select('id, clientId, accumulated_knowledge, last_update'); // בלי עמודות של לקוחות!
+    if (mems) setMemory(mems);
+  }
+};
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
