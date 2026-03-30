@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Send, Bot, User, CornerDownLeft, Sparkles, MapPin, 
-  Trash2, Truck, MessageSquare, Eye, Sun, Moon, X 
+  Trash2, Truck, MessageSquare, Eye, Sun, Moon, X, ShieldCheck 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,7 +26,6 @@ type Message = { id: string; role: 'user' | 'assistant'; content: string; time: 
 
 export default function MagicChat() {
   const router = useRouter();
-  // תיקון שגיאת ה-Type: חילוץ הטלפון בצורה בטוחה מ-query
   const phone = router.query.phone as string;
 
   const [mounted, setMounted] = useState(false);
@@ -36,7 +35,6 @@ export default function MagicChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -113,11 +111,11 @@ export default function MagicChat() {
     if (!order) return null;
     
     return (
-      <motion.div initial={{opacity:0, scale: 0.9}} animate={{opacity:1, scale: 1}} className="group relative bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+      <motion.div initial={{opacity:0, scale: 0.9}} animate={{opacity:1, scale: 1}} className="group relative bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl shadow-sm">
         <div className="flex justify-between items-center">
           <div className="flex-1 truncate">
-            <div className="font-black text-[11px] text-emerald-500 truncate">{order.client_info}</div>
-            <div className="text-[9px] opacity-60 truncate">{order.location}</div>
+            <div className="font-black text-[11px] text-emerald-500 truncate leading-tight">{order.client_info}</div>
+            <div className="text-[9px] opacity-60 truncate leading-tight">{order.location}</div>
           </div>
           <button onClick={() => deleteOrder(order.id)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-500/10 rounded-md transition-all">
             <Trash2 size={12}/>
@@ -132,10 +130,10 @@ export default function MagicChat() {
   return (
     <div className={`h-screen font-sans overflow-hidden transition-all duration-500 ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`} dir="rtl">
       
-      {/* Sidebar Navigation */}
+      {/* Sidebar */}
       <aside className={`fixed top-0 right-0 h-screen w-72 z-50 p-6 flex flex-col gap-8 border-l ${isDarkMode ? 'bg-[#111827] border-white/5 shadow-2xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg"><ShieldCheck size={24}/></div>
+          <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg shadow-emerald-500/20"><ShieldCheck size={24}/></div>
           <h1 className="font-black text-xl italic tracking-tighter">SABAN OS</h1>
         </div>
 
@@ -146,9 +144,6 @@ export default function MagicChat() {
         </nav>
 
         <div className="flex flex-col gap-3 pt-6 border-t border-white/5">
-          <button onClick={() => setIsOrderModalOpen(true)} className="w-full bg-emerald-500 text-black p-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20">
-            <PlusCircle size={20}/> הזמנה ידנית
-          </button>
           <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-3 rounded-xl flex items-center justify-center gap-2 border transition-colors ${isDarkMode ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'}`}>
             {isDarkMode ? <><Sun size={18} className="text-orange-400"/> יום</> : <><Moon size={18}/> לילה</>}
           </button>
@@ -159,20 +154,20 @@ export default function MagicChat() {
       <main className="h-full mr-72 flex flex-col relative transition-all">
         <header className={`h-20 flex items-center justify-between px-10 border-b ${isDarkMode ? 'bg-[#111827]/50 backdrop-blur-md border-white/5' : 'bg-white/80 backdrop-blur-md border-slate-200'}`}>
           <div className="flex flex-col">
-            <span className="text-3xl font-mono font-black tracking-tighter">
+            <span className="text-3xl font-mono font-black tracking-tighter uppercase">
               {currentTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Logistic Control</span>
+            <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Saban Mission Control</span>
           </div>
           <div className="flex items-center gap-4">
-             <div className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-full text-xs font-black border border-emerald-500/20">LIVE SERVER</div>
+             <div className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-full text-[10px] font-black border border-emerald-500/20 uppercase">Realtime Engine On</div>
           </div>
         </header>
 
         <section className="flex-1 overflow-hidden p-6">
           {view === 'CHAT' ? (
             <div className="h-full max-w-4xl mx-auto flex flex-col bg-black/10 rounded-[3rem] border border-white/5 overflow-hidden">
-               <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-hide">
+               <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-hide text-right">
                   {messages.map((m) => (
                     <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                       <div className={`max-w-[80%] p-4 rounded-3xl text-sm font-bold shadow-lg ${m.role === 'user' ? 'bg-emerald-500 text-black' : 'bg-[#1E293B] text-white border border-white/10'}`}>
@@ -180,11 +175,11 @@ export default function MagicChat() {
                       </div>
                     </div>
                   ))}
-                  {loading && <div className="text-xs font-bold animate-pulse opacity-50">המוח חושב...</div>}
+                  {loading && <div className="text-[10px] font-black animate-pulse opacity-50 text-emerald-500">המוח מעבד פקודה...</div>}
                </div>
                <form onSubmit={handleSendMessage} className="p-6 bg-black/20 flex gap-3 border-t border-white/5">
-                  <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="כתוב פקודה למוח..." className="flex-1 bg-white/5 border border-white/10 p-4 rounded-2xl outline-none focus:border-emerald-500 transition-all text-white" />
-                  <button type="submit" className="bg-emerald-500 text-black p-4 rounded-2xl hover:bg-emerald-400 transition-all"><Send size={20}/></button>
+                  <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="כתוב פקודה למוח..." className="flex-1 bg-white/5 border border-white/10 p-4 rounded-2xl outline-none focus:border-emerald-500 transition-all text-white placeholder-white/20 shadow-inner" />
+                  <button type="submit" className="bg-emerald-500 text-black p-4 rounded-2xl hover:bg-emerald-400 transition-all shadow-lg active:scale-95 disabled:opacity-50" disabled={loading}><Send size={20}/></button>
                </form>
             </div>
           ) : (
@@ -192,12 +187,15 @@ export default function MagicChat() {
               {['חכמת', 'עלי'].map(driver => (
                 <div key={driver} className={`flex flex-col rounded-[3.5rem] border shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200'}`}>
                   <div className="p-6 bg-white/5 flex items-center gap-4 border-b border-white/5">
+                    <div className="w-12 h-12 rounded-full border-2 border-emerald-500 p-1 bg-slate-800 flex items-center justify-center">
+                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver === 'עלי' ? 'Ali' : 'Hachmat'}`} className="w-full h-full rounded-full" alt={driver} />
+                    </div>
                     <h2 className="text-2xl font-black italic tracking-tighter uppercase">{driver}</h2>
                   </div>
                   <div className="flex-1 p-6 space-y-2">
                     {TIME_SLOTS.map(slot => (
-                      <div key={slot} className="flex items-center gap-4 p-2 rounded-2xl border border-transparent hover:border-white/5 transition-all">
-                        <span className="w-12 font-mono font-black text-xs opacity-30">{slot}</span>
+                      <div key={slot} className="flex items-center gap-4 p-2 rounded-2xl border border-transparent hover:bg-white/5 transition-all group">
+                        <span className="w-12 font-mono font-black text-xs opacity-20 group-hover:opacity-100 transition-opacity">{slot}</span>
                         <div className="flex-1">
                           {renderOrderInSlot(driver, slot)}
                         </div>
