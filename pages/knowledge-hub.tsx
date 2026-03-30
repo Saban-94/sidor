@@ -29,12 +29,135 @@ export default function SabanKnowledgePWA() {
   const [now, setNow] = useState(new Date());
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // --- פונקציות לוגיות ---
   const fetchKnowledge = async () => {
-    setLoading(true);
     const { data } = await supabase.from('knowledge_base').select('*').order('created_at', { ascending: false });
+    if (data) setKnowledge(data);
+  };
+
+  useEffect(() => {
+    fetchKnowledge();
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const calculateQuality = (q: string, a: string) => {
+    if (!q || !a) return 0;
+    const qLen = q.trim().split(/\s+/).length;
+    const aLen = a.trim().split(/\s+/).length;
+    let score = 0;
+    if (qLen >= 3) score += 30;
+    if (aLen >= 5) score += 40;
+    if (/[?]|איך|כמה|מתי/.test(q)) score += 30;
+    return Math.min(score, 100);
+  };
+
+  const handleSave = async () => {
+    if (!newQA.question || !newQA.answer) return;
+    setLoading(true);
+    const { error } = await supabase.from('knowledge_base').insert([newQA]);
+    if (!error) {
+      setNewQA({ category: 'חומרי בניין', question: '', answer: '' });
+      setActiveView('hub');
+      fetchKnowledge();
+    }
+    setLoading(false);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingItem) return;
+    const { error } = await supabase.from('knowledge_base').update({
+      category: editingItem.category,
+      question: editingItem.question,
+      answer: editingItem.answer
+    }).eq('id', editingItem.id);
+    if (!error) {
+      setEditingItem(null);
+      fetchKnowledge();
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    if (!confirm("בוס, למחוק סופית מהמאגר?")) return;
+    await supabase.from('knowledge_base').delete().eq('id', id);
+    fetchKnowledge();
+  };
+
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+    const msg = input; setInput('');
+    const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    setMessages(prev => [...prev, { role: 'user', content: msg, time: timeStr }]);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/unified-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, senderPhone: 'admin' })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: data.reply, 
+        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) 
+      }]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0F172A] text-white font-sans overflow-hidden flex flex-col" dir="rtl">
+      <Head>
+        <title>SABAN Hub | Elite PWA</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
+      </Head>
+
+      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-[#1E293B]/95 backdrop-blur-xl border-t border-white/10 z-[100] flex items-center justify-around px-6">
+        <button onClick={() => setActiveView('hub')} className={`flex flex-col items-center gap-1 flex-1 ${activeView === 'hub' ? 'text-emerald-400 scale-110' : 'text-slate-500'}`}>
+          <BookOpen size={24} /> <span className="text-[10px] font-black uppercase">מאגר</span>
+        </button>
+        <button onClick={() => setActiveView('simulator')} className={`flex flex-col items-center gap-1 flex-1 ${activeView === 'simulator' ? 'text-emerald-400 scale-110' : 'text-slate-500'}`}>
+          <Bot size={24} /> <span className="text-[10px] font-black uppercase">בדיקה</span>
+        </button>
+        <button onClick={() => setActiveView('add')} className={`flex flex-col items-center gap-1 flex-1 ${activeView === 'add' ? 'text-emerald-400 scale-110' : 'text-slate-500'}`}>
+          <PlusCircle size={24} /> <span className="text-[10px] font-black uppercase">חדש</span>
+        </button>
+      </nav>
+
+      <main className="flex-1 relative overflow-hidden pb-24">
+        <AnimatePresence mode="wait">
+          {activeView === 'hub' && (
+            <motion.div key="hub" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 h-full overflow-y-auto space-y-6 scrollbar-hide">
+              <header className="flex justify-between items-center bg-white/5 p-6 rounded-[2.5rem] border border-white/5">
+                <h1 className="text-2xl font-black italic uppercase tracking-tighter">Knowledge Hub</h1>
+                <BookOpen className="text-emerald-500" size={24} />
+              </header>
+              <div className="relative">
+                <Search className="absolute right-5 top-5 text-slate-500" size={20} />
+                <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="חפש נוהל..." className="w-full bg-white/5 border border-white/10 rounded-[2rem] py-5 px-6 pr-14 font-bold outline-none" />
+              </div>
+              <div className="space-y-4">
+                {knowledge.filter(k => k.question.includes(searchTerm) || k.answer.includes(searchTerm)).map(item => (
+                  <div key={item.id} className="bg-white/5 border border-white/5 p-6 rounded-[2.5rem] space-y-3">
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full text-[9px] font-black">{item.category}</span>
+                      <div className="flex gap-2">
+                         <Edit3 size={16} className="cursor-pointer" onClick={() => setEditingItem(item)} />
+                         <Trash2 size={16} className="cursor-pointer" onClick={() => deleteItem(item.id)} />
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-black">{item.    const { data } = await supabase.from('knowledge_base').select('*').order('created_at', { ascending: false });
     if (data) setKnowledge(data);
     setLoading(false);
   };
