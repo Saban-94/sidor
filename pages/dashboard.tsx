@@ -170,13 +170,13 @@ export default function SabanUnifiedOS() {
                       const order = getOrderForDriverSlot(driver.name, slot);
                       return (
                         <div key={slot} className="flex items-center gap-6 min-h-[50px] group">
-                          <span className="text-[10px] font-black font-mono w-10 text-slate-300 group-hover:text-emerald-500 transition-colors uppercase">{slot}</span>
-                          <div className={`flex-1 rounded-2xl p-4 flex items-center gap-4 transition-all ${order ? 'bg-emerald-500 text-slate-900 shadow-lg' : 'border-b border-slate-100 italic text-[10px] text-slate-300 font-bold uppercase tracking-widest'}`}>
+                          <span className="text-sm font-black font-mono w-10 text-slate-400 group-hover:text-emerald-500 transition-colors uppercase">{slot}</span>
+                          <div className={`flex-1 rounded-2xl p-5 flex items-center gap-4 transition-all ${order ? 'bg-emerald-500 text-slate-900 shadow-lg' : 'border-b border-slate-100 italic text-sm text-slate-300 font-bold uppercase tracking-widest'}`}>
                             {order ? (
                               <>
                                 <Truck size={16} className="text-slate-900/30"/>
                                 <span className="font-black text-sm">{order.client_info}</span>
-                                <span className="text-[10px] font-bold opacity-70">{order.location} | {order.source_branch}</span>
+                                <span className="text-sm font-bold opacity-70">{order.location} | {order.source_branch}</span>
                                 <CheckCircle2 size={16} className="mr-auto text-slate-900/50"/>
                               </>
                             ) : (
@@ -207,7 +207,7 @@ export default function SabanUnifiedOS() {
                             <div className="p-4 bg-emerald-500 text-slate-900 rounded-[1.5rem] shadow-lg shadow-emerald-500/20">
                                {site.action_type === 'PLACEMENT' ? <Box size={22}/> : <RefreshCcw size={22}/>}
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase font-mono tracking-widest">{site.contractor_name}</span>
+                            <span className="text-sm font-black text-slate-400 uppercase font-mono tracking-widest">{site.contractor_name}</span>
                          </div>
                          
                          <h3 className="text-2xl font-black text-slate-900 leading-tight group-hover:text-emerald-600 transition-colors tracking-tighter">{site.client_name}</h3>
@@ -215,7 +215,7 @@ export default function SabanUnifiedOS() {
                          
                          {/* פס התקדמות דינמי */}
                          <div className="mt-8 space-y-2">
-                           <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                           <div className="flex justify-between items-center text-sm font-black uppercase">
                              <span className={isUrgent ? 'text-red-500 animate-pulse' : 'text-slate-400'}>התקדמות הצבה: {days}/10 ימים</span>
                              <span className="font-mono text-emerald-500">{Math.round(progressPercentage)}%</span>
                            </div>
@@ -252,7 +252,7 @@ export default function SabanUnifiedOS() {
                       </div>
                     </div>
                   ))}
-                  {loading && <div className="text-[10px] font-black text-emerald-500 animate-pulse uppercase tracking-[0.3em] mr-2">Syncing...</div>}
+                  {loading && <div className="text-sm font-black text-emerald-500 animate-pulse uppercase tracking-[0.3em] mr-2">Syncing...</div>}
               </div>
 
               <footer className="p-6 bg-white border-t border-slate-100">
