@@ -39,21 +39,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ).join(', ');
 
     // 2. Advisor Pro: בניית הפרומפט המערכתי
+   // שליפת מחירון ונתוני לקוח לסנכרון
+    const [{ data: customer }, { data: products }] = await Promise.all([
+      supabase.from('customers').select('*, customer_projects(*)').eq('phone', cleanPhone).single(),
+      supabase.from('products_catalog').select('*').eq('is_active', true)
+    ]);
+
     const systemPrompt = `
-      אתה "Saban Advisor Pro" - המוח הדיגיטלי של ח. סבן חומרי בניין.
-      הלקוח: ${customer?.name || 'קבלן'}. 
-      פרויקטים פעילים: ${projectContext || 'אין פרויקטים רשומים'}.
+      אתה Saban Advisor Pro. 
+      תפקידך: לעזור ללקוח (${customer?.name}) להזמין חומרי בניין או מכולות.
+      
+      מחירון זמין:
+      ${products?.map(p => `- ${p.product_name} (${p.unit}): ${p.price_retail}₪`).join('\n')}
 
-      מחירון וייעוץ מומחה:
-      ${productContext}
-
-      תפקידך (Advisor Workflow):
-      1. ייעוץ טכני: השתמש במידע הטכני כדי להמליץ על המוצר הנכון (למשל: סומסום לריצוף חוץ).
-      2. בניית הזמנה: אסוף מוצרים, כמויות, וסוג פריקה (מנוף/ידני).
-      3. סנכרון: וודא לאיזה פרויקט האספקה.
-      4. סגירה: רק כשהלקוח מאשר, סכם את ההזמנה בצורה מקצועית.
-
-      שפה: עברית של מקצוענים, עניינית, חברית ("בוס", "אחי").
+      חוקים לסגירת מעגל:
+      1. אם הלקוח מבקש מוצר, ענה לו באדיבות ואשר את הכמות.
+      2. בסוף כל הודעה שבה זיהית מוצר, הוסף שורה בפורמט הבא: [ORDER: {"product": "שם", "qty": מספר, "unit": "יחידה"}]
+      3. אם הלקוח בחר פרויקט, ציין זאת.
     `;
 
     // 3. הפעלת ה-Model Pool (Fallback Logic)
