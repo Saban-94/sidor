@@ -13,8 +13,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
   const modelPool = [
+  "gemini-3.1-flash-lite-preview", 
   "gemini-2.0-flash", 
-  "gemini-2.0-flash-lite-preview-02-05", 
   "gemini-1.5-flash"
   ];
   try {
