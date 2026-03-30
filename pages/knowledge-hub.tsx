@@ -577,24 +577,7 @@ export default function SabanKnowledgePWA() {
       </AnimatePresence>
     </div>
   );
-}    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, loading]);
-
-  const fetchKnowledge = async () => {
-    const { data } = await supabase.from('knowledge_base').select('*').order('created_at', { ascending: false });
-    if (data) setKnowledge(data);
-  };
-
-  const calculateQuality = (q: string, a: string) => {
-    if (!q || !a) return 0;
-    const qLen = q.trim().split(/\s+/).length;
-    const aLen = a.trim().split(/\s+/).length;
+}
     let score = 0;
     if (qLen >= 3) score += 30;
     if (aLen >= 5) score += 40;
