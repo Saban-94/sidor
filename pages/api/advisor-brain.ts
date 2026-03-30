@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (API Key missing)." });
 
   // --- Expert Core: Model Pool ---
-  const modelPool = ["gemini-3.1-flash-lite-preview","gemini-2.0-flash";
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash"];
   const genAI = new GoogleGenerativeAI(apiKey);
 
   try {
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 2. Advisor Pro: בניית הפרומפט המערכתי
     const systemPrompt = `
-      אתה "Saban Advisor Pro" - המוח הדיגיטלי של ח.סבן חומרי בניין.
+      אתה "Saban Advisor Pro" - המוח הדיגיטלי של ח. סבן חומרי בניין.
       הלקוח: ${customer?.name || 'קבלן'}. 
       פרויקטים פעילים: ${projectContext || 'אין פרויקטים רשומים'}.
 
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       3. סנכרון: וודא לאיזה פרויקט האספקה.
       4. סגירה: רק כשהלקוח מאשר, סכם את ההזמנה בצורה מקצועית.
 
-      שפה: עברית של מקצוענים, עניינית, חברית ("נשמה", "אחי").
+      שפה: עברית של מקצוענים, עניינית, חברית ("בוס", "אחי").
     `;
 
     // 3. הפעלת ה-Model Pool (Fallback Logic)
@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
         const chat = model.startChat({
-          history: chatHistory.map((m: any) => ({
+          history: (chatHistory || []).map((m: any) => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const result = await chat.sendMessage(`${systemPrompt}\n\nהודעת הלקוח: ${cleanMsg}`);
         aiResponse = result.response.text();
         success = true;
-        break; // הצלחנו, עוצרים את הלופ
+        break; 
       } catch (err) {
         console.error(`מודל ${modelName} נכשל, מנסה את הבא...`);
         continue;
@@ -82,9 +82,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!success) throw new Error("כל המודלים ב-Pool נכשלו");
-
-    // 4. בדיקה האם המוח החליט לסגור הזמנה (Parsing פשוט)
-    // הערה: בגרסה הבאה נוסיף כאן Function Calling מלא ל-Gemini
     
     return res.status(200).json({ reply: aiResponse });
 
