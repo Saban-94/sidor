@@ -1,113 +1,119 @@
-'use client';
-
-import React, { useState, useEffect, useRef } from 'react';
+// pages/chat/[phone].tsx
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, onSnapshot, collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { createClient } from '@supabase/supabase-js';
-import { 
-  Send, Bot, User, MapPin, Truck, Trash2, Edit2, 
-  Bell, Moon, Sun, ChevronLeft, MoreHorizontal, Clock
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Bot, User, CheckCircle2, Truck, HardHat } from 'lucide-react';
 
-// --- Configurations ---
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-};
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const dbFS = getFirestore(app);
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 6;
-  const min = i % 2 === 0 ? '00' : '30';
-  return `${hour.toString().padStart(2, '0')}:${min}`;
-});
-
-export default function SabanArtisanOS() {
+export default function CustomerProChat() {
   const router = useRouter();
   const { phone } = router.query;
-  const [mounted, setMounted] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'שלום בוס, כאן המוח של ח. סבן. איזה פרויקט מקדמים היום?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => { 
-    setMounted(true); 
-    if (typeof window !== 'undefined') {
-      audioRef.current = new Audio('/order-notification.mp3');
-    }
-  }, []);
-
-  // 1. Firebase Listeners
   useEffect(() => {
-    if (!phone) return;
-    const cleanPhone = phone.toString();
-    onSnapshot(doc(dbFS, "customers", cleanPhone), (d) => {
-      setProfile(d.exists() ? { id: d.id, ...d.data() } : { id: cleanPhone, name: "אורח" });
-    });
-    const q = query(collection(dbFS, "customers", cleanPhone, "chat_history"), orderBy("timestamp", "asc"));
-    return onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
-    });
-  }, [phone]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  // 2. Supabase Realtime + Sound Notification
-  useEffect(() => {
-    const fetchOrders = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const { data } = await supabase.from('orders').select('*').eq('delivery_date', today);
-      if (data) setOrders(data);
-    };
-    fetchOrders();
-
-    const channel = supabase.channel('orders_artisan')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        if (audioRef.current) audioRef.current.play().catch(e => console.log("Audio block", e));
-        fetchOrders();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  const handleSend = async () => {
-    if (!inputText.trim() || !profile) return;
-    const text = inputText; setInputText('');
-    await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), { text, type: 'in', timestamp: serverTimestamp() });
+  const sendMessage = async () => {
+    if (!input.trim()) return;
     
-    const res = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, senderPhone: profile.id })
-    });
-    const data = await res.json();
-    await addDoc(collection(dbFS, "customers", profile.id, "chat_history"), { text: data.reply, type: 'out', timestamp: serverTimestamp() });
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsTyping(true);
+
+    try {
+      const res = await fetch('/api/unified-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: input, history: messages })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+    } catch (error) {
+      console.error("Error calling brain:", error);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  const renderOrder = (driver: string, slot: string) => {
-    const order = orders.find(o => o.driver_name === driver && o.order_time === slot);
-    if (!order) return null;
-    return (
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg border border-emerald-500/30">
-        <div className="flex justify-between items-start">
-          <div className="flex-1 truncate">
-            <div className="font-black text-xs text-emerald-400">{order.client_info}</div>
-            <div className="text-[10px] opacity-70 truncate">{order.location}</div>
+  return (
+    <div className="flex flex-col h-screen bg-[#F8FAFC] font-sans antialiased">
+      {/* Header הייטקי */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-500 p-2 rounded-xl text-white shadow-emerald-200 shadow-lg">
+            <Bot size={24} />
           </div>
-          <div className="flex gap-1">
-             <button className="p-1 hover:bg-white/10 rounded-md text-blue-400"><Edit2 size={12}/></button>
-             <button onClick={() => supabase.from('orders').delete().eq('id', order.id)} className="p-1 hover:bg-white/10 rounded-md text-red-400"><Trash2 size={12}/></button>
+          <div>
+            <h1 className="font-bold text-slate-800 text-lg leading-tight">המוח של ח. סבן</h1>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <p className="text-xs text-slate-500 font-medium">מנהל תיק לקוח אישי</p>
+            </div>
+          </div>
+        </div>
+        <div className="text-slate-400 bg-slate-100 p-2 rounded-full">
+          <HardHat size={20} />
+        </div>
+      </header>
+
+      {/* אזור השיחה */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-6">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${
+              msg.role === 'user' 
+                ? 'bg-emerald-600 text-white rounded-br-none' 
+                : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+            }`}>
+              <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              {msg.role === 'assistant' && msg.content.includes("הוזרקה") && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-emerald-600 font-bold">
+                  <CheckCircle2 size={14} /> ההזמנה הגיעה לראמי
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-bl-none">
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+              </span>
+            </div>
+          </div>
+        )}
+        <div ref={scrollRef} />
+      </main>
+
+      {/* Input Bar */}
+      <footer className="p-4 bg-white border-t border-slate-200 pb-8">
+        <div className="max-w-4xl mx-auto flex gap-2 items-center bg-slate-50 border border-slate-200 p-2 rounded-2xl focus-within:border-emerald-500 transition-all shadow-inner">
+          <input 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="מה לשלוח היום?"
+            className="flex-1 bg-transparent border-none outline-none p-2 text-slate-800 placeholder:text-slate-400"
+          />
+          <button 
+            onClick={sendMessage}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl transition-colors shadow-md"
+          >
+            <Send size={20} />
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
+}             <button onClick={() => supabase.from('orders').delete().eq('id', order.id)} className="p-1 hover:bg-white/10 rounded-md text-red-400"><Trash2 size={12}/></button>
           </div>
         </div>
       </motion.div>
