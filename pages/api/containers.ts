@@ -23,16 +23,8 @@ const modelPool = [
   "gemini-3.1-pro-preview",       // 2. הגיבוי החזק למשימות מורכבות
   "gemini-1.5-flash"              // 3. הגיבוי היציב והותיק (נשאר GA)
 ];
-  try {
-    const phone = senderPhone?.replace('@c.us', '') || 'admin';
-
-    // 1. שליפת נתוני שטח (מכולות פעילות)
-    const { data: activeContainers } = await supabase
-      .from('container_management')
-      .select('*')
-      .eq('is_active', true);
-
-    // 2. ניהול זיכרון
+  
+ // 2. ניהול זיכרון וטיפול בטריגר "הזמנה חדשה"
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     if (!memory) {
       const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
@@ -40,28 +32,33 @@ const modelPool = [
     }
 
     let history = memory?.accumulated_knowledge || "";
-    if (cleanMsg === "הזמנה חדשה" || cleanMsg === "מכולה") history = "";
+
+    // חוק ראמי: תגובה מיידית לאיפוס הזמנה
+    if (cleanMsg === "הזמנה חדשה") {
+      const resetReply = "הבנתי בוס. אני מוכן. ותתחיל יצירת הזמנה חדשה. מי הלקוח?";
+      await supabase.from('customer_memory').update({ accumulated_knowledge: `Assistant: ${resetReply}` }).eq('clientId', phone);
+      return res.status(200).json({ reply: resetReply });
+    }
+
     const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // 3. ה-Prompt המפקח
+    // 3. ה-Prompt המפקח המעודכן
     const prompt = `
-    אם ראמי הבוס רושם "הזמנה חדשה" תענה מייד "ותתחיל יצירת הזמנה חדשה 
       זהות: מפקח מכולות חכם. סגנון: קצר וחד.
       משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴.
       
-      שטח נוכחי: ${JSON.stringify(activeContainers)}
+      שטח נוכחי (מכולות אצל לקוחות): ${JSON.stringify(activeContainers)}
 
-      חוקים:
-      1. הצבה בכתובת קיימת? התרע והצע החלפה.
-      2. מעל 9 ימים? דרוש הוצאה/החלפה.
-      3. מחסנים: שארק 30, כראדי 32, שי שרון 40.
+      חוקי פיקוח:
+      1. הצבה בכתובת קיימת? התרע מיד והצע החלפה/הוצאה או הוספת מכולה.
+      2. מעל 9 ימים בשטח? דרוש מהסדרן החלפה ♻️ או הוצאה 🔴.
+      3. מחסנים מותרים בלבד: שארק 30, כראדי 32, שי שרון 40.
       
-      סדר: לקוח -> כתובת -> פעולה -> מחסן -> תאריך ושעה.
+      עץ שאלות חובה: לקוח -> כתובת -> פעולה -> מחסן -> תאריך ושעה.
 
-      סיום: ענה "בוצע 🚀" + JSON:
+      סיום הזרקה: ענה "בוצע 🚀" והוסף JSON מדויק:
       DATA_START{"complete": true, "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "מחסן", "date": "YYYY-MM-DD", "time": "HH:mm"}DATA_END
     `;
-
     // 4. רוטציית מודלים על מפתח יחיד
     let replyText = "";
     let success = false;
