@@ -44,7 +44,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       supabase.from('customers').select('*, customer_projects(*)').eq('phone', cleanPhone).single(),
       supabase.from('products_catalog').select('*').eq('is_active', true)
     ]);
+// שליפת מחירון ונתוני לקוח לסנכרון
+    const [{ data: customer }, { data: products }] = await Promise.all([
+      supabase.from('customers').select('*, customer_projects(*)').eq('phone', cleanPhone).single(),
+      supabase.from('products_catalog').select('*').eq('is_active', true)
+    ]);
 
+    const systemPrompt = `
+      אתה Saban Advisor Pro. 
+      תפקידך: לעזור ללקוח (${customer?.name}) להזמין חומרי בניין או מכולות.
+      
+      מחירון זמין:
+      ${products?.map(p => `- ${p.product_name} (${p.unit}): ${p.price_retail}₪`).join('\n')}
+
+      חוקים לסגירת מעגל:
+      1. אם הלקוח מבקש מוצר, ענה לו באדיבות ואשר את הכמות.
+      2. בסוף כל הודעה שבה זיהית מוצר, הוסף שורה בפורמט הבא: [ORDER: {"product": "שם", "qty": מספר, "unit": "יחידה"}]
+      3. אם הלקוח בחר פרויקט, ציין זאת.
+    `;
     const systemPrompt = `
       אתה Saban Advisor Pro. 
       תפקידך: לעזור ללקוח (${customer?.name}) להזמין חומרי בניין או מכולות.
