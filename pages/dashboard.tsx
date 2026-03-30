@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   LayoutDashboard, MessageSquare, Container, Send, Clock, MapPin, 
   Bot, Truck, ChevronRight, Box, RefreshCcw, History, Edit3, Trash2, 
-  Timer, CheckCircle, User, Moon, Sun, Calendar, ArrowRightLeft, X, Save, Menu
+  Timer, CheckCircle, User, Moon, Sun, Calendar, ArrowRightLeft, X, Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,7 +29,7 @@ const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
   return `${hour.toString().padStart(2, '0')}:${min}`;
 });
 
-export default function SabanMobileOS() {
+export default function SabanUltimateOS() {
   const [activeTab, setActiveTab] = useState<'live' | 'sidor' | 'containers' | 'chat'>('live');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -51,10 +51,9 @@ export default function SabanMobileOS() {
     return () => { clearInterval(t); channel.unsubscribe(); };
   }, [selectedDate]);
 
-  // גלילה אוטומטית רק כשמגיעה הודעה חדשה, אבל מאפשרת גלילה ידנית מעלה
   useEffect(() => {
-    if (scrollRef.current && !loading) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -78,99 +77,107 @@ export default function SabanMobileOS() {
     return { expired: false, h, m, s, urgent: diff < 3600000 };
   };
 
+  const deleteItem = async (id: string, type: string) => {
+    if (!confirm("אחי, למחוק סופית?")) return;
+    const table = type === 'CONTAINER' ? 'container_management' : 'orders';
+    await supabase.from(table).delete().eq('id', id);
+    fetchData();
+  };
+
   const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
     const msg = input; setInput('');
     setMessages(prev => [...prev, { role: 'user', content: msg }]);
     setLoading(true);
-
-    const res = await fetch('/api/unified-brain', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, senderPhone: 'admin' })
-    });
+    const res = await fetch('/api/unified-brain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, senderPhone: 'admin' }) });
     const data = await res.json();
     setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     setLoading(false);
     if (data.reply.includes('בוצע')) { audioRef.current?.play(); fetchData(); }
   };
 
-  const deleteItem = async (id: string, type: string) => {
-    if (!confirm("בוס, למחוק סופית?")) return;
-    const table = type === 'CONTAINER' ? 'container_management' : 'orders';
-    await supabase.from(table).delete().eq('id', id);
-    fetchData();
-  };
-
   return (
-    <div className={`flex h-screen w-full transition-colors duration-500 font-sans overflow-hidden ${isDarkMode ? 'bg-[#0F172A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`} dir="rtl">
-      <Head>
-        <title>SABAN OS | Mobile Elite</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
-      </Head>
+    <div className={`flex h-screen w-full transition-colors duration-500 font-sans overflow-hidden ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F4F7FE] text-slate-900'}`} dir="rtl">
+      <Head><title>SABAN | COMMAND CENTER</title></Head>
 
-      {/* תפריט תחתון למובייל - NavBar */}
-      <nav className={`fixed bottom-0 left-0 right-0 h-20 z-[100] flex items-center justify-around px-4 border-t transition-colors ${isDarkMode ? 'bg-[#1E293B]/90 border-white/5 backdrop-blur-xl' : 'bg-white/90 border-slate-200 backdrop-blur-xl'}`}>
-        {[
-          { id: 'live', icon: Timer, label: 'משימות' },
-          { id: 'sidor', icon: Truck, label: 'נהגים' },
-          { id: 'containers', icon: Box, label: 'מכולות' },
-          { id: 'chat', icon: Bot, label: 'AI' },
-        ].map((btn) => (
-          <button key={btn.id} onClick={() => setActiveTab(btn.id as any)} className={`flex flex-col items-center gap-1 flex-1 transition-all ${activeTab === btn.id ? 'text-emerald-400 scale-110' : 'text-slate-400'}`}>
-            <btn.icon size={22} strokeWidth={activeTab === btn.id ? 3 : 2} />
-            <span className="text-[10px] font-black uppercase tracking-tighter">{btn.label}</span>
+      {/* Sidebar - נסתר במובייל, מוצג בדסקטופ */}
+      <aside className={`hidden lg:flex w-72 flex-col border-l transition-all ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-2xl'}`}>
+        <div className="p-8 font-black text-2xl italic tracking-tighter border-b border-white/5 flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg"><LayoutDashboard size={20}/></div>
+          <span>SABAN OS</span>
+        </div>
+        <nav className="flex-1 p-5 space-y-4">
+          {[{ id: 'live', label: 'משימות להיום', icon: Timer }, { id: 'sidor', label: 'סידור נהגים', icon: Truck }, { id: 'containers', label: 'מכולות', icon: Box }, { id: 'chat', label: 'AI Supervisor', icon: Bot }].map(item => (
+            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full p-5 rounded-[2rem] flex items-center gap-5 transition-all ${activeTab === item.id ? 'bg-emerald-500 text-slate-900 font-black shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
+              <item.icon size={24} /> <span className="uppercase text-sm">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+        <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-10 flex items-center gap-4 text-slate-400 hover:text-emerald-500 transition-colors">
+          {isDarkMode ? <Sun size={24}/> : <Moon size={24}/>} <span className="font-black uppercase text-xs">שינוי עיצוב</span>
+        </button>
+      </aside>
+
+      {/* Mobile Bottom Nav */}
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-20 z-[100] flex items-center justify-around border-t transition-colors ${isDarkMode ? 'bg-[#111827]/90 border-white/5 backdrop-blur-xl' : 'bg-white/90 border-slate-200 backdrop-blur-xl'}`}>
+        {[{ id: 'live', icon: Timer, label: 'משימות' }, { id: 'sidor', icon: Truck, label: 'נהגים' }, { id: 'containers', icon: Box, label: 'מכולות' }, { id: 'chat', icon: Bot, label: 'AI' }].map(btn => (
+          <button key={btn.id} onClick={() => setActiveTab(btn.id as any)} className={`flex flex-col items-center gap-1 flex-1 ${activeTab === btn.id ? 'text-emerald-500' : 'text-slate-400'}`}>
+            <btn.icon size={22} /> <span className="text-[10px] font-black uppercase">{btn.label}</span>
           </button>
         ))}
       </nav>
 
-      <main className="flex-1 flex flex-col relative overflow-hidden pb-20">
+      <main className="flex-1 flex flex-col overflow-hidden relative pb-20 lg:pb-0">
         
-        {/* Header מובייל עם כפתור Light/Dark */}
-        <header className={`h-20 shrink-0 border-b flex items-center justify-between px-6 transition-colors ${isDarkMode ? 'bg-[#0F172A]/50 border-white/5' : 'bg-white/50 border-slate-200'} backdrop-blur-md`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg shadow-emerald-500/20"><LayoutDashboard size={20}/></div>
-            <span className="font-black italic text-xl tracking-tighter uppercase">SABAN</span>
-          </div>
+        {/* Header קבוע */}
+        <header className={`h-24 shrink-0 flex items-center justify-between px-8 border-b ${isDarkMode ? 'bg-[#0B0F1A]/80 border-white/5' : 'bg-white border-slate-100'} backdrop-blur-md`}>
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-white/5 text-yellow-400' : 'bg-slate-100 text-slate-600'}`}>
-              {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
-            </button>
-            <div className="font-mono font-black text-emerald-500 text-lg">{now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
+             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={`p-3 rounded-xl font-black text-xs outline-none ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'}`} />
+             <button onClick={() => setIsDarkMode(!isDarkMode)} className="lg:hidden p-3 rounded-xl bg-emerald-500/10 text-emerald-500">{isDarkMode ? <Sun size={18}/> : <Moon size={18}/>}</button>
           </div>
+          <div className="font-mono font-black text-2xl lg:text-4xl text-emerald-500">{now.toLocaleTimeString('he-IL')}</div>
         </header>
 
         <AnimatePresence mode="wait">
           
-          {/* דף משימות (Live) */}
+          {/* לוח LIVE - מציג הכל (הובלות, מכולות, העברות) */}
           {activeTab === 'live' && (
-            <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-hide">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-2xl font-black italic tracking-tighter uppercase">משימות פעילות</h2>
-                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={`text-[10px] font-black p-2 rounded-lg outline-none ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'}`} />
-              </div>
-              
+            <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 lg:p-10 h-full overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 scrollbar-hide">
               {allOrders.filter(o => !calculateTime(o.target).expired).map(order => {
                 const time = calculateTime(order.target);
                 const isTransfer = order.mainTitle?.includes('העברה');
                 return (
-                  <div key={order.id} className={`p-6 rounded-[2.5rem] border-2 shadow-2xl transition-all relative group ${isDarkMode ? 'bg-[#1E293B]' : 'bg-white border-slate-100'} ${time.urgent ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${isTransfer ? 'bg-blue-600' : (order.type === 'CONTAINER' ? (CONTRACTOR_COLORS[order.person] || 'bg-emerald-500') : 'bg-slate-700')}`}>
-                        {isTransfer ? 'העברה' : (order.type === 'CONTAINER' ? 'מכולה' : 'הובלה')}
-                      </span>
-                      <button onClick={() => deleteItem(order.id, order.type)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                  <div key={order.id} className={`p-8 rounded-[3rem] border-2 transition-all relative group shadow-2xl ${isDarkMode ? 'bg-[#161B2C]' : 'bg-white border-slate-100'} ${time.urgent ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}>
+                    <div className="flex justify-between items-start mb-6">
+                       <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${isTransfer ? 'bg-blue-600' : (order.type === 'CONTAINER' ? (CONTRACTOR_COLORS[order.person] || 'bg-emerald-600') : 'bg-slate-900')}`}>
+                         {isTransfer ? 'העברה' : (order.type === 'CONTAINER' ? 'מכולה' : 'הובלה')}
+                       </span>
+                       <button onClick={() => deleteItem(order.id, order.type)} className="p-3 text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={20}/></button>
                     </div>
-                    <h3 className="text-2xl font-black leading-tight tracking-tighter mb-2">{order.mainTitle}</h3>
-                    <div className="flex items-center gap-2 text-slate-400 font-bold text-xs mb-6"><MapPin size={12}/> {order.subTitle}</div>
+                    <h3 className="text-3xl lg:text-4xl font-black tracking-tighter leading-none mb-3">{order.mainTitle}</h3>
+                    <div className="flex items-center gap-2 text-slate-500 font-bold text-sm italic mb-10"><MapPin size={16} className="text-emerald-500"/> {order.subTitle}</div>
                     
-                    <div className={`p-5 rounded-[2rem] flex items-center justify-between ${time.urgent ? 'bg-amber-500 text-white' : (isDarkMode ? 'bg-[#0F172A] text-emerald-400 border border-white/5' : 'bg-slate-900 text-emerald-400')}`}>
-                      <div className="flex items-center gap-3">
-                        <Clock size={24}/>
-                        <span className="text-3xl font-black font-mono">{!time.expired ? `${String(time.h).padStart(2,'0')}:${String(time.m).padStart(2,'0')}:${String(time.s).padStart(2,'0')}` : "00:00"}</span>
-                      </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest">{order.order_time}</span>
+                    <div className={`p-6 lg:p-8 rounded-[2.5rem] flex items-center justify-between ${time.urgent ? 'bg-amber-500 text-white shadow-amber-500/40' : (isDarkMode ? 'bg-slate-900 text-emerald-400 shadow-xl' : 'bg-slate-900 text-emerald-400')}`}>
+                       <div className="flex items-center gap-4">
+                         <Clock size={32}/>
+                         <span className="text-4xl lg:text-5xl font-black font-mono">
+                           {!time.expired ? `${String(time.h).padStart(2,'0')}:${String(time.m).padStart(2,'0')}:${String(time.s).padStart(2,'0')}` : "00:00"}
+                         </span>
+                       </div>
+                       <span className="text-[10px] font-black uppercase tracking-widest">{order.order_time}</span>
+                    </div>
+
+                    <div className="mt-8 flex items-center gap-5 border-t border-white/5 pt-8">
+                       {DRIVERS_DATA[order.person] ? (
+                         <img src={DRIVERS_DATA[order.person]} className="w-16 h-16 rounded-full border-4 border-emerald-500 object-cover shadow-2xl" />
+                       ) : (
+                         <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 border border-white/10"><Box size={28}/></div>
+                       )}
+                       <div className="flex flex-col">
+                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">מבצע המשימה</span>
+                         <span className="text-xl font-black">{order.person}</span>
+                       </div>
                     </div>
                   </div>
                 );
@@ -178,40 +185,27 @@ export default function SabanMobileOS() {
             </motion.div>
           )}
 
-          {/* צ'אט AI - חוויית וואטסאפ עם גלילה מלאה */}
+          {/* צ'אט AI - גלילה חופשית מעלה */}
           {activeTab === 'chat' && (
-            <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full overflow-hidden">
-               <div 
-                 ref={scrollRef} 
-                 className={`flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-36 ${isDarkMode ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'}`}
-               >
-                  {messages.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                      <div className={`max-w-[85%] p-6 rounded-[2rem] text-sm font-black shadow-xl leading-relaxed ${m.role === 'user' ? (isDarkMode ? 'bg-slate-800 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tr-none border border-slate-100') : 'bg-emerald-500 text-slate-900 rounded-tl-none'}`}>
-                        {m.content}
-                      </div>
+            <motion.div key="chat" className="flex-1 flex flex-col bg-transparent overflow-hidden">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 lg:p-12 space-y-8 scroll-smooth scrollbar-hide pb-40">
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-[85%] lg:max-w-[70%] p-8 rounded-[3rem] text-lg font-black shadow-2xl ${m.role === 'user' ? (isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-900 text-white') : (isDarkMode ? 'bg-emerald-500 text-slate-900' : 'bg-emerald-500 text-slate-900')}`}>
+                      {m.content}
                     </div>
-                  ))}
-                  {loading && <div className="text-emerald-500 font-black animate-pulse text-[10px] uppercase tracking-[0.4em] mr-4">מעבד פקודה...</div>}
-               </div>
-               
-               {/* אזור הקלט - צף מעל ה-Nav */}
-               <div className={`fixed bottom-24 left-4 right-4 z-[110] transition-all`}>
-                  <form onSubmit={handleChat} className="relative group">
-                    <input 
-                      value={input} 
-                      onChange={e => setInput(e.target.value)} 
-                      placeholder="הזמן הובלה/מכולה..." 
-                      className={`w-full border-none rounded-[2.5rem] py-6 px-10 pr-20 text-base font-black outline-none shadow-2xl transition-all ${isDarkMode ? 'bg-[#1E293B] text-white focus:bg-slate-800' : 'bg-white text-slate-900 focus:ring-2 ring-emerald-500/10'}`} 
-                    />
-                    <button type="submit" className="absolute left-3 top-3 bg-emerald-500 text-slate-900 w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-90"><Send size={20} className="rotate-180"/></button>
-                  </form>
-               </div>
+                  </div>
+                ))}
+                {loading && <div className="text-[10px] font-black text-emerald-500 animate-pulse uppercase tracking-[0.5em] italic mr-4">חושב...</div>}
+              </div>
+              <footer className="fixed lg:static bottom-24 left-6 right-6 lg:p-10">
+                <form onSubmit={handleChat} className="max-w-5xl mx-auto relative group">
+                  <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב פקודה..." className={`w-full p-8 px-12 pr-28 rounded-[3rem] text-xl font-black outline-none transition-all shadow-2xl ${isDarkMode ? 'bg-[#1E293B] border border-white/5 text-white' : 'bg-white text-slate-900 border border-slate-100'}`} />
+                  <button type="submit" className="absolute left-4 top-4 bg-emerald-500 text-slate-900 w-16 h-16 rounded-full flex items-center justify-center hover:scale-110 shadow-xl transition-all"><Send size={28} className="rotate-180"/></button>
+                </form>
+              </footer>
             </motion.div>
           )}
-
-          {/* סידור נהגים (Sidor) וניהול מכולות (Containers) באותו סגנון... */}
-          {/* ... (הלוגיקה נשארת כפי שמימשנו) ... */}
 
         </AnimatePresence>
       </main>
