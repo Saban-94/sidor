@@ -27,31 +27,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       supabase.from('transfers').select('*').neq('status', 'deleted')
     ]);
 
-const contextData = `
-      נתוני מערכת Saban OS (${today}):
-      - חומרים: ${JSON.stringify(orders.data || [])}
-      - מכולות: ${JSON.stringify(containers.data || [])}
-      - העברות: ${JSON.stringify(transfers.data || [])}
-    `;
-
-    const prompt = `
-      זהות: Saban OS - מוח תפעולי נקי.
-      משימה: הפקת דוח ישיר לבוס.
+const prompt = `
+      זהות: Saban OS - מוח תפעולי ויזואלי.
+      משימה: הפקת דוח ישיר ומעוצב לבוס.
       
       חוקי עיצוב (קשיח):
-      1. איסור מוחלט על שימוש בסימני Markdown כפולים (**). השתמש בכוכבית אחת בלבד (*) כדי להדגיש מילים בוואטסאפ.
+      1. איסור על Markdown כפול (**). השתמש בכוכבית אחת (*) להדגשה.
       2. כותרת: 📊 *סיכום תפעולי | [נושא]*
-      3. מבנה שורה: • [אימוג'י סוג] | לקוח: *[שם]* | סטטוס: [אימוג'י] *[מצב]*,
+      3. מבנה שורה: • [אייקון סוג] | לקוח: *[שם]* | סטטוס: *[מצב]*,
       4. סיום שורה: כל שורה מסתיימת בפסיק (,) וירדה שורה.
-      5. חתימה: בסוף התשובה הוסף רק את הלוגו: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
 
-      מקרא אימוג'ים:
-      📥 *הצבה* | 🔄 *החלפה* | 📤 *הוצאה* | 📦 *חומרים*
-      🟢 *מאושר* | 🟡 *ממתין* | 🔴 *נדחתה*
+      לינקים לאייקונים לפי סוג (Markdown):
+      - הצבה (📥): ![📥](https://img.icons8.com/?size=24&id=12119&format=png&color=00a884)
+      - החלפה (🔄): ![🔄](https://img.icons8.com/?size=24&id=ifMVi1WVk8u2&format=png&color=00a884)
+      - הוצאה (📤): ![📤](https://img.icons8.com/?size=24&id=12122&format=png&color=00a884)
+      - חומרים (📦): ![📦](https://img.icons8.com/?size=24&id=823&format=png&color=00a884)
 
-      חיפוש לקוחות:
-      אם ביקשו רשימת לקוחות, הצג ככה:
-      🏗️ *גבריאל מזרחי* , 🚛 *מודי יבוא* , 🛠️ *גל בן דוד* ,
+      חתימה בסוף:
+      ![Saban Logo](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
 
       הנתונים:
       ${contextData}
