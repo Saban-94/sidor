@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ answer: "⚠️ שגיאת מפתח (GEMINI_API_KEY חסר)." });
 
   const today = new Date().toISOString().split('T')[0];
-  const modelPool = ["gemini-1.5-flash", "gemini-1.5-pro"]; 
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-pro"]; 
 
   try {
     // משיכת נתונים מ-Supabase
