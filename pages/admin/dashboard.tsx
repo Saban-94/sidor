@@ -2,15 +2,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw } from 'lucide-react';
+import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw, Share2 } from 'lucide-react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-// מילון סטטוסים "מגוייר"
+
 const STATUS_MAP: any = {
-  'approved': { label: 'מאושר', color: 'bg-[#00a884]' }, // ירוק וואטסאפ
-  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' }, // צהוב בולט
-  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' } // אדום התראה
+  'approved': { label: 'מאושר', color: 'bg-[#00a884]' },
+  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' },
+  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' }
 };
+
 const ACTION_COLORS: any = {
   'הצבה': 'bg-emerald-600 border-emerald-400 shadow-emerald-900/30',
   'החלפה': 'bg-orange-500 border-orange-300 shadow-orange-900/30',
@@ -32,29 +33,21 @@ export default function SabanMasterDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
-  
-  // רפרנס לסאונד התראה
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // אתחול האודיו בטעינה הראשונה
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); 
-    
     fetchData();
 
-    // האזנה לשינויים בזמן אמת ב-DB
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public' }, (payload) => {
-        console.log('New injection detected:', payload);
-        audioRef.current?.play().catch(e => console.log("Audio play blocked by browser", e));
+        audioRef.current?.play().catch(e => console.log("Audio play blocked", e));
         fetchData();
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [selectedDate]);
 
   const fetchData = async () => {
@@ -64,8 +57,8 @@ export default function SabanMasterDashboard() {
 
     const [oRes, cRes, tRes] = await Promise.all([
       supabase.from('orders').select('*').or(`delivery_date.eq.${selectedDate},delivery_date.eq.${ilDate}`).neq('status', 'deleted'),
-      supabase.from('container_management').select('*').or(`start_date.eq.${selectedDate},start_date.eq.${ilDate}`).neq('status', 'deleted'),
-      supabase.from('transfers').select('*').or(`transfer_date.eq.${selectedDate},transfer_date.eq.${ilDate}`).neq('status', 'deleted')
+      supabase.from('container_management').select('*').eq('start_date', selectedDate).neq('status', 'deleted'),
+      supabase.from('transfers').select('*').eq('transfer_date', selectedDate).neq('status', 'deleted')
     ]);
 
     const combined = [
@@ -83,6 +76,30 @@ export default function SabanMasterDashboard() {
     fetchData();
   };
 
+  // פונקציית השיתוף המעוצבת
+  const shareSchedule = () => {
+    if (orders.length === 0) return alert("אין נתונים לשיתוף");
+    
+    const [y, m, d] = selectedDate.split('-');
+    let message = `📊 *SABAN OS | סידור עבודה ${d}/${m}*\n\n`;
+
+    orders.forEach((o, i) => {
+      const time = o.order_time || o.transfer_time || '--:--';
+      const client = o.client_name || o.client_info || o.to_branch || 'כללי';
+      const loc = o.delivery_address || o.location || `מסניף: ${o.from_branch}`;
+      const typeIcon = o.type === 'מכולה' ? '🔄' : (o.type === 'העברה' ? '📦' : '🚛');
+      const person = o.contractor_name || o.driver_name || 'טרם נקבע';
+
+      message += `${typeIcon} | *${time}* | *${client}*\n`;
+      message += `📍 יעד: ${loc}\n`;
+      message += `👤 מבצע: *${person}*\n`;
+      message += `------------------\n`;
+    });
+
+    message += `\n🏗️ *ח.סבן חומרי בנין 1994 בע"מ*`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0F1A] text-white p-6 font-sans" dir="rtl">
       <Head><title>SABAN LIVE COMMAND</title></Head>
@@ -90,6 +107,13 @@ export default function SabanMasterDashboard() {
       <header className="flex justify-between items-center mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/5">
         <div className="flex items-center gap-4">
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 p-3 rounded-xl outline-none" />
+          <button 
+            onClick={shareSchedule}
+            className="flex items-center gap-2 bg-[#25D366] text-[#111B21] px-5 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all"
+          >
+            <Share2 size={20} />
+            שתף לוואטסאפ
+          </button>
           {loading && <RefreshCcw className="animate-spin text-emerald-500" />}
         </div>
         <div className="flex flex-col items-center">
@@ -118,24 +142,21 @@ export default function SabanMasterDashboard() {
                 <button onClick={() => updateField(order.id, order.table, 'status', 'deleted')} className="opacity-40 hover:opacity-100 p-2"><Trash2 size={18}/></button>
               </div>
 
-              {/* עריכה ישירה: שם לקוח */}
               <input 
                 className="bg-transparent text-3xl font-black outline-none border-b border-transparent focus:border-white/40 w-full mb-2 truncate"
                 defaultValue={order.client_name || order.client_info || order.to_branch}
                 onBlur={e => updateField(order.id, order.table, isCont ? 'client_name' : (isTrans ? 'to_branch' : 'client_info'), e.target.value)}
               />
 
-              {/* עריכה ישירה: כתובת */}
               <div className="flex items-center gap-2 mb-8 opacity-70">
                 <MapPin size={16}/>
                 <input 
                   className="bg-transparent text-sm font-bold outline-none border-b border-transparent focus:border-white/40 w-full"
                   defaultValue={order.delivery_address || order.location || `מהסניף: ${order.from_branch}`}
-                  onBlur={e => updateField(order.id, order.table, isCont ? 'delivery_address' : 'location', e.target.value)}
+                  onBlur={e => updateField(order.id, order.table, isCont ? 'delivery_address' : (isTrans ? 'location' : 'location'), e.target.value)}
                 />
               </div>
 
-              {/* זמן ועריכה */}
               <div className="flex justify-between items-center bg-black/20 p-5 rounded-[2rem] mb-8">
                 <div className="flex items-center gap-3">
                   <Clock size={28}/>
@@ -147,7 +168,6 @@ export default function SabanMasterDashboard() {
                 </div>
               </div>
 
-              {/* לוגו מבצע */}
               <div className="flex items-center gap-4 pt-6 border-t border-white/10">
                 <img src={avatar || 'https://i.postimg.cc/Vv4X4X4X/default.png'} className="w-16 h-16 rounded-full border-4 border-white/20 object-cover shadow-xl" alt={person} />
                 <div className="flex flex-col">
