@@ -13,6 +13,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { query } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
+  // --- הגנות בסיס ---
+  if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
+  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (GEMINI_API_KEY חסר)." });
+
+  // Model Pool מעודכן לשמות המודלים של Google
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
+
   try {
     const today = new Date().toISOString().split('T')[0];
     
