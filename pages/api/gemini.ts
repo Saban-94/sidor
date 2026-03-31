@@ -14,13 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
 
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (GEMINI_API_KEY חסר)." });
+  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח." });
 
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     
     if (!memory) {
@@ -29,32 +28,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     let history = memory?.accumulated_knowledge || "";
-    if (cleanMsg === "הוסף הזמנה" || cleanMsg === "חדש") history = "";
     const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
+    // פריסת לוגיקה חכמה שמפרידה בין מכולה להובלה
     const prompt = `
-      זהות: העוזר האישי של ראמי מסבן חומרי בניין. סגנון: קצר, מקצועי, תכליתי.
-      
-      עץ שאלות חובה (לפי הסדר):
-      1. מי הלקוח?
-      2. מה הכתובת למשלוח?
-      3. מאיזה מחסן (החרש/התלמיד)?
-      4. באיזה תאריך האספקה (בפורמט DD/MM/YYYY)?
-      5. באיזו שעה (למשל 08:30)?
-      6. איזה נהג (חכמת/עלי)?
+      זהות: העוזר האישי של ראמי מסבן.
+      תפקיד: זיהוי אם מדובר ב"הובלת חומרים" או "הצבת מכולה".
+
+      חוקי ענפים:
+      1. אם מדובר במכולה: הנהג הוא הקבלן המבצע (למשל: שארק 30, כראדי 32). אל תשאל על חכמת/עלי.
+      2. אם מדובר בחומרי בניין: הנהג חייב להיות חכמת או עלי.
+
+      עץ שאלות:
+      - לקוח? כתובת? תאריך ושעה?
+      - אם מכולה: מי הקבלן המבצע?
+      - אם חומרים: איזה נהג (חכמת/עלי)?
 
       היסטוריה: ${localUpdatedHistory}
 
       חוק הזרקה:
-      רק לאחר שכל הפרטים קיימים, הוסף:
       DATA_START{
-        "complete": true, 
-        "client": "שם", 
-        "address": "כתובת", 
-        "branch": "מחסן", 
-        "date": "DD/MM/YYYY", 
-        "time": "HH:mm", 
-        "driver": "נהג"
+        "type": "CONTAINER" או "ORDER",
+        "client": "שם",
+        "address": "כתובת",
+        "date": "YYYY-MM-DD",
+        "time": "HH:mm",
+        "executor": "שם הנהג או הקבלן"
       }DATA_END
     `;
 
@@ -67,61 +66,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await response.json();
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text.trim();
-          break;
-        }
+        replyText = data.candidates[0].content.parts[0].text.trim();
+        if (replyText) break;
       } catch (e) { continue; }
     }
 
-    let finalReply = replyText || "בוס, המוח קצת עמוס. נסה שוב.";
+    let finalReply = replyText;
     let isComplete = false;
 
     if (replyText.includes('DATA_START')) {
-      try {
-        const jsonMatch = replyText.match(/\{.*\}/s);
-        if (jsonMatch) {
-          const d = JSON.parse(jsonMatch[0]);
-          
-          // --- נרמול תאריך לפורמט Database (YYYY-MM-DD) ---
-          let formattedDate = new Date().toISOString().split('T')[0];
-          if (d.date && d.date.includes('/')) {
-            const [day, month, year] = d.date.split('/');
-            formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-          }
-
-          // --- עיגול שעה למשבצות 00/30 ---
-          let finalTime = d.time || "08:00";
-          if (finalTime.includes(':')) {
-            const [h, m] = finalTime.split(':');
-            const roundedMin = parseInt(m) < 30 ? '00' : '30';
-            finalTime = `${h.padStart(2, '0')}:${roundedMin}`;
-          }
-
-          const { error: insertError } = await supabase.from('orders').insert([{
+      const jsonMatch = replyText.match(/\{.*\}/s);
+      if (jsonMatch) {
+        const d = JSON.parse(jsonMatch[0]);
+        
+        if (d.type === "CONTAINER") {
+          // הזרקה לטבלת מכולות
+          await supabase.from('container_management').insert([{
+            client_name: d.client,
+            delivery_address: d.address,
+            start_date: d.date,
+            order_time: d.time,
+            contractor_name: d.executor,
+            is_active: true,
+            status: 'delivered'
+          }]);
+        } else {
+          // הזרקה לטבלת הובלות
+          await supabase.from('orders').insert([{
             client_info: d.client,
             location: d.address,
-            source_branch: d.branch,
-            driver_name: d.driver?.trim(),
-            order_time: finalTime,
-            delivery_date: formattedDate,
-            status: 'approved' // הזרקה ישירה ל-LIVE
+            delivery_date: d.date,
+            order_time: d.time,
+            driver_name: d.executor,
+            status: 'approved'
           }]);
-
-          if (!insertError) {
-            finalReply = `בוס, הזמנה ל-${d.client} הוזרקה ללוח ליום ${d.date} לשעה ${finalTime}. 🚀`;
-            isComplete = true;
-          }
         }
-      } catch (e) { console.error("Parse Error", e); }
+        finalReply = `בוס, הזמנת ${d.type === 'CONTAINER' ? 'מכולה' : 'חומרים'} ל-${d.client} הוזרקה ללוח של ${d.executor}. 🚀`;
+        isComplete = true;
+      }
     }
 
     const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${finalReply}`;
     await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
     return res.status(200).json({ reply: finalReply });
-
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח התעייף לרגע. נסה שוב." });
+    return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
   }
 }
