@@ -95,7 +95,7 @@ export default function SabanAIAssistant() {
           >
             <motion.img 
               initial={{ scale: 0.5, y: 0 }} animate={{ scale: 1, y: -20 }}
-              src="https://ibb.co/yn0wjcrD" 
+              src="https://i.postimg.cc/3wTMxG7W/ai.jpg" 
               className="w-32 h-32 object-contain"
             />
           </motion.div>
@@ -105,7 +105,7 @@ export default function SabanAIAssistant() {
       <header className="h-16 flex items-center justify-between px-6 bg-[#111827] border-b border-white/5 z-50 shadow-xl">
         <button onClick={() => setIsOpen(!isOpen)} className="p-2"><Menu size={28} /></button>
         <div className="flex items-center gap-2">
-            <motion.img src="https://ibb.co/yn0wjcrD" className="w-8 h-8 object-contain" />
+            <motion.img src="https://i.postimg.cc/3wTMxG7W/ai.jpg" className="w-8 h-8 object-contain" />
             <span className="font-black italic text-xl text-emerald-500 tracking-tighter uppercase">SABAN {activeView === 'chat' ? 'AI' : 'LIVE'}</span>
         </div>
         <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-black border border-emerald-500/20 shadow-lg">
