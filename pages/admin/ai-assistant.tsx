@@ -9,34 +9,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// לינק לוגו חלופי ויציב (אייקון טרקטור/בנייה)
-const LOGO_URL = "https://cdn.jumpshare.com/preview/ZAP6_5qLwLbAy-wIa39ki66duCSVbg4q-l9oBBzyTmvKz7aYcGzupUUrhqFq5-WU1Hn7kL1x31ShorR_k6Sj2J5biv375p3n4dtcnBM4Ru8";
+// הלוגו החדש של סבן
+const SABAN_LOGO = "https://ddg21s9t062h4.cloudfront.net/0a1io%2Fpreview%2F76725838%2Fmain_large.jpg?response-content-disposition=inline%3Bfilename%3D%22main_large.jpg%22%3B&response-content-type=image%2Fjpeg&Expires=1774945329&Signature=Js9azLzUTXx~v5QdghuE53fSxI0UaYR9BlNSYbB-Ln-Be08QgXOJe6325n0f7RLl3TmMMooGdByRf2xHaanAvvrFEHLFZqKoXTQXARsp1NZGYQv06otSl-EEFnhJA67ThRLxuW-atT2JZU1pImX4Y7iLJ9QP9cwzuihCR7gBkKyMvMMgvEzSDcLM64immiPDACPyiE0YubPrjmqAnOAktrOhm3s-ycRkpgrgguRwVmcUnKlmLKK9hTVdEfK8E0KViSo6gOVv58WoqtBBcgyTcUwSC7Q7oUNjrc4libEYBRCMziKQVWydGIpGlR9XasjUtYiHHYRyiRm6WoLl3nuwpA__&Key-Pair-Id=APKAJT5WQLLEOADKLHBQ";
+
+// צבעי WhatsApp Dark Mode
+const WA_BG = "bg-[#111b21]"; // רקע ראשי
+const WA_PANEL = "bg-[#202c33]"; // פאנל/כרטיסים
+const WA_GREEN = "bg-[#00a884]"; // כפתורים וסטטוס מאושר
+const WA_TEXT = "text-[#e9edef]"; // טקסט בהיר
+const WA_SUB = "text-[#8696a0]"; // טקסט משני/אפור
 
 const STATUS_MAP: any = {
-  'approved': { label: 'מאושר', color: 'text-[#00a884]' },
-  'pending': { label: 'ממתין להעמסה', color: 'bg-amber-500 shadow-amber-500/20' },
-  'rejected': { label: 'נדחתה', color: 'bg-red-500' }
+  'approved': { label: 'מאושר', color: 'bg-[#00a884]' },
+  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' },
+  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' }
 };
 
 const QUICK_QUERIES = [
-  "כמה הזמנות יש היום?", "מה מצב המכולות בשטח?", "האם היו העברות היום?",
-  "כמה הזמנות סופקו?", "מי הנהג הפעיל ביותר היום?", "סטטוס שארק 30",
-  "חיפוש לפי שם לקוח", "דוח יומי מקוצר", "הזמנות ללא נהג", "מכולות שצריכות פינוי"
+  "כמה הזמנות יש היום?", "מצב מכולות", "העברות היום", "כמה סופקו?", 
+  "סטטוס שארק 30", "חיפוש לקוח", "דוח יומי", "מכולות לפינוי"
 ];
 
 const getCountdown = (orderTime: string) => {
   if (!orderTime) return null;
-  try {
-    const [hours, minutes] = orderTime.split(':').map(Number);
-    const now = new Date();
-    const target = new Date();
-    target.setHours(hours, minutes, 0);
-    const diff = target.getTime() - now.getTime();
-    if (diff <= 0) return "בביצוע";
-    const h = Math.floor(diff / (1000 * 60 * 60));
-    const m = Math.floor((diff / (1000 * 60)) % 60);
-    return `${h > 0 ? h + 'ש ו-' : ''}${m} דק'`;
-  } catch (e) { return null; }
+  const [h, m] = orderTime.split(':').map(Number);
+  const now = new Date();
+  const target = new Date();
+  target.setHours(h, m, 0);
+  const diff = target.getTime() - now.getTime();
+  if (diff <= 0) return "בביצוע";
+  const mins = Math.floor((diff / (1000 * 60)) % 60);
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  return `${hours > 0 ? hours + 'ש ' : ''}${mins} דק'`;
 };
 
 export default function SabanAIAssistant() {
@@ -49,42 +53,17 @@ export default function SabanAIAssistant() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const splashTimer = setTimeout(() => setShowSplash(false), 800);
+    const timer = setTimeout(() => setShowSplash(false), 800);
     fetchLiveOrders();
-    
-    // סנכרון Realtime בפורמט החדש
-    const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        fetchLiveOrders();
-      }).subscribe();
-    
-    const interval = setInterval(() => fetchLiveOrders(), 60000); // רענון נתונים כל דקה לטיימר
-
-    return () => {
-      clearTimeout(splashTimer);
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(fetchLiveOrders, 60000);
+    return () => { clearTimeout(timer); clearInterval(interval); };
   }, []);
 
   const fetchLiveOrders = async () => {
     const today = new Date().toISOString().split('T')[0];
-    try {
-      // תיקון ה-400: שימוש ב-Filter נקי ללא תווים מיוחדים ש-Supabase חוסם
-      const [oRes, cRes] = await Promise.all([
-        supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted'),
-        supabase.from('container_management').select('*').eq('start_date', today).neq('status', 'deleted')
-      ]);
-
-      const combined = [
-        ...(oRes.data || []),
-        ...(cRes.data || [])
-      ].sort((a, b) => (a.order_time || '').localeCompare(b.order_time || ''));
-
-      setOrders(combined);
-    } catch (err) {
-      console.error("Fetch error:", err);
-    }
+    const { data: o } = await supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted');
+    const { data: c } = await supabase.from('container_management').select('*').eq('start_date', today).neq('status', 'deleted');
+    setOrders([...(o || []), ...(c || [])].sort((a,b) => (a.order_time || '').localeCompare(b.order_time || '')));
   };
 
   const askAI = async (query: string) => {
@@ -99,38 +78,32 @@ export default function SabanAIAssistant() {
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'ai', content: data.answer }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', content: "בוס, תקלה בחיבור למאגר." }]);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למערכת." }]); }
+    finally { setLoading(false); }
   };
 
   return (
-<div className="h-screen bg-[#111b21] text-[#e9edef] flex flex-col font-sans overflow-hidden" dir="rtl">
-  <Head>
-        <title>Saban AI Companion</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>" />
-      </Head>
+    <div className={`h-screen ${WA_BG} ${WA_TEXT} flex flex-col font-sans overflow-hidden`} dir="rtl">
+      <Head><title>SABAN | AI Companion</title></Head>
 
       <AnimatePresence>
         {showSplash && (
-          <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#afc9ed] z-[100] flex items-center justify-center">
+          <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}>
             <motion.img 
-              initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              src={LOGO_URL} className="w-24 h-24 invert"
+              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              src={SABAN_LOGO} className="w-48 h-48 rounded-3xl object-cover shadow-2xl"
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <header className="h-16 flex items-center justify-between px-6 bg-[#202c33] border-b border-white/5 z-50">
+      <header className={`h-16 flex items-center justify-between px-6 ${WA_PANEL} border-b border-white/5 z-50 shadow-md`}>
         <button onClick={() => setIsOpen(!isOpen)} className="p-2"><Menu size={28} /></button>
-        <div className="flex items-center gap-2">
-            <img src={LOGO_URL} className="w-7 h-7 invert opacity-80" alt="Saban Logo" />
-            <span className="font-black italic text-xl text-emerald-500 uppercase tracking-tighter">SABAN {activeView === 'chat' ? 'AI' : 'LIVE'}</span>
+        <div className="flex items-center gap-3">
+            <img src={SABAN_LOGO} className="w-9 h-9 rounded-full object-cover border border-[#00a884]/30 shadow-md" />
+            <span className="font-black text-lg tracking-tighter uppercase text-[#00a884]">SABAN {activeView === 'chat' ? 'AI' : 'LIVE'}</span>
         </div>
-        <div className="w-10 h-10 rounded-full text-[#00a884]/10 flex items-center justify-center text-emerald-500 font-black border border-emerald-500/20 shadow-lg">
+        <div className="w-9 h-9 rounded-full bg-[#00a884]/10 flex items-center justify-center text-[#00a884] font-black border border-[#00a884]/20">
           {orders.length}
         </div>
       </header>
@@ -138,19 +111,12 @@ export default function SabanAIAssistant() {
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed top-0 right-0 h-full w-[85%] bg-[#111827] z-[70] p-8 shadow-2xl border-l border-white/5">
-              <div className="flex justify-between items-center mb-16">
-                  <span className="font-black text-xl italic tracking-tighter text-emerald-500">תפריט</span>
-                  <button onClick={() => setIsOpen(false)} className="p-2 bg-white/5 rounded-full"><X size={24}/></button>
-              </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className={`fixed top-0 right-0 h-full w-[80%] ${WA_PANEL} z-[70] p-8 shadow-2xl`}>
+              <div className="flex justify-between items-center mb-16"><span className="font-black text-xl text-[#00a884]">תפריט ניהול</span><button onClick={() => setIsOpen(false)}><X size={28}/></button></div>
               <nav className="space-y-4">
-                <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'chat' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
-                    <MessageSquare size={24}/> צאט-סידור
-                </button>
-                <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'live' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
-                    <Calendar size={24}/> לוח הזמנות
-                </button>
+                <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'chat' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><MessageSquare size={24}/> AI ANALYST</button>
+                <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'live' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><Calendar size={24}/> לוח משימות LIVE</button>
               </nav>
             </motion.div>
           </>
@@ -159,64 +125,46 @@ export default function SabanAIAssistant() {
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scrollbar-hide">
         {activeView === 'chat' ? (
-          <div className="space-y-4">
-            {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center pt-20 opacity-20">
-                    <Bot size={80} className="text-emerald-500 mb-2" />
-                    <p className="font-black italic">המתנה לשאילתה...</p>
-                </div>
-            )}
-            {messages.map((m, i) => (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-               <div className={`max-w-[85%] p-5 rounded-2xl font-bold shadow-md ${
-  m.role === 'user' 
-    ? 'bg-[#202c33] text-[#e9edef]' // הודעה שלך (אפור כהה)
-    : 'bg-[#005c4b] text-[#e9edef]' // הודעה של ה-AI (ירוק כהה של וואטסאפ)
-}`}>
-  {m.content}
-</div>
-            ))}
-            {loading && <div className="flex justify-center"><RefreshCcw className="animate-spin text-emerald-500" /></div>}
-          </div>
+          messages.map((m, i) => (
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+              <div className={`max-w-[85%] p-4 rounded-2xl font-bold shadow-md ${m.role === 'user' ? 'bg-[#202c33] border border-white/5' : 'bg-[#005c4b] text-[#e9edef]'}`}>{m.content}</div>
+            </motion.div>
+          ))
         ) : (
-          <div className="grid grid-cols-1 gap-5">
+          <div className="grid grid-cols-1 gap-4">
             {orders.map((order) => {
               const countdown = getCountdown(order.order_time);
-              const isUrgent = countdown && !countdown.includes('ש') && parseInt(countdown) < 30;
-
               return (
-                <div key={order.id} className={`p-6 rounded-[2.5rem] border border-white/5 shadow-2xl bg-[#161B2C] relative overflow-hidden transition-all ${isUrgent ? 'animate-pulse border-amber-500/40 shadow-amber-500/10' : ''}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="font-mono text-[10px] opacity-40">#{order.order_number || 'N/A'}</span>
-                    <span className={`px-4 py-1 rounded-full text-[10px] font-black text-white shadow-lg ${STATUS_MAP[order.status]?.color || 'bg-slate-600'}`}>{STATUS_MAP[order.status]?.label || order.status}</span>
+                <div key={order.id} className={`p-6 rounded-2xl ${WA_PANEL} border-r-4 border-[#00a884] shadow-lg`}>
+                  <div className="flex justify-between mb-2">
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${STATUS_MAP[order.status]?.color || 'bg-slate-700'}`}>{STATUS_MAP[order.status]?.label || order.status}</span>
+                    <span className={`${WA_SUB} font-mono text-[10px]`}>#{order.order_number || 'N/A'}</span>
                   </div>
-                  <h3 className="text-2xl font-black mb-1 tracking-tighter">{order.client_name || order.client_info}</h3>
-                  <div className="flex items-center gap-2 text-xs opacity-60 mb-6 font-bold"><MapPin size={14} className="text-emerald-500"/> {order.delivery_address || order.location}</div>
-                  
-                  <div className="flex justify-between items-center bg-black/30 p-5 rounded-[2rem]">
-                    <div className="flex flex-col">
-                        <div className="flex items-center gap-2 text-emerald-400 font-mono text-2xl font-black"><Clock size={20}/> {order.order_time}</div>
-                        {countdown && <div className="flex items-center gap-1 text-[10px] font-black text-amber-500 mt-1"><Timer size={12}/> בעוד {countdown}</div>}
-                    </div>
-                    <span className="text-xs font-black opacity-80">{order.contractor_name || order.driver_name}</span>
+                  <h3 className="text-xl font-black">{order.client_name || order.client_info}</h3>
+                  <div className={`${WA_SUB} text-xs flex items-center gap-1 mb-4`}><MapPin size={12}/> {order.delivery_address || order.location}</div>
+                  <div className="flex justify-between items-center bg-[#111b21]/50 p-4 rounded-xl">
+                    <div className="flex flex-col"><div className="flex items-center gap-2 text-[#00a884] font-black text-xl italic"><Clock size={18}/> {order.order_time}</div>
+                    {countdown && <div className="text-[10px] font-black text-amber-500">בעוד {countdown}</div>}</div>
+                    <span className="text-xs font-bold opacity-70">{order.contractor_name || order.driver_name}</span>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
+        {loading && <RefreshCcw className="animate-spin text-[#00a884] mx-auto" />}
       </main>
 
       {activeView === 'chat' && (
-        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#afc9ed] z-40">
+        <footer className={`fixed bottom-0 left-0 right-0 p-4 ${WA_BG} z-40`}>
           <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
             {QUICK_QUERIES.map((q, i) => (
-              <button key={i} onClick={() => askAI(q)} className="whitespace-nowrap px-6 py-3 bg-[#111827] border border-white/10 rounded-full text-[10px] font-black hover:text-[#00a884] hover:text-slate-900 transition-all shadow-xl italic">{q}</button>
+              <button key={i} onClick={() => askAI(q)} className={`whitespace-nowrap px-5 py-2 ${WA_PANEL} rounded-full text-[11px] font-bold border border-white/5 active:scale-95`}>{q}</button>
             ))}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative">
-            <input value={input} onChange={e => setInput(e.target.value)} placeholder="שאל את המוח האנליטי..." className="w-full p-6 pr-14 rounded-[2.5rem] bg-[#111827] border border-white/10 text-white font-bold outline-none focus:border-emerald-500 shadow-2xl" />
-            <button type="submit" className="absolute left-3 top-3 w-12 h-12 text-[#00a884] text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all"><Send size={20} className="rotate-180" /></button>
+            <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב הודעה למוח..." className={`w-full p-4 pr-12 rounded-full ${WA_PANEL} border-none outline-none focus:ring-1 focus:ring-[#00a884]`} />
+            <button type="submit" className="absolute left-2 top-2 w-10 h-10 bg-[#00a884] text-[#111b21] rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all"><Send size={18} className="rotate-180" /></button>
           </form>
         </footer>
       )}
