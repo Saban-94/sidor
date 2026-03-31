@@ -16,8 +16,19 @@ export default function SabanAIAssistant() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const quickQueries = ["כמה הזמנות יש היום?", "סטטוס שארק 30", "חיפוש לפי שם לקוח", "כמה הזמנות סופקו?"];
-
+  const quickQueries = [
+    "כמה הזמנות יש היום?",
+    "מה מצב המכולות בשטח?",
+    "האם היו העברות היום?",
+    "כמה הזמנות סופקו?",
+    "מי הנהג הפעיל ביותר היום?",
+    "סטטוס שארק 30",
+    "חיפוש לפי שם לקוח",
+    "דוח יומי מקוצר",
+    "הזמנות ללא נהג",
+    "מכולות שצריכות פינוי"
+  ];
+  
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
@@ -73,7 +84,7 @@ export default function SabanAIAssistant() {
           ))}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative">
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder="שאל את המוח..." className="w-full p-6 rounded-[2.5rem] bg-[#111827] border border-white/10 text-white font-bold outline-none" />
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="שאל את הסידור כל שאלה..." className="w-full p-6 rounded-[2.5rem] bg-[#111827] border border-white/10 text-white font-bold outline-none" />
           <button type="submit" className="absolute left-3 top-3 w-12 h-12 bg-emerald-500 text-slate-900 rounded-full flex items-center justify-center"><Send size={20} className="rotate-180" /></button>
         </form>
       </footer>
