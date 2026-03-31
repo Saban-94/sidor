@@ -1,232 +1,280 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  ShieldCheck, LayoutDashboard, Database, BrainCircuit, Users,
-  Menu, X, Plus, Edit2, Trash2, Search, Save, Phone, MapPin, Briefcase, Sparkles
+  LayoutDashboard, MessageSquare, Container, Send, Clock, MapPin, 
+  Bot, Truck, Box, RefreshCcw, History, Edit3, Trash2, 
+  Timer, CheckCircle, ArrowRightLeft, Sun, Moon, Calendar, User, X, Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-export default function SabanAdminMaster() {
-  const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ORDERS' | 'CUSTOMERS' | 'MEMORY'>('DASHBOARD');
-  const [orders, setOrders] = useState<any[]>([]);
+// נתוני נהגים קבועים
+const DRIVERS = [
+  { name: 'חכמת', img: 'https://i.postimg.cc/d3S0NJJZ/Screenshot-20250623-200646-Facebook.jpg' },
+  { name: 'עלי', img: 'https://i.postimg.cc/tCNbgXK3/Screenshot-20250623-200744-Tik-Tok.jpg' }
+];
+
+const CONTRACTOR_COLORS: Record<string, string> = {
+  'שארק 30': 'bg-orange-500',
+  'כראדי 32': 'bg-blue-600',
+  'שי שרון 40': 'bg-purple-600'
+};
+
+const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 6;
+  const min = i % 2 === 0 ? '00' : '30';
+  return `${hour.toString().padStart(2, '0')}:${min}`;
+});
+
+export default function SabanUltimateControlCenter() {
+  const [activeTab, setActiveTab] = useState<'live' | 'sidor' | 'containers' | 'chat' | 'CUSTOMERS' | 'MEMORY' | 'DASHBOARD'>('live');
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [truckOrders, setTruckOrders] = useState<any[]>([]);
+  const [containerSites, setContainerSites] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [memory, setMemory] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  
-  const [isEditModal, setIsEditModal] = useState(false);
-  const [editingRow, setEditingRow] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false); // הוספתי את המשתנה שהיה חסר
+  const [now, setNow] = useState(new Date());
+  const [isMounted, setIsMounted] = useState(false);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
+    setIsMounted(true);
     fetchData();
-  }, [activeTab]);
-const fetchData = async () => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    if (typeof window !== 'undefined') audioRef.current = new Audio('/order-notification.mp3');
+    const channel = supabase.channel('db_sync').on('postgres_changes', { event: '*', schema: 'public' }, fetchData).subscribe();
+    return () => { clearInterval(t); channel.unsubscribe(); };
+  }, [selectedDate, activeTab]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const fetchData = async () => {
     setLoading(true);
     
     // 1. הגדרת התאריך לחיפוש (ISO וגם פורמט ישראלי לגיבוי)
     const [y, m, d] = selectedDate.split('-');
     const ilDate = `${d}/${m}/${y}`;
 
-    // 2. משיכת הזמנות מסוננות ליום הנבחר בלבד
-    if (activeTab === 'live' || activeTab === 'sidor' || activeTab === 'DASHBOARD') {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        // מחפש התאמה לפורמט 2026-03-31 או 31/03/2026
-        .or(`delivery_date.eq.${selectedDate},delivery_date.eq.${ilDate}`)
-        .order('order_time', { ascending: true });
+    try {
+      // 2. משיכת הזמנות מסוננות ליום הנבחר בלבד
+      if (activeTab === 'live' || activeTab === 'sidor' || activeTab === 'DASHBOARD' as any) {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('*')
+          .or(`delivery_date.eq.${selectedDate},delivery_date.eq.${ilDate}`)
+          .order('order_time', { ascending: true });
 
-      if (ordersData) setTruckOrders(ordersData);
-      if (ordersError) console.error("Orders Sync Error:", ordersError);
+        if (ordersData) setTruckOrders(ordersData);
+      }
+
+      // 3. משיכת לקוחות
+      if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD' as any) {
+        const { data: custData } = await supabase.from('customers').select('*').order('customer_number', { ascending: true });
+        if (custData) setCustomers(custData);
+      }
+
+      // 4. משיכת מכולות והעברות
+      const { data: c } = await supabase.from('container_management').select('*').eq('is_active', true);
+      const { data: tr } = await supabase.from('transfers').select('*').eq('transfer_date', selectedDate);
+      
+      setContainerSites(c || []);
+      setTransfers(tr || []);
+
+      if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD' as any) {
+        const { data: memData } = await supabase.from('customer_memory').select('*');
+        if (memData) setMemory(memData);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    // 3. משיכת לקוחות (ללא שינוי)
-    if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
-      const { data: custData } = await supabase
-        .from('customers')
-        .select('*')
-        .order('customer_number', { ascending: true });
-      if (custData) setCustomers(custData);
-    }
-
-    // 4. משיכת זיכרון ומכולות (לפי הקוד המקורי)
-    if (activeTab === 'containers' || activeTab === 'live') {
-      const { data: containersData } = await supabase.from('container_management').select('*').eq('is_active', true);
-      if (containersData) setContainerSites(containersData);
-    }
-
-    if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
-      const { data: memData } = await supabase.from('customer_memory').select('*');
-      if (memData) setMemory(memData);
-    }
-
-    setLoading(false);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    const table = activeTab === 'CUSTOMERS' ? 'customers' : activeTab === 'ORDERS' ? 'orders' : 'customer_memory';
-    
-    const payload = { ...editingRow };
-    const rowId = payload.id;
-    delete payload.id;
-    delete payload.created_at;
+    if (!input.trim() || loading) return;
+    const msg = input; setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: msg }]);
+    setLoading(true);
 
-    const { error } = rowId 
-      ? await supabase.from(table).update(payload).eq('id', rowId)
-      : await supabase.from(table).insert([payload]);
-
-    if (!error) {
-      setIsEditModal(false);
-      fetchData();
-    } else {
-      alert("שגיאה בשמירה: " + error.message);
-    }
+    try {
+      const res = await fetch('/api/unified-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, senderPhone: 'admin' })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      if (data.reply.includes('בוצע') || data.reply.includes('הוזרק')) {
+        audioRef.current?.play().catch(() => {});
+        fetchData();
+      }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  if (!mounted) return null;
-
-  const getFilteredData = () => {
-    const data = activeTab === 'CUSTOMERS' ? customers : activeTab === 'ORDERS' ? orders : memory;
-    return data.filter(i => JSON.stringify(i).includes(search));
+  const deleteItem = async (id: string, table: string) => {
+    if (!confirm("בוס, למחוק סופית?")) return;
+    await supabase.from(table).delete().eq('id', id);
+    fetchData();
   };
+
+  if (!isMounted) return <div className="h-screen bg-[#0B0F1A]" />;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex" dir="rtl">
-      <aside className="w-72 bg-[#111827] text-white p-6 hidden lg:flex flex-col shadow-2xl">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="bg-emerald-500 p-2 rounded-xl text-black shadow-lg"><ShieldCheck size={24}/></div>
-          <h1 className="font-black text-xl italic uppercase">Saban <span className="text-emerald-500">Admin</span></h1>
+    <div className={`flex h-screen w-full transition-all duration-500 font-sans overflow-hidden ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F4F7FE] text-slate-900'}`} dir="rtl">
+      <Head>
+        <title>SABAN OS | MASTER</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>" />
+      </Head>
+
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex w-72 flex-col border-l transition-all ${isDarkMode ? 'bg-[#111827] border-white/5' : 'bg-white border-slate-200 shadow-2xl'}`}>
+        <div className="p-8 font-black text-2xl italic tracking-tighter border-b border-white/5 flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-slate-900 shadow-lg"><LayoutDashboard size={20}/></div>
+          <span>SABAN OS</span>
         </div>
-        <nav className="space-y-2">
-          <NavBtn active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<LayoutDashboard size={18}/>} label="דאשבורד" />
-          <NavBtn active={activeTab === 'ORDERS'} onClick={() => setActiveTab('ORDERS')} icon={<Database size={18}/>} label="הזמנות" />
-          <NavBtn active={activeTab === 'CUSTOMERS'} onClick={() => setActiveTab('CUSTOMERS')} icon={<Users size={18}/>} label="לקוחות" />
-          <NavBtn active={activeTab === 'MEMORY'} onClick={() => setActiveTab('MEMORY')} icon={<BrainCircuit size={18}/>} label="זיכרון" />
+        <nav className="flex-1 p-5 space-y-4">
+          {[
+            { id: 'live', label: 'משימות LIVE', icon: Timer },
+            { id: 'sidor', label: 'סידור נהגים', icon: Truck },
+            { id: 'containers', label: 'מכולות', icon: Box },
+            { id: 'chat', label: 'AI Supervisor', icon: Bot },
+          ].map(item => (
+            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full p-5 rounded-[2rem] flex items-center gap-5 transition-all ${activeTab === item.id ? 'bg-emerald-500 text-slate-900 font-black shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
+              <item.icon size={24} /> <span className="uppercase text-sm">{item.label}</span>
+            </button>
+          ))}
         </nav>
+        <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-10 flex items-center gap-4 text-slate-400 hover:text-emerald-500 transition-colors">
+          {isDarkMode ? <Sun size={24}/> : <Moon size={24}/>} <span className="font-black uppercase text-xs">שינוי עיצוב</span>
+        </button>
       </aside>
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
-          <h2 className="font-black text-xl tracking-tight uppercase">Control Center</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold opacity-40 italic">{new Date().toLocaleDateString('he-IL')}</span>
+      {/* Mobile Bottom Nav */}
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-20 z-[100] flex items-center justify-around border-t transition-colors ${isDarkMode ? 'bg-[#111827]/90 border-white/5 backdrop-blur-xl' : 'bg-white/90 border-slate-200 backdrop-blur-xl'}`}>
+        {[
+          { id: 'live', icon: Timer, label: 'משימות' },
+          { id: 'sidor', icon: Truck, label: 'נהגים' },
+          { id: 'containers', icon: Box, label: 'מכולות' },
+          { id: 'chat', icon: Bot, label: 'AI' }
+        ].map(btn => (
+          <button key={btn.id} onClick={() => setActiveTab(btn.id as any)} className={`flex flex-col items-center gap-1 flex-1 ${activeTab === btn.id ? 'text-emerald-500' : 'text-slate-400'}`}>
+            <btn.icon size={22} /> <span className="text-[10px] font-black uppercase tracking-tighter">{btn.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <main className="flex-1 flex flex-col overflow-hidden relative pb-20 lg:pb-0">
+        
+        {/* Header קבוע */}
+        <header className={`h-24 shrink-0 flex items-center justify-between px-8 border-b ${isDarkMode ? 'bg-[#0B0F1A]/80 border-white/5' : 'bg-white border-slate-100'} backdrop-blur-md`}>
+          <div className="flex items-center gap-4">
+             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={`p-3 rounded-xl font-black text-xs outline-none ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-100 border-slate-200 text-slate-900'}`} />
+             {loading && <RefreshCcw size={18} className="animate-spin text-emerald-500" />}
+          </div>
+          <div className="font-mono font-black text-2xl lg:text-4xl text-emerald-500" suppressHydrationWarning>
+            {isMounted ? now.toLocaleTimeString('he-IL') : '--:--:--'}
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="bg-white rounded-[2.5rem] shadow-xl border overflow-hidden">
-            <div className="p-6 border-b flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50/50">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                <input placeholder="חיפוש חופשי..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border p-3 pr-12 rounded-2xl outline-none focus:border-emerald-500 transition-all shadow-sm" />
-              </div>
-              <button onClick={() => {setEditingRow({}); setIsEditModal(true)}} className="bg-emerald-500 text-black px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-emerald-500/20">
-                <Plus size={18}/> הוסף ידנית
-              </button>
-            </div>
+        <div className="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-hide">
+          <AnimatePresence mode="wait">
+            
+            {activeTab === 'live' && (
+              <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                {[
+                  ...truckOrders.map(t => ({ ...t, type: 'ORDER', title: t.client_info, sub: t.location, target: `${t.delivery_date}T${t.order_time}`, person: t.driver_name })),
+                  ...containerSites.map(c => ({ ...c, type: 'CONTAINER', title: c.client_name, sub: c.delivery_address, target: `${c.start_date}T${c.order_time || '08:00'}`, person: c.contractor_name })),
+                  ...transfers.map(tr => ({ ...tr, type: 'TRANSFER', title: `העברה: ${tr.to_branch}`, sub: `מ-${tr.from_branch}`, target: `${tr.transfer_date}T${tr.transfer_time}`, person: tr.driver_name }))
+                ].map(order => {
+                  const t = calculateTime(order.target);
+                  return (
+                    <div key={order.id} className={`p-8 rounded-[3.5rem] border-2 transition-all relative group shadow-2xl ${isDarkMode ? 'bg-[#161B2C]' : 'bg-white border-slate-100'} ${t.urgent ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}>
+                      <div className="flex justify-between items-start mb-6">
+                         <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${order.type === 'TRANSFER' ? 'bg-indigo-600' : (order.type === 'CONTAINER' ? 'bg-emerald-600' : 'bg-slate-700')}`}>
+                           {order.type}
+                         </span>
+                         <button onClick={() => deleteItem(order.id, order.type === 'CONTAINER' ? 'container_management' : (order.type === 'TRANSFER' ? 'transfers' : 'orders'))} className="p-3 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={20}/></button>
+                      </div>
+                      <h3 className="text-3xl font-black mb-3">{order.title}</h3>
+                      <div className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-10"><MapPin size={16} className="text-emerald-500"/> {order.sub}</div>
+                      
+                      <div className={`p-6 rounded-[2.5rem] flex items-center justify-between ${t.urgent ? 'bg-amber-500 text-white' : 'bg-slate-900 text-emerald-400'}`}>
+                         <div className="flex items-center gap-4">
+                           <Clock size={32}/>
+                           <span className="text-4xl font-black font-mono">
+                             {isMounted && !t.expired ? `${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}:${String(t.s).padStart(2,'0')}` : "00:00"}
+                           </span>
+                         </div>
+                         <span className="text-[10px] font-black uppercase tracking-widest">{order.order_time || order.transfer_time}</span>
+                      </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-right border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] border-b">
-                    {activeTab === 'CUSTOMERS' ? (
-                      <>
-                        <th className="p-4"># מספר</th>
-                        <th className="p-4">לקוח</th>
-                        <th className="p-4">פרויקט</th>
-                        <th className="p-4">כתובת</th>
-                        <th className="p-4">נייד</th>
-                      </>
-                    ) : (
-                      <th className="p-4">מידע כללי</th>
-                    )}
-                    <th className="p-4 text-center">ניהול</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {getFilteredData().map((row: any) => (
-                    <tr key={row.id} className="hover:bg-emerald-50/30 transition-colors group">
-                      {activeTab === 'CUSTOMERS' ? (
-                        <>
-                          <td className="p-4 font-mono text-emerald-600 font-bold">{row.customer_number}</td>
-                          <td className="p-4 font-black">{row.name}</td>
-                          <td className="p-4 text-sm font-medium">{row.project_name}</td>
-                          <td className="p-4 text-xs opacity-50 italic">{row.project_address}</td>
-                          <td className="p-4 font-mono text-blue-600">{row.phone}</td>
-                        </>
-                      ) : (
-                        <td className="p-4 font-black">{row.client_info || row.clientId || row.accumulated_knowledge}</td>
-                      )}
-                      <td className="p-4 flex justify-center gap-2">
-                        <button onClick={() => {setEditingRow(row); setIsEditModal(true)}} className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-90"><Edit2 size={18}/></button>
-                        <button onClick={async () => { if(confirm("למחוק?")) { await supabase.from(activeTab === 'CUSTOMERS' ? 'customers' : 'orders').delete().eq('id', row.id); fetchData(); }}} className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-90"><Trash2 size={18}/></button>
-                      </td>
-                    </tr>
+                      <div className="mt-8 flex items-center gap-5 border-t border-white/5 pt-8">
+                         {DRIVERS.find(d => d.name === order.person) ? (
+                           <img src={DRIVERS.find(d => d.name === order.person)?.img} className="w-16 h-16 rounded-full border-4 border-emerald-500 object-cover" />
+                         ) : (
+                           <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500"><Box size={28}/></div>
+                         )}
+                         <span className="text-xl font-black">{order.person}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+
+            {/* צ'אט AI */}
+            {activeTab === 'chat' && (
+              <motion.div key="chat" className="flex-1 flex flex-col h-full">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 pb-40">
+                  {messages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                      <div className={`max-w-[85%] p-8 rounded-[3rem] text-lg font-black ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-emerald-500 text-slate-900'}`}>
+                        {m.content}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-      </div>
-
-      <AnimatePresence>
-        {isEditModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-white/20">
-              <div className="p-8 border-b bg-slate-50 flex items-center justify-between">
-                <h3 className="font-black text-2xl tracking-tighter italic uppercase">Edit <span className="text-emerald-500">Record</span></h3>
-                <button onClick={() => setIsEditModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X/></button>
-              </div>
-              <form onSubmit={handleSave} className="p-8 space-y-4">
-                {activeTab === 'CUSTOMERS' ? (
-                  <>
-                    <InputItem label="שם לקוח" value={editingRow?.name || ''} onChange={(v: string)=>setEditingRow({...editingRow, name: v})} icon={<Users size={16}/>}/>
-                    <InputItem label="מספר לקוח" value={editingRow?.customer_number || ''} onChange={(v: string)=>setEditingRow({...editingRow, customer_number: v})} icon={<Database size={16}/>}/>
-                    <InputItem label="פרויקט" value={editingRow?.project_name || ''} onChange={(v: string)=>setEditingRow({...editingRow, project_name: v})} icon={<Briefcase size={16}/>}/>
-                    <InputItem label="כתובת" value={editingRow?.project_address || ''} onChange={(v: string)=>setEditingRow({...editingRow, project_address: v})} icon={<MapPin size={16}/>}/>
-                    <InputItem label="נייד" value={editingRow?.phone || ''} onChange={(v: string)=>setEditingRow({...editingRow, phone: v})} icon={<Phone size={16}/>}/>
-                  </>
-                ) : (
-                  <InputItem label="תוכן" value={editingRow?.client_info || editingRow?.accumulated_knowledge || ''} onChange={(v: string)=>setEditingRow({...editingRow, client_info: v})} icon={<Sparkles size={16}/>}/>
-                )}
-                <div className="flex gap-4 pt-4">
-                  <button type="submit" className="flex-1 bg-emerald-500 text-black py-5 rounded-[1.5rem] font-black shadow-xl shadow-emerald-500/20 active:scale-95 transition-transform"><Save size={20} className="inline ml-2"/> שמור שינויים</button>
                 </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <footer className="fixed lg:static bottom-24 left-6 right-6 lg:p-10">
+                  <form onSubmit={handleChat} className="max-w-5xl mx-auto relative">
+                    <input value={input} onChange={e => setInput(e.target.value)} placeholder="הזמן הובלה/מכולה..." className="w-full p-8 px-12 rounded-[3rem] text-xl font-black outline-none bg-[#1E293B] text-white border border-white/5 shadow-2xl" />
+                    <button type="submit" className="absolute left-4 top-4 bg-emerald-500 text-slate-900 w-16 h-16 rounded-full flex items-center justify-center shadow-xl"><Send size={28} className="rotate-180"/></button>
+                  </form>
+                </footer>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
+      </main>
     </div>
   );
-}
 
-function NavBtn({ active, onClick, icon, label }: any) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all ${active ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-      {icon} {label}
-    </button>
-  );
-}
-
-function InputItem({ label, value, onChange, icon }: any) {
-  return (
-    <div className="space-y-1">
-      <label className="text-[10px] font-black opacity-40 uppercase tracking-widest mr-2">{label}</label>
-      <div className="relative">
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">{icon}</div>
-        <input value={value} onChange={(e)=>onChange(e.target.value)} className="w-full bg-slate-50 border p-4 pr-12 rounded-2xl outline-none focus:border-emerald-500 font-bold" />
-      </div>
-    </div>
-  );
+  function calculateTime(target: string) {
+    const diff = new Date(target).getTime() - now.getTime();
+    if (diff <= 0) return { expired: true };
+    return { 
+      expired: false, 
+      h: Math.floor(diff / 3600000), 
+      m: Math.floor((diff % 3600000) / 60000), 
+      s: Math.floor((diff % 60000) / 1000),
+      urgent: diff < 3600000 
+    };
+  }
 }
