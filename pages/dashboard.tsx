@@ -171,7 +171,7 @@ export default function SabanUltimateControlCenter() {
             {activeTab === 'live' && (
               <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                 {[
-                  ...truckOrders.map(t => ({ ...t, type: 'ORDER', title: t.client_info, sub: t.location, target: `${t.delivery_date}T${t.order_time}`, person: t.driver_name })),
+                  ...truckOrders.map(t => ({ ...t, type: 'הזמנה', title: t.client_info, sub: t.location, target: `${t.delivery_date}T${t.order_time}`, person: t.driver_name })),
                   ...containerSites.map(c => ({ ...c, type: 'CONTAINER', title: c.client_name, sub: c.delivery_address, target: `${c.start_date}T${c.order_time || '08:00'}`, person: c.contractor_name })),
                   ...transfers.map(tr => ({ ...tr, type: 'TRANSFER', title: `העברה: ${tr.to_branch}`, sub: `מ-${tr.from_branch}`, target: `${tr.transfer_date}T${tr.transfer_time}`, person: tr.driver_name }))
                 ].filter(o => !calculateTime(o.target).expired).map(order => {
