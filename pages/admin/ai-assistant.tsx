@@ -82,6 +82,36 @@ export default function SabanAIAssistant() {
     finally { setLoading(false); }
   };
 
+  // פונקציה לעיבוד טקסט והצגת תמונות מתוך Markdown + הדגשות וואטסאפ
+  const formatMessage = (content: string) => {
+    const parts = content.split(/(!\[.*?\]\(.*?\))/g);
+    
+    return parts.map((part, index) => {
+      const match = part.match(/!\[(.*?)\]\((.*?)\)/);
+      if (match) {
+        const alt = match[1];
+        const url = match[2];
+        const isLogo = url.includes('flaticon') || url.includes('postimg') || url.includes('ai.jpg');
+
+        return (
+          <div key={index} className={`my-2 ${isLogo ? 'flex justify-center pt-4 border-t border-white/5' : 'inline-block align-middle ml-1'}`}>
+            <img 
+              src={url} 
+              alt={alt} 
+              className={`${isLogo ? 'w-24 h-auto opacity-90 rounded-lg' : 'w-6 h-6 object-contain'}`}
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
+          </div>
+        );
+      }
+      
+      const textWithBold = part.split(/\*(.*?)\*/g).map((subPart, i) => 
+        i % 2 === 1 ? <strong key={i} className="text-white font-black">{subPart}</strong> : subPart
+      );
+      return <span key={index}>{textWithBold}</span>;
+    });
+  };
+
   return (
     <div className={`h-screen ${WA_BG} ${WA_TEXT} flex flex-col font-sans overflow-hidden`} dir="rtl">
       <Head><title>SABAN | AI Companion</title></Head>
@@ -107,8 +137,8 @@ export default function SabanAIAssistant() {
           {orders.length}
         </div>
       </header>
-      
-<AnimatePresence>
+
+      <AnimatePresence>
         {isOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/70 z-[60] backdrop-blur-sm" />
@@ -130,7 +160,9 @@ export default function SabanAIAssistant() {
         {activeView === 'chat' ? (
           messages.map((m, i) => (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[85%] p-4 rounded-2xl font-bold shadow-md ${m.role === 'user' ? 'bg-[#202c33] border border-white/5' : 'bg-[#005c4b] text-[#e9edef]'}`}>{m.content}</div>
+              <div className={`max-w-[90%] p-4 rounded-2xl shadow-md whitespace-pre-wrap ${m.role === 'user' ? 'bg-[#202c33] border border-white/5' : 'bg-[#005c4b] text-[#e9edef]'}`}>
+                {formatMessage(m.content)}
+              </div>
             </motion.div>
           ))
         ) : (
