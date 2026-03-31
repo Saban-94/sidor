@@ -14,12 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { query } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // בדיקות תקינות
+  // בדיקות תקינות למניעת קריסה
   if (!query) return res.status(200).json({ answer: "בוס, לא כתבת שאלה?" });
   if (!apiKey) return res.status(200).json({ answer: "⚠️ שגיאת מפתח (GEMINI_API_KEY חסר)." });
 
   const today = new Date().toISOString().split('T')[0];
-  const modelPool = ["gemini-1.5-flash", "gemini-1.5-pro"]; // מודלים יציבים ל-Production
+  const modelPool = ["gemini-1.5-flash", "gemini-1.5-pro"]; 
 
   try {
     // משיכת נתונים מ-Supabase
@@ -31,19 +31,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const contextData = `
       נתוני מערכת Saban OS (${today}):
-      - חומרים: ${JSON.stringify(orders.data || [])}
-      - מכולות: ${JSON.stringify(containers.data || [])}
+      - חומרים והובלות: ${JSON.stringify(orders.data || [])}
+      - מכולות (הצבה/החלפה/הוצאה): ${JSON.stringify(containers.data || [])}
       - העברות: ${JSON.stringify(transfers.data || [])}
     `;
 
     const prompt = `
-      זהות: Saban OS Core - מוח תפעולי ויזואלי.
+      זהות: Saban OS Core - מוח תפעולי ויזואלי ונקי.
       משימה: הפקת דוח ישיר לבוס על בסיס הנתונים בלבד.
       
       חוקי עיצוב (קשיח):
       1. איסור על Markdown כפול (**). השתמש בכוכבית אחת (*) בלבד להדגשה.
       2. כותרת: 📊 *סיכום תפעולי | [נושא]*
-      3. מבנה שורה:
+      3. מבנה שורה (חובה להפריד שורות לאייקון):
          ![Icon]([Link])
          • לקוח: *[שם]* | סטטוס: *[מצב]*,
          
@@ -55,6 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       5. חתימה בסוף: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
 
+      חוקי מענה: ענה רק על מה שנשאל, בלי נימוסים. אם אין מידע - "אין מידע להיום."
+
       הנתונים:
       ${contextData}
 
@@ -62,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `;
 
     let aiText = "";
+    // לולאת Fallback על מודלים
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -79,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           break;
         }
       } catch (e) {
-        console.error(`Error with ${modelName}, trying next...`);
+        console.error(`Error with model ${modelName}, trying next...`);
       }
     }
 
