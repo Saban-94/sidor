@@ -107,13 +107,16 @@ export default function SabanAIAssistant() {
           {orders.length}
         </div>
       </header>
-
-      <AnimatePresence>
+      
+<AnimatePresence>
         {isOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className={`fixed top-0 right-0 h-full w-[80%] ${WA_PANEL} z-[70] p-8 shadow-2xl`}>
-              <div className="flex justify-between items-center mb-16"><span className="font-black text-xl text-[#00a884]">תפריט ניהול</span><button onClick={() => setIsOpen(false)}><X size={28}/></button></div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/70 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed top-0 right-0 h-full w-[85%] bg-[#111b21] z-[70] p-8 shadow-2xl border-l border-white/5">
+              <div className="flex justify-between items-center mb-16">
+                  <span className="font-black text-xl italic text-[#00a884]">SABAN 1994</span>
+                  <button onClick={() => setIsOpen(false)} className="p-2 bg-white/5 rounded-full"><X size={24}/></button>
+              </div>
               <nav className="space-y-4">
                 <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'chat' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><MessageSquare size={24}/> AI ANALYST</button>
                 <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'live' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><Calendar size={24}/> לוח משימות LIVE</button>
