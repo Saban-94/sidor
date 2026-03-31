@@ -6,12 +6,6 @@ import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw, Share2 } from 'luc
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-const STATUS_MAP: any = {
-  'approved': { label: 'מאושר', color: 'bg-[#00a884]' },
-  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' },
-  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' }
-};
-
 const ACTION_COLORS: any = {
   'הצבה': 'bg-emerald-600 border-emerald-400 shadow-emerald-900/30',
   'החלפה': 'bg-orange-500 border-orange-300 shadow-orange-900/30',
@@ -57,8 +51,8 @@ export default function SabanMasterDashboard() {
 
     const [oRes, cRes, tRes] = await Promise.all([
       supabase.from('orders').select('*').or(`delivery_date.eq.${selectedDate},delivery_date.eq.${ilDate}`).neq('status', 'deleted'),
-      supabase.from('container_management').select('*').eq('start_date', selectedDate).neq('status', 'deleted'),
-      supabase.from('transfers').select('*').eq('transfer_date', selectedDate).neq('status', 'deleted')
+      supabase.from('container_management').select('*').or(`start_date.eq.${selectedDate},start_date.eq.${ilDate}`).neq('status', 'deleted'),
+      supabase.from('transfers').select('*').or(`transfer_date.eq.${selectedDate},transfer_date.eq.${ilDate}`).neq('status', 'deleted')
     ]);
 
     const combined = [
@@ -71,19 +65,28 @@ export default function SabanMasterDashboard() {
     setLoading(false);
   };
 
-  const updateField = async (id: string, table: string, field: string, value: string) => {
-    await supabase.from(table).update({ [field]: value }).eq('id', id);
-    fetchData();
-  };
+  const shareTomorrowSchedule = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toLocaleDateString('he-IL');
+    const isoTomorrow = tomorrow.toISOString().split('T')[0];
+    const ilTomorrow = dateStr;
 
-  // פונקציית השיתוף המעוצבת
-  const shareSchedule = () => {
-    if (orders.length === 0) return alert("אין נתונים לשיתוף");
-    
-    const [y, m, d] = selectedDate.split('-');
-    let message = `📊 *SABAN OS | סידור עבודה ${d}/${m}*\n\n`;
+    // שליפת הזמנות למחר מהמערך הנוכחי (או פנייה מחדש ל-DB אם תרצה, פה נסתמך על מה שנטען)
+    const tomorrowOrders = orders.filter(o => 
+      o.delivery_date === isoTomorrow || o.delivery_date === ilTomorrow ||
+      o.start_date === isoTomorrow || o.start_date === ilTomorrow ||
+      o.transfer_date === isoTomorrow || o.transfer_date === ilTomorrow
+    );
 
-    orders.forEach((o, i) => {
+    if (tomorrowOrders.length === 0) {
+      alert("בוס, לא מצאתי הזמנות למחר במערך הטעון. וודא שבחרת את התאריך של מחר בלוח.");
+      return;
+    }
+
+    let message = `📊 *SABAN OS | דוח סידור עבודה ${dateStr}*\n\n`;
+
+    tomorrowOrders.forEach((o, i) => {
       const time = o.order_time || o.transfer_time || '--:--';
       const client = o.client_name || o.client_info || o.to_branch || 'כללי';
       const loc = o.delivery_address || o.location || `מסניף: ${o.from_branch}`;
@@ -100,19 +103,24 @@ export default function SabanMasterDashboard() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  const updateField = async (id: string, table: string, field: string, value: string) => {
+    await supabase.from(table).update({ [field]: value }).eq('id', id);
+    fetchData();
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0F1A] text-white p-6 font-sans" dir="rtl">
       <Head><title>SABAN LIVE COMMAND</title></Head>
       
-      <header className="flex justify-between items-center mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/5">
+      <header className="flex justify-between items-center mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/5 shadow-2xl">
         <div className="flex items-center gap-4">
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 p-3 rounded-xl outline-none" />
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 p-3 rounded-xl outline-none border border-white/10" />
           <button 
-            onClick={shareSchedule}
+            onClick={shareTomorrowSchedule}
             className="flex items-center gap-2 bg-[#25D366] text-[#111B21] px-5 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all"
           >
             <Share2 size={20} />
-            שתף לוואטסאפ
+            שתף סידור מחר
           </button>
           {loading && <RefreshCcw className="animate-spin text-emerald-500" />}
         </div>
@@ -131,7 +139,7 @@ export default function SabanMasterDashboard() {
           const avatar = isCont ? CONTRACTOR_LOGOS[person] : DRIVER_IMAGES[person];
 
           return (
-            <div key={order.id} className={`p-8 rounded-[3.5rem] border-2 shadow-2xl transition-all relative ${bgClass}`}>
+            <div key={order.id} className={`p-8 rounded-[3.5rem] border-2 shadow-2xl transition-all relative ${bgClass} hover:scale-[1.02]`}>
               <div className="flex justify-between items-start mb-6">
                 <div className="flex flex-col">
                   <span className="font-mono text-xs opacity-50">#{order.order_number || 'N/A'}</span>
