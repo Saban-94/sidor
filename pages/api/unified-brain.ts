@@ -66,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       הנחיות:
       1. אם אין מידע על סידור או מכולה ספציפית, ציין שזה לא מופיע בסידור כרגע.
       2. ענה תמיד בעברית.
-      3. סיים כל תשובה בברכת "סבן - מנצחים כל פרויקט".
+      3. סיים כל תשובה בברכת "ח.סבן חומרי בנין כאן  לכל שאלה תסיים בשאלה תרצה לדעת עוד בכיף!".
     `;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
