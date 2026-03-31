@@ -30,7 +30,12 @@ export default function SabanAIAssistant() {
     "הזמנות ללא נהג",
     "מכולות שצריכות פינוי"
   ];
-
+    const STATUS_MAP: Record<string, { label: string, color: string }> = {
+   'approved': { label: 'מאושר', color: 'bg-emerald-500' },
+   'pending': { label: 'ממתין להעמסה', color: 'bg-amber-500' },
+   'rejected': { label: 'נדחתה', color: 'bg-red-500' },
+   'loading': { label: 'בהעמסה', color: 'bg-blue-500' }
+   };
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
@@ -75,7 +80,9 @@ export default function SabanAIAssistant() {
           <User size={20} className="text-emerald-500" />
         </div>
       </header>
-
+           <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase text-white ${STATUS_MAP[order.status]?.color || 'bg-slate-500'}`}>
+         {STATUS_MAP[order.status]?.label || order.status}
+          </span>
       <AnimatePresence>
         {isOpen && (
           <motion.div 
