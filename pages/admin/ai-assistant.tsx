@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
+// הוספתי כאן את User ו-RefreshCcw שהיו חסרים
 import { 
   Menu, X, Send, Bot, Calendar, Truck, Box, 
-  ArrowRightLeft, Search, Hash, MessageSquare, BarChart3, HelpCircle 
+  ArrowRightLeft, Search, Hash, MessageSquare, BarChart3, HelpCircle, User, RefreshCcw 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,7 +18,6 @@ export default function SabanAIAssistant() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 10 שאלות נפוצות לשליפה מהירה
   const quickQueries = [
     "כמה הזמנות יש היום?",
     "מה מצב המכולות בשטח?",
@@ -63,7 +63,6 @@ export default function SabanAIAssistant() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
       </Head>
 
-      {/* Header & Hamburger */}
       <header className="h-16 flex items-center justify-between px-6 bg-[#111827] border-b border-white/5 shadow-2xl z-50">
         <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-white/5 rounded-lg transition-all">
           {isOpen ? <X size={28} /> : <Menu size={28} />}
@@ -77,7 +76,6 @@ export default function SabanAIAssistant() {
         </div>
       </header>
 
-      {/* Sidebar Menu */}
       <AnimatePresence>
         {isOpen && (
           <motion.div 
@@ -98,11 +96,10 @@ export default function SabanAIAssistant() {
         )}
       </AnimatePresence>
 
-      {/* Chat Space */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide pb-32" ref={scrollRef}>
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full opacity-30 text-center px-10">
-            <Bot size={80} className="mb-4" />
+            <Bot size={80} className="mb-4 text-emerald-500" />
             <h2 className="text-2xl font-black italic">בוס, במה נעזור?</h2>
             <p className="text-sm font-bold">הנתונים של היום מסונכרנים ומוכנים לשאלות שלך.</p>
           </div>
@@ -123,9 +120,7 @@ export default function SabanAIAssistant() {
         {loading && <div className="flex justify-end pr-4"><RefreshCcw className="animate-spin text-emerald-500" /></div>}
       </main>
 
-      {/* Quick Queries & Input */}
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F1A] via-[#0B0F1A] to-transparent">
-        {/* Quick Actions Scroll */}
         <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide no-scrollbar">
           {quickQueries.map((q, i) => (
             <button 
@@ -137,7 +132,6 @@ export default function SabanAIAssistant() {
           ))}
         </div>
 
-        {/* Input Bar */}
         <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative">
           <input 
             value={input} onChange={(e) => setInput(e.target.value)}
