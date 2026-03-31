@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 // הלוגו החדש של סבן
-const SABAN_LOGO = "https://ddg21s9t062h4.cloudfront.net/0a1io%2Fpreview%2F76725838%2Fmain_large.jpg?response-content-disposition=inline%3Bfilename%3D%22main_large.jpg%22%3B&response-content-type=image%2Fjpeg&Expires=1774945329&Signature=Js9azLzUTXx~v5QdghuE53fSxI0UaYR9BlNSYbB-Ln-Be08QgXOJe6325n0f7RLl3TmMMooGdByRf2xHaanAvvrFEHLFZqKoXTQXARsp1NZGYQv06otSl-EEFnhJA67ThRLxuW-atT2JZU1pImX4Y7iLJ9QP9cwzuihCR7gBkKyMvMMgvEzSDcLM64immiPDACPyiE0YubPrjmqAnOAktrOhm3s-ycRkpgrgguRwVmcUnKlmLKK9hTVdEfK8E0KViSo6gOVv58WoqtBBcgyTcUwSC7Q7oUNjrc4libEYBRCMziKQVWydGIpGlR9XasjUtYiHHYRyiRm6WoLl3nuwpA__&Key-Pair-Id=APKAJT5WQLLEOADKLHBQ";
+const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
 
 // צבעי WhatsApp Dark Mode
 const WA_BG = "bg-[#111b21]"; // רקע ראשי
