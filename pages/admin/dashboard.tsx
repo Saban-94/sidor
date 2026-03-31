@@ -13,9 +13,9 @@ const ACTION_COLORS: any = {
 };
 
 const CONTRACTOR_LOGOS: any = {
-  'שארק 30': 'https://i.postimg.cc/pT45M6bV/orange-digger.png',
-  'כראדי 32': 'https://i.postimg.cc/6q4T874M/blue-truck.png',
-  'שי שרון 40': 'https://i.postimg.cc/Y95fMv6z/purple-digger.png'
+  'שארק 30': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIQpXwGW35vBLtTcW2G91P689-5hBuG5ZgzQ&s',
+  'כראדי 32': 'https://www.duns100.co.il/Areas/Uploads/companies//e3340ff2-2222-4436-8e2b-ddfdfe49384c.jpg',
+  'שי שרון 40': 'https://de.cdn-website.com/a9b6ab84e3184248bab5e2a04153835c/MOBILE/png/695.png'
 };
 
 const DRIVER_IMAGES: any = {
