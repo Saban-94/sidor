@@ -81,21 +81,6 @@ export default function SabanAIAssistant() {
     } catch (e) { setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למערכת." }]); }
     finally { setLoading(false); }
   };
-      const shareToWhatsApp = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateStr = tomorrow.toLocaleDateString('he-IL');
-  
-  // סינון הזמנות למחר
-  const tomorrowOrders = orders.filter(o => 
-    (o.delivery_date === tomorrow.toISOString().split('T')[0]) || 
-    (o.start_date === tomorrow.toISOString().split('T')[0])
-  );
-
-  if (tomorrowOrders.length === 0) {
-    alert("בוס, אין הזמנות רשומות למחר.");
-    return;
-  }
 
   // פונקציה לעיבוד טקסט והצגת תמונות מתוך Markdown + הדגשות וואטסאפ
   const formatMessage = (content: string) => {
@@ -152,7 +137,7 @@ export default function SabanAIAssistant() {
           {orders.length}
         </div>
       </header>
-             
+
       <AnimatePresence>
         {isOpen && (
           <>
