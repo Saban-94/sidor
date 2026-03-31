@@ -141,15 +141,15 @@ export default function SabanAIAssistant() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm" />
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed top-0 right-0 h-full w-[85%] bg-[#111827] z-[70] p-8 shadow-2xl border-l border-white/5">
               <div className="flex justify-between items-center mb-16">
-                  <span className="font-black text-xl italic tracking-tighter text-emerald-500">SABAN MENU</span>
+                  <span className="font-black text-xl italic tracking-tighter text-emerald-500">תפריט</span>
                   <button onClick={() => setIsOpen(false)} className="p-2 bg-white/5 rounded-full"><X size={24}/></button>
               </div>
               <nav className="space-y-4">
                 <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'chat' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
-                    <MessageSquare size={24}/> AI ANALYST
+                    <MessageSquare size={24}/> צאט-סידור
                 </button>
                 <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'live' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
-                    <Calendar size={24}/> לוח משימות LIVE
+                    <Calendar size={24}/> לוח הזמנות
                 </button>
               </nav>
             </motion.div>
