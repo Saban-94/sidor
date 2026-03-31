@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 // לינק לוגו חלופי ויציב (אייקון טרקטור/בנייה)
-const LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2318/2318048.png";
+const LOGO_URL = "https://files.fm/u/9ub3qk3tpv";
 
 const STATUS_MAP: any = {
   'approved': { label: 'מאושר', color: 'bg-emerald-500' },
