@@ -168,8 +168,13 @@ export default function SabanAIAssistant() {
             )}
             {messages.map((m, i) => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] p-5 rounded-[2rem] font-black shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border border-white/5 text-white' : 'text-[#00a884] text-slate-900'}`}>{m.content}</div>
-              </motion.div>
+               <div className={`max-w-[85%] p-5 rounded-2xl font-bold shadow-md ${
+  m.role === 'user' 
+    ? 'bg-[#202c33] text-[#e9edef]' // הודעה שלך (אפור כהה)
+    : 'bg-[#005c4b] text-[#e9edef]' // הודעה של ה-AI (ירוק כהה של וואטסאפ)
+}`}>
+  {m.content}
+</div>
             ))}
             {loading && <div className="flex justify-center"><RefreshCcw className="animate-spin text-emerald-500" /></div>}
           </div>
