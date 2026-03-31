@@ -28,20 +28,47 @@ export default function SabanAdminMaster() {
     setMounted(true);
     fetchData();
   }, [activeTab]);
+const fetchData = async () => {
+    setLoading(true);
+    
+    // 1. הגדרת התאריך לחיפוש (ISO וגם פורמט ישראלי לגיבוי)
+    const [y, m, d] = selectedDate.split('-');
+    const ilDate = `${d}/${m}/${y}`;
 
-  const fetchData = async () => {
-    if (activeTab === 'ORDERS' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (data) setOrders(data);
+    // 2. משיכת הזמנות מסוננות ליום הנבחר בלבד
+    if (activeTab === 'live' || activeTab === 'sidor' || activeTab === 'DASHBOARD') {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        // מחפש התאמה לפורמט 2026-03-31 או 31/03/2026
+        .or(`delivery_date.eq.${selectedDate},delivery_date.eq.${ilDate}`)
+        .order('order_time', { ascending: true });
+
+      if (ordersData) setTruckOrders(ordersData);
+      if (ordersError) console.error("Orders Sync Error:", ordersError);
     }
+
+    // 3. משיכת לקוחות (ללא שינוי)
     if (activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('customers').select('*').order('customer_number', { ascending: true });
-      if (data) setCustomers(data);
+      const { data: custData } = await supabase
+        .from('customers')
+        .select('*')
+        .order('customer_number', { ascending: true });
+      if (custData) setCustomers(custData);
     }
+
+    // 4. משיכת זיכרון ומכולות (לפי הקוד המקורי)
+    if (activeTab === 'containers' || activeTab === 'live') {
+      const { data: containersData } = await supabase.from('container_management').select('*').eq('is_active', true);
+      if (containersData) setContainerSites(containersData);
+    }
+
     if (activeTab === 'MEMORY' || activeTab === 'DASHBOARD') {
-      const { data } = await supabase.from('customer_memory').select('*');
-      if (data) setMemory(data);
+      const { data: memData } = await supabase.from('customer_memory').select('*');
+      if (memData) setMemory(memData);
     }
+
+    setLoading(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
