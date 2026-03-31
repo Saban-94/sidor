@@ -20,21 +20,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    // שליפה מרוכזת מכל הטבלאות
+try {
+    // משיכת כל הנתונים הרלוונטיים להיום
     const [orders, containers, transfers] = await Promise.all([
-      supabase.from('orders').select('*').neq('status', 'deleted'),
-      supabase.from('container_management').select('*').neq('status', 'deleted'),
-      supabase.from('transfers').select('*').neq('status', 'deleted')
+      supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted'),
+      supabase.from('container_management').select('*').eq('start_date', today).neq('status', 'deleted'),
+      supabase.from('transfers').select('*').eq('transfer_date', today)
     ]);
 
-const prompt = `
-      זהות: Saban OS - מוח תפעולי ויזואלי.
+    // בניית הקשר הנתונים (המשתנה שגרם לשגיאה)
+    const contextData = `
+      נתוני מערכת Saban OS (${today}):
+      - חומרים והובלות: ${JSON.stringify(orders.data || [])}
+      - מכולות (הצבה/החלפה/הוצאה): ${JSON.stringify(containers.data || [])}
+      - העברות: ${JSON.stringify(transfers.data || [])}
+    `;
+
+    const prompt = `
+      זהות: Saban OS Core - מוח תפעולי ויזואלי ונקי.
+      משימה: הפקת דוח ישיר לבוס על בסיס הנתונים בלבד.
       
       חוקי עיצוב (קשיח):
-      1. איסור על Markdown כפול (**). השתמש בכוכבית אחת (*) להדגשה.
+      1. איסור על Markdown כפול (**). השתמש בכוכבית אחת (*) בלבד להדגשה.
       2. כותרת: 📊 *סיכום תפעולי | [נושא]*
-      3. מבנה שורה (חובה שורה נפרדת לאייקון כדי שייטען):
-         ![Icon]([לינק])
+      3. מבנה שורה:
+         ![Icon]([Link])
          • לקוח: *[שם]* | סטטוס: *[מצב]*,
          
       4. לינקים לאייקונים (ירוק וואטסאפ):
@@ -43,8 +53,12 @@ const prompt = `
          - הוצאה: https://img.icons8.com/?size=48&id=12122&format=png&color=00a884
          - חומרים: https://img.icons8.com/?size=48&id=823&format=png&color=00a884
 
-      5. חתימה בסוף בשורה נפרדת:
-         ![Saban](https://icons8.com/icon/Zy5ghkQj2rKy/done)
+      5. טיפול בחיפוש לקוח:
+         אם ביקשו רשימה, הצג ככה: 🏗️ *[שם]* , 🚛 *[שם]* ,
+
+      6. חתימה בסוף: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
+
+      חוקי מענה: ענה רק על מה שנשאל, בלי נימוסים, בלי "הבנתי". אם אין מידע - "אין מידע להיום."
 
       הנתונים:
       ${contextData}
