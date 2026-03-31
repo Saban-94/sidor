@@ -44,7 +44,7 @@ const prompt = `
          - חומרים: https://img.icons8.com/?size=48&id=823&format=png&color=00a884
 
       5. חתימה בסוף בשורה נפרדת:
-         ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
+         ![Saban](https://icons8.com/icon/Zy5ghkQj2rKy/done)
 
       הנתונים:
       ${contextData}
