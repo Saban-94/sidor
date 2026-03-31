@@ -53,7 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // 2. פנייה למודל Gemini 3.1 (עדכון מרץ 2026)
-    const model = "gemini-1.5-flash"; // מומלץ ליציבות ומהירות ב-API
+    const model = "gemini-3.1-flash-lite-preview"; // מומלץ ליציבות ומהירות ב-API
     const prompt = `
       אתה "המוח המאוחד" של חברת "ה. סבן חומרי בניין". 
       תפקידך לענות לאנשי הארגון בצורה מקצועית, קצרה וחדה (בסגנון 'אח על מלא').
