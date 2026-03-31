@@ -14,7 +14,18 @@ const STATUS_MAP: any = {
   'pending': { label: 'ממתין להעמסה', color: 'bg-amber-500 shadow-amber-500/20' },
   'rejected': { label: 'נדחתה', color: 'bg-red-500' }
 };
-
+  const quickQueries = [
+    "כמה הזמנות יש היום?",
+    "מה מצב המכולות בשטח?",
+    "האם היו העברות היום?",
+    "כמה הזמנות סופקו?",
+    "מי הנהג הפעיל ביותר היום?",
+    "סטטוס שארק 30",
+    "חיפוש לפי שם לקוח",
+    "דוח יומי מקוצר",
+    "הזמנות ללא נהג",
+    "מכולות שצריכות פינוי"
+  ];
 export default function SabanAIAssistant() {
   const [activeView, setActiveView] = useState<'chat' | 'live'>('chat'); // ניהול תצוגה
   const [isOpen, setIsOpen] = useState(false);
