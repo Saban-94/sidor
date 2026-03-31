@@ -87,7 +87,7 @@ export default function SabanUltimateControlCenter() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/unified-brain', {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, senderPhone: 'admin' })
