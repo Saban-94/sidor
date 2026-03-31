@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw, Share2 } from 'lucide-react';
+import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw } from 'lucide-react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -13,9 +13,9 @@ const ACTION_COLORS: any = {
 };
 
 const CONTRACTOR_LOGOS: any = {
-  'שארק 30': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIQpXwGW35vBLtTcW2G91P689-5hBuG5ZgzQ&s',
-  'כראדי 32': 'https://www.duns100.co.il/Areas/Uploads/companies//e3340ff2-2222-4436-8e2b-ddfdfe49384c.jpg',
-  'שי שרון 40': 'https://de.cdn-website.com/a9b6ab84e3184248bab5e2a04153835c/MOBILE/png/695.png'
+  'שארק 30': 'https://i.postimg.cc/pT45M6bV/orange-digger.png',
+  'כראדי 32': 'https://i.postimg.cc/6q4T874M/blue-truck.png',
+  'שי שרון 40': 'https://i.postimg.cc/Y95fMv6z/purple-digger.png'
 };
 
 const DRIVER_IMAGES: any = {
@@ -27,21 +27,29 @@ export default function SabanMasterDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  
+  // רפרנס לסאונד התראה
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    // אתחול האודיו בטעינה הראשונה
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); 
+    
     fetchData();
 
+    // האזנה לשינויים בזמן אמת ב-DB
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public' }, (payload) => {
-        audioRef.current?.play().catch(e => console.log("Audio play blocked", e));
+        console.log('New injection detected:', payload);
+        audioRef.current?.play().catch(e => console.log("Audio play blocked by browser", e));
         fetchData();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedDate]);
 
   const fetchData = async () => {
@@ -65,44 +73,6 @@ export default function SabanMasterDashboard() {
     setLoading(false);
   };
 
-  const shareTomorrowSchedule = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = tomorrow.toLocaleDateString('he-IL');
-    const isoTomorrow = tomorrow.toISOString().split('T')[0];
-    const ilTomorrow = dateStr;
-
-    // שליפת הזמנות למחר מהמערך הנוכחי (או פנייה מחדש ל-DB אם תרצה, פה נסתמך על מה שנטען)
-    const tomorrowOrders = orders.filter(o => 
-      o.delivery_date === isoTomorrow || o.delivery_date === ilTomorrow ||
-      o.start_date === isoTomorrow || o.start_date === ilTomorrow ||
-      o.transfer_date === isoTomorrow || o.transfer_date === ilTomorrow
-    );
-
-    if (tomorrowOrders.length === 0) {
-      alert("בוס, לא מצאתי הזמנות למחר במערך הטעון. וודא שבחרת את התאריך של מחר בלוח.");
-      return;
-    }
-
-    let message = `📊 *SABAN OS | דוח סידור עבודה ${dateStr}*\n\n`;
-
-    tomorrowOrders.forEach((o, i) => {
-      const time = o.order_time || o.transfer_time || '--:--';
-      const client = o.client_name || o.client_info || o.to_branch || 'כללי';
-      const loc = o.delivery_address || o.location || `מסניף: ${o.from_branch}`;
-      const typeIcon = o.type === 'מכולה' ? '🔄' : (o.type === 'העברה' ? '📦' : '🚛');
-      const person = o.contractor_name || o.driver_name || 'טרם נקבע';
-
-      message += `${typeIcon} | *${time}* | *${client}*\n`;
-      message += `📍 יעד: ${loc}\n`;
-      message += `👤 מבצע: *${person}*\n`;
-      message += `------------------\n`;
-    });
-
-    message += `\n🏗️ *ח.סבן חומרי בנין 1994 בע"מ*`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-  };
-
   const updateField = async (id: string, table: string, field: string, value: string) => {
     await supabase.from(table).update({ [field]: value }).eq('id', id);
     fetchData();
@@ -112,16 +82,9 @@ export default function SabanMasterDashboard() {
     <div className="min-h-screen bg-[#0B0F1A] text-white p-6 font-sans" dir="rtl">
       <Head><title>SABAN LIVE COMMAND</title></Head>
       
-      <header className="flex justify-between items-center mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/5 shadow-2xl">
+      <header className="flex justify-between items-center mb-10 bg-white/5 p-6 rounded-[2rem] border border-white/5">
         <div className="flex items-center gap-4">
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 p-3 rounded-xl outline-none border border-white/10" />
-          <button 
-            onClick={shareTomorrowSchedule}
-            className="flex items-center gap-2 bg-[#25D366] text-[#111B21] px-5 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all"
-          >
-            <Share2 size={20} />
-            שתף סידור מחר
-          </button>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 p-3 rounded-xl outline-none" />
           {loading && <RefreshCcw className="animate-spin text-emerald-500" />}
         </div>
         <div className="flex flex-col items-center">
@@ -139,7 +102,7 @@ export default function SabanMasterDashboard() {
           const avatar = isCont ? CONTRACTOR_LOGOS[person] : DRIVER_IMAGES[person];
 
           return (
-            <div key={order.id} className={`p-8 rounded-[3.5rem] border-2 shadow-2xl transition-all relative ${bgClass} hover:scale-[1.02]`}>
+            <div key={order.id} className={`p-8 rounded-[3.5rem] border-2 shadow-2xl transition-all relative ${bgClass}`}>
               <div className="flex justify-between items-start mb-6">
                 <div className="flex flex-col">
                   <span className="font-mono text-xs opacity-50">#{order.order_number || 'N/A'}</span>
@@ -150,21 +113,24 @@ export default function SabanMasterDashboard() {
                 <button onClick={() => updateField(order.id, order.table, 'status', 'deleted')} className="opacity-40 hover:opacity-100 p-2"><Trash2 size={18}/></button>
               </div>
 
+              {/* עריכה ישירה: שם לקוח */}
               <input 
                 className="bg-transparent text-3xl font-black outline-none border-b border-transparent focus:border-white/40 w-full mb-2 truncate"
                 defaultValue={order.client_name || order.client_info || order.to_branch}
                 onBlur={e => updateField(order.id, order.table, isCont ? 'client_name' : (isTrans ? 'to_branch' : 'client_info'), e.target.value)}
               />
 
+              {/* עריכה ישירה: כתובת */}
               <div className="flex items-center gap-2 mb-8 opacity-70">
                 <MapPin size={16}/>
                 <input 
                   className="bg-transparent text-sm font-bold outline-none border-b border-transparent focus:border-white/40 w-full"
                   defaultValue={order.delivery_address || order.location || `מהסניף: ${order.from_branch}`}
-                  onBlur={e => updateField(order.id, order.table, isCont ? 'delivery_address' : (isTrans ? 'location' : 'location'), e.target.value)}
+                  onBlur={e => updateField(order.id, order.table, isCont ? 'delivery_address' : 'location', e.target.value)}
                 />
               </div>
 
+              {/* זמן ועריכה */}
               <div className="flex justify-between items-center bg-black/20 p-5 rounded-[2rem] mb-8">
                 <div className="flex items-center gap-3">
                   <Clock size={28}/>
@@ -176,6 +142,7 @@ export default function SabanMasterDashboard() {
                 </div>
               </div>
 
+              {/* לוגו מבצע */}
               <div className="flex items-center gap-4 pt-6 border-t border-white/10">
                 <img src={avatar || 'https://i.postimg.cc/Vv4X4X4X/default.png'} className="w-16 h-16 rounded-full border-4 border-white/20 object-cover shadow-xl" alt={person} />
                 <div className="flex flex-col">
