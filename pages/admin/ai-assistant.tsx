@@ -107,7 +107,7 @@ export default function SabanAIAssistant() {
   };
 
   return (
-    <div className="h-screen bg-[#0B0F1A] text-white flex flex-col font-sans overflow-hidden" dir="rtl">
+    <div className="h-screen bg-[#afc9ed] text-white flex flex-col font-sans overflow-hidden" dir="rtl">
       <Head>
         <title>Saban AI Companion</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>" />
@@ -115,7 +115,7 @@ export default function SabanAIAssistant() {
 
       <AnimatePresence>
         {showSplash && (
-          <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0B0F1A] z-[100] flex items-center justify-center">
+          <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#afc9ed] z-[100] flex items-center justify-center">
             <motion.img 
               initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               src={LOGO_URL} className="w-24 h-24 invert"
@@ -203,7 +203,7 @@ export default function SabanAIAssistant() {
       </main>
 
       {activeView === 'chat' && (
-        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#0B0F1A] z-40">
+        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#afc9ed] z-40">
           <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
             {QUICK_QUERIES.map((q, i) => (
               <button key={i} onClick={() => askAI(q)} className="whitespace-nowrap px-6 py-3 bg-[#111827] border border-white/10 rounded-full text-[10px] font-black hover:bg-emerald-500 hover:text-slate-900 transition-all shadow-xl italic">{q}</button>
