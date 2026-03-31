@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
 
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח." });
+  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (GEMINI_API_KEY)." });
 
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
 
@@ -30,30 +30,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let history = memory?.accumulated_knowledge || "";
     const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // פריסת לוגיקה חכמה שמפרידה בין מכולה להובלה
     const prompt = `
-      זהות: העוזר האישי של ראמי מסבן.
-      תפקיד: זיהוי אם מדובר ב"הובלת חומרים" או "הצבת מכולה".
+      זהות: העוזר האישי של ראמי מסבן (Saban OS).
+      תפקיד: סיווג והזרקת נתונים ל-3 מחלקות:
+      1. ORDER (חומרי בניין): מחייב נהג (חכמת/עלי).
+      2. CONTAINER (מכולות): מחייב קבלן מבצע (שארק 30/כראדי 32/שי שרון 40).
+      3. TRANSFER (העברה בין סניפים): מחייב סניף מקור ויעד (החרש/התלמיד) ונהג.
 
-      חוקי ענפים:
-      1. אם מדובר במכולה: הנהג הוא הקבלן המבצע (למשל: שארק 30, כראדי 32,שי שרון 40). אל תשאל על חכמת/עלי.
-      2. אם מדובר בחומרי בניין: הנהג חייב להיות חכמת או עלי.
+      חוקים קריטיים:
+      - אם המשתמש הזכיר "מכולה" או "הוצאה ממחסן שארק/כראדי/שי שרון" -> סווג כ-CONTAINER.
+      - אם המשתמש הזכיר "העברה", "סניף" או "מהחרש לתלמיד" -> סווג כ-TRANSFER.
+      - אחרת -> סווג כ-ORDER.
 
-      עץ שאלות:
-      - לקוח? כתובת? תאריך ושעה?
-      - אם מכולה: מי הקבלן המבצע?
-      - אם חומרים: איזה נהג (חכמת/עלי)?
+      עץ שאלות חסר:
+      - בקש פרטים שחסרים (לקוח, כתובת, תאריך YYYY-MM-DD, שעה HH:mm, מבצע).
 
       היסטוריה: ${localUpdatedHistory}
 
       חוק הזרקה:
       DATA_START{
-        "type": "CONTAINER" או "ORDER",
-        "client": "שם",
-        "address": "כתובת",
+        "type": "ORDER" | "CONTAINER" | "TRANSFER",
+        "client": "שם הלקוח/פרויקט",
+        "address": "כתובת מלאה",
         "date": "YYYY-MM-DD",
         "time": "HH:mm",
-        "executor": "שם הנהג או הקבלן"
+        "executor": "שם נהג או שם קבלן מכולות",
+        "from_branch": "החרש/התלמיד (רק להעברות)",
+        "to_branch": "החרש/התלמיד (רק להעברות)"
       }DATA_END
     `;
 
@@ -79,29 +82,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (jsonMatch) {
         const d = JSON.parse(jsonMatch[0]);
         
+        // נרמול תאריך ללוח (למניעת 404 ותצוגה ריקה)
+        const dbDate = d.date;
+
         if (d.type === "CONTAINER") {
-          // הזרקה לטבלת מכולות
-          await supabase.from('container_management').insert([{
-            client_name: d.client,
-            delivery_address: d.address,
-            start_date: d.date,
-            order_time: d.time,
-            contractor_name: d.executor,
-            is_active: true,
-            status: 'delivered'
+          // הזרקה כפולה: 1. לניהול מכולות (תקופת שכירות) 2. ללוח המשימות הכללי
+          await Promise.all([
+            supabase.from('container_management').insert([{
+              client_name: d.client,
+              delivery_address: d.address,
+              start_date: dbDate,
+              order_time: d.time,
+              contractor_name: d.executor,
+              is_active: true,
+              status: 'delivered'
+            }]),
+            supabase.from('orders').insert([{
+              client_info: `מכולה: ${d.client}`,
+              location: d.address,
+              delivery_date: dbDate,
+              order_time: d.time,
+              driver_name: d.executor,
+              status: 'approved'
+            }])
+          ]);
+        } 
+        else if (d.type === "TRANSFER") {
+          // הזרקה לטבלת העברות
+          await supabase.from('transfers').insert([{
+            from_branch: d.from_branch,
+            to_branch: d.to_branch,
+            transfer_date: dbDate,
+            transfer_time: d.time,
+            driver_name: d.executor,
+            status: 'approved'
           }]);
-        } else {
-          // הזרקה לטבלת הובלות
+        } 
+        else {
+          // הזרקה להזמנות חומרים רגילות
           await supabase.from('orders').insert([{
             client_info: d.client,
             location: d.address,
-            delivery_date: d.date,
+            delivery_date: dbDate,
             order_time: d.time,
             driver_name: d.executor,
             status: 'approved'
           }]);
         }
-        finalReply = `בוס, הזמנת ${d.type === 'CONTAINER' ? 'מכולה' : 'חומרים'} ל-${d.client} הוזרקה ללוח של ${d.executor}. 🚀`;
+
+        finalReply = `בוס, משימת ${d.type} עבור ${d.client || d.to_branch} הוזרקה ללוח של ${d.executor} לשעה ${d.time}. 🚀`;
         isComplete = true;
       }
     }
@@ -111,6 +140,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({ reply: finalReply });
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
+    console.error("Brain Error:", e);
+    return res.status(200).json({ reply: "בוס, המוח התעייף לרגע. נסה שוב." });
   }
 }
