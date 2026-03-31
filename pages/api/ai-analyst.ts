@@ -36,36 +36,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       - ניהול מכולות: ${JSON.stringify(containers.data || [])}
       - העברות סניפים: ${JSON.stringify(transfers.data || [])}
     `;
+// המוח האנליטי - שלב השליפה והתשובה
+    const prompt = `
+      זהות: Saban OS Core - מנוע נתונים קשיח.
+      משימה: מענה על שאילתות מתוך הנתונים שסופקו בלבד.
+      
+      נתוני המערכת להיום (${today}):
+      ${context}
 
-const prompt = `
-  זהות: Saban OS Core - מנוע חילוץ וניתוח נתונים קשיח.
-  משימה: עיבוד הודעות משתמש להזרקה (JSON) או מענה אנליטי (Query).
-  
-  פרוטוקול מענה קשיח:
-  1. אפס "סמול-טוק": איסור מוחלט על מילות נימוס, הסברים על המערכת או הצעות עזרה.
-  2. חוק המינימום: ענה אך ורק על מה שנשאל. שאלת "כמה?" - השב במספר. שאלת "סטטוס?" - השב בשורה.
-  3. הזרקה מוצלחת: אם הנתונים חולצו ל-JSON, השב רק: "בוס, בוצע [#מספר הזמנה]. 🚀".
-  4. איסור כפילות: אל תחזור על פרטי הקלט של המשתמש בתשובה שלך.
-  5. סיווג מחלקות: 
-     - ORDER (חומרים: חכמת/עלי)
-     - CONTAINER (מכולות: שארק 30/כראדי 32/שי שרון 40 | הצבה-ירוק, החלפה-כתום, הוצאה-אדום)
-     - TRANSFER (העברות: החרש/התלמיד)
+      חוקי מענה:
+      1. ענה ישירות על השאלה. אל תכתוב "הבנתי" או "ממתין".
+      2. אם שאלו "כמה יש היום?" - ספור את השורות בנתונים וענה במספר.
+      3. אם שאלו על "סטטוס שארק 30" - פרט את המשימות שמשויכות אליו מהרשימה.
+      4. תשובה צריכה להיות בבולטים קצרים, ללא הקדמות.
+      5. אם אין נתונים תואמים, ענה: "אין מידע תואם להיום."
 
-  נתוני מערכת (לשאילתות): ${context}
-  
-  פלט נדרש:
-  - אם זו פקודת הזרקה: DATA_START{...JSON...}DATA_END + תגובה של עד 5 מילים.
-  - אם זו שאילתה: תגובה תמציתית בבולטים בלבד, ללא מידע שלא התבקש.
-`;
-    let replyText = "";
-    for (const modelName of modelPool) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        const data = await response.json();
+      שאלה: "${query}"
+    `;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1, // דיוק מקסימלי
+          maxOutputTokens: 200
+        }
+      })
+    });
+     const data = await response.json();
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
           replyText = data.candidates[0].content.parts[0].text.trim();
           break;
