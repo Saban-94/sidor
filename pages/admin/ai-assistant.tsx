@@ -97,28 +97,6 @@ export default function SabanAIAssistant() {
     return;
   }
 
-  // בניית גוף ההודעה
-  let message = `📊 *סיכום תפעולי | סידור עבודה ליום ${dateStr}*\n\n`;
-
-  tomorrowOrders.forEach((order, index) => {
-    const isContainer = order.order_number && order.order_number.toString().startsWith('62');
-    const icon = isContainer ? '🔄' : '🚛';
-    
-    message += `${icon} | *הזמנה ${index + 1}*\n`;
-    message += `• לקוח: *${order.client_name || order.client_info}*\n`;
-    message += `• יעד: *${order.delivery_address || order.location}*\n`;
-    message += `• שעה: *${order.order_time || '--:--'}*\n`;
-    if (order.driver_name) message += `• נהג: *${order.driver_name}*\n`;
-    if (order.order_number) message += `• מס' הזמנה: ${order.order_number}\n`;
-    message += `------------------\n`;
-  });
-
-  message += `\n🏗️ *ח.סבן חומרי בנין 1994 בע"מ*`;
-
-  // פתיחת וואטסאפ
-  const encodedMessage = encodeURIComponent(message);
-  window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
-};
   // פונקציה לעיבוד טקסט והצגת תמונות מתוך Markdown + הדגשות וואטסאפ
   const formatMessage = (content: string) => {
     const parts = content.split(/(!\[.*?\]\(.*?\))/g);
@@ -174,13 +152,7 @@ export default function SabanAIAssistant() {
           {orders.length}
         </div>
       </header>
-             <button 
-           onClick={shareToWhatsApp}
-          className="flex items-center gap-2 bg-[#25d366] text-[#111b21] px-4 py-2 rounded-full font-black text-xs shadow-lg hover:scale-105 transition-all mb-4"
-          >
-  <MessageSquare size={16} />
-  שתף סידור למחר
-</button>
+             
       <AnimatePresence>
         {isOpen && (
           <>
