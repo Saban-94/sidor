@@ -5,7 +5,12 @@ import { createClient } from '@supabase/supabase-js';
 import { Clock, MapPin, Trash2, Box, Truck, User, RefreshCcw } from 'lucide-react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
+// מילון סטטוסים "מגוייר"
+const STATUS_MAP: any = {
+  'approved': { label: 'מאושר', color: 'bg-[#00a884]' }, // ירוק וואטסאפ
+  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' }, // צהוב בולט
+  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' } // אדום התראה
+};
 const ACTION_COLORS: any = {
   'הצבה': 'bg-emerald-600 border-emerald-400 shadow-emerald-900/30',
   'החלפה': 'bg-orange-500 border-orange-300 shadow-orange-900/30',
