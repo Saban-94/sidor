@@ -10,10 +10,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 // לינק לוגו חלופי ויציב (אייקון טרקטור/בנייה)
-const LOGO_URL = "https://files.fm/u/9ub3qk3tpv";
+const LOGO_URL = "https://cdn.jumpshare.com/preview/ZAP6_5qLwLbAy-wIa39ki66duCSVbg4q-l9oBBzyTmvKz7aYcGzupUUrhqFq5-WU1Hn7kL1x31ShorR_k6Sj2J5biv375p3n4dtcnBM4Ru8";
 
 const STATUS_MAP: any = {
-  'approved': { label: 'מאושר', color: 'bg-emerald-500' },
+  'approved': { label: 'מאושר', color: 'text-[#00a884]' },
   'pending': { label: 'ממתין להעמסה', color: 'bg-amber-500 shadow-amber-500/20' },
   'rejected': { label: 'נדחתה', color: 'bg-red-500' }
 };
@@ -107,8 +107,8 @@ export default function SabanAIAssistant() {
   };
 
   return (
-    <div className="h-screen bg-[#afc9ed] text-white flex flex-col font-sans overflow-hidden" dir="rtl">
-      <Head>
+<div className="h-screen bg-[#111b21] text-[#e9edef] flex flex-col font-sans overflow-hidden" dir="rtl">
+  <Head>
         <title>Saban AI Companion</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>" />
       </Head>
@@ -124,13 +124,13 @@ export default function SabanAIAssistant() {
         )}
       </AnimatePresence>
 
-      <header className="h-16 flex items-center justify-between px-6 bg-[#111827] border-b border-white/5 z-50">
+      <header className="h-16 flex items-center justify-between px-6 bg-[#202c33] border-b border-white/5 z-50">
         <button onClick={() => setIsOpen(!isOpen)} className="p-2"><Menu size={28} /></button>
         <div className="flex items-center gap-2">
             <img src={LOGO_URL} className="w-7 h-7 invert opacity-80" alt="Saban Logo" />
             <span className="font-black italic text-xl text-emerald-500 uppercase tracking-tighter">SABAN {activeView === 'chat' ? 'AI' : 'LIVE'}</span>
         </div>
-        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-black border border-emerald-500/20 shadow-lg">
+        <div className="w-10 h-10 rounded-full text-[#00a884]/10 flex items-center justify-center text-emerald-500 font-black border border-emerald-500/20 shadow-lg">
           {orders.length}
         </div>
       </header>
@@ -145,10 +145,10 @@ export default function SabanAIAssistant() {
                   <button onClick={() => setIsOpen(false)} className="p-2 bg-white/5 rounded-full"><X size={24}/></button>
               </div>
               <nav className="space-y-4">
-                <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'chat' ? 'bg-emerald-500 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
+                <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'chat' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
                     <MessageSquare size={24}/> AI ANALYST
                 </button>
-                <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'live' ? 'bg-emerald-500 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
+                <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-[2rem] flex items-center gap-5 font-black text-lg ${activeView === 'live' ? 'text-[#00a884] text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-400'}`}>
                     <Calendar size={24}/> לוח משימות LIVE
                 </button>
               </nav>
@@ -168,7 +168,7 @@ export default function SabanAIAssistant() {
             )}
             {messages.map((m, i) => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] p-5 rounded-[2rem] font-black shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border border-white/5 text-white' : 'bg-emerald-500 text-slate-900'}`}>{m.content}</div>
+                <div className={`max-w-[85%] p-5 rounded-[2rem] font-black shadow-xl ${m.role === 'user' ? 'bg-[#1E293B] border border-white/5 text-white' : 'text-[#00a884] text-slate-900'}`}>{m.content}</div>
               </motion.div>
             ))}
             {loading && <div className="flex justify-center"><RefreshCcw className="animate-spin text-emerald-500" /></div>}
@@ -206,12 +206,12 @@ export default function SabanAIAssistant() {
         <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#afc9ed] z-40">
           <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
             {QUICK_QUERIES.map((q, i) => (
-              <button key={i} onClick={() => askAI(q)} className="whitespace-nowrap px-6 py-3 bg-[#111827] border border-white/10 rounded-full text-[10px] font-black hover:bg-emerald-500 hover:text-slate-900 transition-all shadow-xl italic">{q}</button>
+              <button key={i} onClick={() => askAI(q)} className="whitespace-nowrap px-6 py-3 bg-[#111827] border border-white/10 rounded-full text-[10px] font-black hover:text-[#00a884] hover:text-slate-900 transition-all shadow-xl italic">{q}</button>
             ))}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative">
             <input value={input} onChange={e => setInput(e.target.value)} placeholder="שאל את המוח האנליטי..." className="w-full p-6 pr-14 rounded-[2.5rem] bg-[#111827] border border-white/10 text-white font-bold outline-none focus:border-emerald-500 shadow-2xl" />
-            <button type="submit" className="absolute left-3 top-3 w-12 h-12 bg-emerald-500 text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all"><Send size={20} className="rotate-180" /></button>
+            <button type="submit" className="absolute left-3 top-3 w-12 h-12 text-[#00a884] text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all"><Send size={20} className="rotate-180" /></button>
           </form>
         </footer>
       )}
