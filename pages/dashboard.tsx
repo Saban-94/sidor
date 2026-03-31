@@ -42,11 +42,13 @@ export default function SabanUltimateControlCenter() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [isMounted, setIsMounted] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setIsMounted(true);
     fetchData();
     const t = setInterval(() => setNow(new Date()), 1000);
     if (typeof window !== 'undefined') audioRef.current = new Audio('/order-notification.mp3');
@@ -104,6 +106,8 @@ export default function SabanUltimateControlCenter() {
     await supabase.from(table).delete().eq('id', id);
     fetchData();
   };
+
+  if (!isMounted) return <div className="h-screen bg-[#0B0F1A]" />;
 
   return (
     <div className={`flex h-screen w-full transition-all duration-500 font-sans overflow-hidden ${isDarkMode ? 'bg-[#0B0F1A] text-white' : 'bg-[#F4F7FE] text-slate-900'}`} dir="rtl">
