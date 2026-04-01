@@ -49,7 +49,7 @@ export default function CommanderPro() {
     if (!input.trim()) return;
     const currentInput = input;
     setInput('');
-    setIsTyping(true);
+    setIsTyping(trusetAiResponse(''); // איפוס תגובה קודמתe);
 
     // סימולציה של חשיבה
     setTimeout(() => {
