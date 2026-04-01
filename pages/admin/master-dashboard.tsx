@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-// תיקון נתיב הייבוא ל-lib/supabase המקובל בפרויקט
+// שימוש בנתיב אבסולוטי המוגדר ב-tsconfig.json שלך למניעת שגיאות ניווט
 import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, Send, Clock, MapPin, Bot, Truck, Box, 
-  Timer, Activity, CheckCheck, AlertCircle, ArrowRightLeft, Warehouse
+  Timer, Activity, CheckCheck, AlertCircle, ArrowRightLeft, Warehouse,
+  RefreshCcw, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,7 +18,7 @@ const DRIVERS = [
 
 export default function SabanUltimateControlCenter() {
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'containers' | 'chat'>('containers'); // ברירת מחדל למכולות כפי שביקשת
+  const [activeTab, setActiveTab] = useState<'live' | 'containers' | 'chat'>('containers');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [truckOrders, setTruckOrders] = useState<any[]>([]);
   const [containerSites, setContainerSites] = useState<any[]>([]);
@@ -31,21 +32,36 @@ export default function SabanUltimateControlCenter() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // הגנה ל-Build: אם supabase לא קיים, אל תמשיך ללוגיקה
+    if (!supabase) return;
+
     fetchData();
     const t = setInterval(() => setNow(new Date()), 1000);
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
     
-    const channel = supabase.channel('db_sync').on('postgres_changes', { event: '*', schema: 'public' }, fetchData).subscribe();
-    return () => { clearInterval(t); channel.unsubscribe(); };
+    const channel = supabase.channel('db_sync')
+      .on('postgres_changes', { event: '*', schema: 'public' }, fetchData)
+      .subscribe();
+
+    return () => { 
+      clearInterval(t); 
+      if (channel) channel.unsubscribe(); 
+    };
   }, [selectedDate]);
 
   const fetchData = async () => {
-    const { data: o } = await supabase.from('orders').select('*').eq('delivery_date', selectedDate);
-    const { data: c } = await supabase.from('container_management').select('*').eq('is_active', true);
-    const { data: tr } = await supabase.from('transfers').select('*').eq('transfer_date', selectedDate);
-    setTruckOrders(o || []);
-    setContainerSites(c || []);
-    setTransfers(tr || []);
+    if (!supabase) return;
+    try {
+      const { data: o } = await supabase.from('orders').select('*').eq('delivery_date', selectedDate);
+      const { data: c } = await supabase.from('container_management').select('*').eq('is_active', true);
+      const { data: tr } = await supabase.from('transfers').select('*').eq('transfer_date', selectedDate);
+      setTruckOrders(o || []);
+      setContainerSites(c || []);
+      setTransfers(tr || []);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    }
   };
 
   const navigateToChat = (query: string) => {
@@ -79,6 +95,7 @@ export default function SabanUltimateControlCenter() {
   };
 
   const calculateDays = (startDate: string) => {
+    if (!startDate) return 0;
     const start = new Date(startDate);
     const diffTime = Math.abs(now.getTime() - start.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -90,7 +107,6 @@ export default function SabanUltimateControlCenter() {
     <div className="flex h-screen w-full bg-[#F0F2F5] text-slate-900 font-sans overflow-hidden" dir="rtl">
       <Head><title>SABAN OS | Container Management</title></Head>
 
-      {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex w-80 flex-col bg-white border-l border-slate-200 z-50 shadow-2xl">
         <div className="p-8 flex items-center gap-4">
           <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg"><Activity size={20} /></div>
@@ -98,16 +114,19 @@ export default function SabanUltimateControlCenter() {
         </div>
 
         <nav className="flex-1 p-6 space-y-2">
-          {[{ id: 'live', label: 'הזמנות LIVE', icon: Timer }, { id: 'containers', label: 'מכולות', icon: Box }, { id: 'chat', label: 'AI Supervisor', icon: Bot }].map(item => (
+          {[
+            { id: 'live', label: 'הזמנות LIVE', icon: Timer }, 
+            { id: 'containers', label: 'מכולות', icon: Box }, 
+            { id: 'chat', label: 'AI Supervisor', icon: Bot }
+          ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${activeTab === item.id ? 'bg-emerald-600 text-white font-black shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
               <item.icon size={20} /> <span className="text-sm font-bold">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        {/* סיכום תפעולי מורחב (לחיץ) */}
         <div className="p-6 bg-slate-50 border-t border-slate-100 space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">מחסן מכולות וניהול (לחיץ)</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">מחסן מכולות וניהול</p>
           <div className="space-y-2">
             {[
               { name: 'שארק 30', count: containerSites.filter(c => c.contractor_name === 'שארק 30').length, color: 'bg-emerald-100 text-emerald-700' },
@@ -119,7 +138,6 @@ export default function SabanUltimateControlCenter() {
                 <span className={`${con.color} text-[10px] px-2 py-0.5 rounded-full font-black`}>{con.count} מכולות</span>
               </button>
             ))}
-            
             <button onClick={() => navigateToChat(`מה מצב העברות בין סניפים היום?`)} className="w-full flex items-center justify-between p-3 bg-slate-900 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-md">
                 <div className="flex items-center gap-2"><ArrowRightLeft size={14}/><span className="text-xs font-bold uppercase tracking-tighter">העברות סניפים</span></div>
                 <span className="text-[10px] font-black opacity-60">{transfers.length} משימות</span>
@@ -139,8 +157,6 @@ export default function SabanUltimateControlCenter() {
 
         <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
           <AnimatePresence mode="wait">
-            
-            {/* כרטיסי מכולות עם פס התקדמות ימים */}
             {activeTab === 'containers' && (
               <motion.div key="containers" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {containerSites.map(site => {
@@ -159,12 +175,11 @@ export default function SabanUltimateControlCenter() {
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-white ${isUrgent ? 'bg-red-500' : 'bg-blue-600'}`}>
                           {site.action_type || 'מכולה'}
                         </span>
-                        <div className="text-[10px] font-black text-slate-300">#{site.id.slice(0,5)}</div>
+                        <div className="text-[10px] font-black text-slate-300">#{site.id?.slice(0,5)}</div>
                       </div>
                       <h3 className="text-2xl font-black text-slate-900 leading-tight mb-1">{site.client_name}</h3>
                       <p className="text-xs font-bold text-slate-400 mb-6 flex items-center gap-1"><MapPin size={12} className="text-emerald-500"/> {site.delivery_address}</p>
                       
-                      {/* פס התקדמות 10 ימים */}
                       <div className="space-y-2 mb-6">
                          <div className="flex justify-between items-end">
                             <span className={`text-xl font-black font-mono ${isUrgent ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>
@@ -190,7 +205,6 @@ export default function SabanUltimateControlCenter() {
               </motion.div>
             )}
 
-            {/* חדר צ'אט (ניווט אוטומטי מהדוח) */}
             {activeTab === 'chat' && (
               <motion.div key="chat" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 max-w-5xl mx-auto">
                 <div className="p-5 bg-slate-900 text-emerald-500 border-b border-white/5 flex items-center gap-3">
@@ -211,7 +225,6 @@ export default function SabanUltimateControlCenter() {
                 </form>
               </motion.div>
             )}
-
           </AnimatePresence>
         </div>
       </main>
