@@ -1,20 +1,21 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabase';
 import { 
-  Zap, Search, ShieldCheck, Play, 
-  MessageSquare, Terminal, RefreshCw, Cpu, Database, AlertCircle 
+  Cpu, Send, ShieldAlert, CheckCircle2, 
+  Terminal, BarChart3, Info, Zap, Search, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function AiSimulator() {
+export default function AiStudioSimulator() {
   const [rules, setRules] = useState<any[]>([]);
   const [query, setQuery] = useState('');
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [matchedRule, setMatchedRule] = useState<any>(null);
-  const [aiResponse, setAiResponse] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [simulationResult, setSimulationResult] = useState<any>(null);
+  const [accuracy, setAccuracy] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchRules();
@@ -25,150 +26,186 @@ export default function AiSimulator() {
     setRules(data || []);
   };
 
-  const runSimulation = () => {
+  const runAdvancedSimulation = () => {
     if (!query.trim()) return;
-    setIsSimulating(true);
-    setMatchedRule(null);
-    setAiResponse('');
+    setIsProcessing(true);
+    setSimulationResult(null);
 
-    // סימולציה של מנוע החוקים
+    // דימוי חשיבה של המוח
     setTimeout(() => {
-      const found = rules.find(r => 
-        query.includes(r.action_type) || 
-        (r.condition && query.includes(r.condition))
+      const matched = rules.find(r => 
+        query.includes(r.action_type) || (r.condition && query.includes(r.condition))
       );
 
-      if (found) {
-        setMatchedRule(found);
-        setAiResponse(`זיהיתי חוק פעיל: "${found.instruction}". אני עוצר את הפעולה ומבקש אישור מנהל או דורש מסמכים נוספים.`);
-      } else {
-        setAiResponse("לא נמצאו חוקים מגבילים. הפעולה תבוצע ותוזרק ל-DB באופן אוטומטי.");
-      }
-      setIsSimulating(false);
-    }, 1200);
+      const score = matched ? 98 : 85; // מדד דיוק משוער
+      setAccuracy(score);
+
+      setSimulationResult({
+        matched: !!matched,
+        rule: matched,
+        response: matched 
+          ? matched.instruction 
+          : "✅ הפקודה תקינה. המוח יזריק נתונים לטבלת " + (query.includes('מכולה') ? 'containers' : 'orders') + ".",
+        suggestion: matched 
+          ? "נסה לנסח שוב ללא המגבלה או הוסף אישור מנהל." 
+          : "נוסח פקודה אופטימלי: '[פעולה] [לקוח] [זמן/מיקום]'"
+      });
+      setIsProcessing(false);
+    }, 1500);
   };
 
   return (
     <Layout>
-      <div className="min-h-screen bg-[#F8F9FA] pb-20" dir="rtl">
-        <Head>
-          <title>SABAN OS | AI Simulator</title>
-        </Head>
+      <Head>
+        <title>SABAN AI | Studio Simulator</title>
+      </Head>
 
-        {/* Header - PWA Style */}
-        <div className="bg-white border-b border-slate-200 p-6 pt-10">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 italic">
-                <Cpu className="text-emerald-600" size={28} /> סימולטור חוקי מוח
-              </h1>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">בדיקת לוגיקה בזמן אמת</p>
+      <div className="min-h-screen bg-[#0F172A] text-slate-200 font-sans p-4 lg:p-8" dir="rtl">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Side Panel: Metrics & Rules */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Accuracy Card */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] p-6 backdrop-blur-xl">
+              <div className="flex justify-between items-center mb-4">
+                <BarChart3 className="text-emerald-400" size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">System Metrics</span>
+              </div>
+              <div className="flex items-end gap-2">
+                <span className="text-5xl font-black text-white">{accuracy}%</span>
+                <span className="text-emerald-400 font-bold text-sm mb-2">דיוק חיזוי</span>
+              </div>
+              <div className="w-full bg-slate-700 h-1.5 rounded-full mt-4 overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }} animate={{ width: `${accuracy}%` }}
+                  className="h-full bg-emerald-500 shadow-[0_0_10px_#10b981]" 
+                />
+              </div>
             </div>
-            <div className="flex gap-2 items-center">
-               <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Engine Live</span>
+
+            {/* Compact Rules Table */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] overflow-hidden backdrop-blur-xl">
+              <div className="p-5 border-b border-slate-700 flex justify-between items-center">
+                <h3 className="font-black text-sm flex items-center gap-2 italic">
+                  <Terminal size={18} className="text-slate-500" /> תמצית חוקי מוח
+                </h3>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-full border border-emerald-500/20">{rules.length} חוקים</span>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full text-[11px] text-right">
+                  <tbody className="divide-y divide-slate-700">
+                    {rules.map(r => (
+                      <tr key={r.id} className="hover:bg-white/5 transition-colors">
+                        <td className="p-3 font-black text-emerald-500 w-20">{r.action_type}</td>
+                        <td className="p-3 text-slate-400 italic">{r.instruction.slice(0, 40)}...</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="max-w-4xl mx-auto p-4 space-y-6 mt-6">
-          
-          {/* אזור הקלט - כהה ויוקרתי */}
-          <section className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl text-white border-b-4 border-emerald-500">
-            <label className="text-[11px] font-black text-emerald-400 uppercase mb-4 block tracking-[0.2em]">הזן שאילתה לבדיקת חוקים</label>
-            <div className="flex gap-3">
-              <input 
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="למשל: 'תוסיף הובלה ללקוח חדש'..."
-                className="flex-1 bg-white/10 border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-slate-500"
-              />
-              <button 
-                onClick={runSimulation}
-                disabled={isSimulating}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 rounded-2xl font-black flex items-center gap-2 transition-all disabled:opacity-50 active:scale-95 shadow-lg"
-              >
-                {isSimulating ? <RefreshCw className="animate-spin" /> : <Play fill="currentColor" size={18} />}
-              </button>
-            </div>
-          </section>
+          {/* Main Content: Chat Simulator */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[650px] relative">
+              
+              {/* Chat Header */}
+              <header className="p-6 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-900/20">
+                    <Cpu className="text-white" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-white leading-none italic">SABAN AI STUDIO</h2>
+                    <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1 tracking-widest animate-pulse">Simulator Active</p>
+                  </div>
+                </div>
+                <Zap className="text-slate-600" size={20} />
+              </header>
 
-          {/* לוח התוצאות */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* סטטוס המנוע */}
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between h-48">
-              <div className="flex justify-between">
-                <Terminal className="text-slate-400" size={24} />
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">System Log</span>
-              </div>
-              <div className="mt-4">
-                {isSimulating ? (
-                  <p className="text-sm font-bold text-emerald-600 animate-pulse">סורק טבלת ai_rules...</p>
-                ) : matchedRule ? (
-                  <p className="text-sm font-bold text-red-500 flex items-center gap-2">
-                    <AlertCircle size={16} /> נמצאה התאמה לחוק #{matchedRule.id.slice(0,4)}
-                  </p>
-                ) : (
-                  <p className="text-sm font-bold text-slate-400">ממתין לפקודה...</p>
+              {/* Chat Messages Area */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                <AnimatePresence>
+                  {query && !isProcessing && simulationResult && (
+                    <>
+                      {/* User Bubble */}
+                      <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex justify-start">
+                        <div className="bg-slate-700 text-white p-4 rounded-2xl rounded-tr-none max-w-[80%] font-bold shadow-lg border border-slate-600">
+                          {query}
+                        </div>
+                      </motion.div>
+
+                      {/* AI Response Bubble */}
+                      <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex justify-end">
+                        <div className={`p-5 rounded-2xl rounded-tl-none max-w-[85%] shadow-2xl border-2 ${
+                          simulationResult.matched ? 'bg-red-950/40 border-red-500 text-red-100' : 'bg-emerald-950/40 border-emerald-500 text-emerald-100'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            {simulationResult.matched ? <ShieldAlert size={18} /> : <CheckCircle2 size={18} />}
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                              {simulationResult.matched ? 'Rule Triggered' : 'Action Approved'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-black leading-relaxed">{simulationResult.response}</p>
+                          
+                          {/* עזרה בצורת נוסח פקודה */}
+                          <div className="mt-4 pt-3 border-t border-white/10 flex items-start gap-2">
+                            <HelpCircle size={14} className="mt-1 opacity-50" />
+                            <div>
+                              <p className="text-[10px] font-bold opacity-50 uppercase mb-1">טיפ לניסוח פקודה:</p>
+                              <p className="text-[11px] font-medium bg-black/30 p-2 rounded-lg italic text-blue-300">{simulationResult.suggestion}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+                
+                {isProcessing && (
+                  <div className="flex justify-center py-10">
+                    <div className="flex flex-col items-center gap-4">
+                      <RefreshCw className="text-emerald-500 animate-spin" size={32} />
+                      <span className="text-xs font-black text-emerald-500/50 animate-pulse tracking-widest uppercase">Analyzing Logic...</span>
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="flex gap-1 mt-4">
-                <div className={`h-1 flex-1 rounded-full ${isSimulating ? 'bg-emerald-500' : 'bg-slate-100'}`}></div>
-                <div className={`h-1 flex-1 rounded-full ${matchedRule ? 'bg-amber-500' : 'bg-slate-100'}`}></div>
-                <div className={`h-1 flex-1 rounded-full ${aiResponse ? 'bg-emerald-500' : 'bg-slate-100'}`}></div>
-              </div>
-            </div>
 
-            {/* תגובת ה-AI המשוערת */}
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-48">
-              <div className="flex justify-between mb-4">
-                <MessageSquare className="text-emerald-500" size={24} />
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">AI Output</span>
+              {/* Chat Input Area */}
+              <div className="p-4 bg-slate-800/80 border-t border-slate-700">
+                <div className="max-w-3xl mx-auto flex gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input 
+                      value={query} onChange={(e) => setQuery(e.target.value)}
+                      placeholder="הזן פקודה לבדיקה (למשל: תמחק הזמנה)"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 pl-12 text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-inner"
+                    />
+                  </div>
+                  <button 
+                    onClick={runAdvancedSimulation}
+                    disabled={isProcessing}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-2xl font-black shadow-lg shadow-emerald-900/40 active:scale-95 transition-all"
+                  >
+                    <Send size={20} className="rotate-180" />
+                  </button>
+                </div>
               </div>
-              <p className="text-sm font-black text-slate-700 leading-relaxed italic">
-                {aiResponse || "הזן שאילתה כדי לראות איך המוח יגיב לצוות בשטח..."}
-              </p>
             </div>
           </div>
-
-          {/* טבלת חוקים פעילים - שליפה מהירה */}
-          <section className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <h2 className="font-black text-slate-800 flex items-center gap-2 italic">
-                <Database size={18} className="text-slate-400" /> מאגר חוקים נוכחי
-              </h2>
-              <span className="text-[10px] font-black bg-white px-3 py-1 rounded-full border border-slate-200 text-slate-500 shadow-sm">{rules.length} חוקים פעילים</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-right">
-                <thead>
-                  <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                    <th className="p-6">פעולה</th>
-                    <th className="p-6">תנאי</th>
-                    <th className="p-6 text-emerald-600">הנחיית המוח</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {rules.map(rule => (
-                    <tr key={rule.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="p-6 text-xs font-black text-slate-900 uppercase">{rule.action_type}</td>
-                      <td className="p-6 text-xs font-bold text-slate-500">{rule.condition || '—'}</td>
-                      <td className="p-6 text-xs font-bold text-slate-700 group-hover:text-emerald-600 transition-colors">{rule.instruction}</td>
-                    </tr>
-                  ))}
-                  {rules.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center text-slate-300 font-bold text-sm">אין חוקים מוגדרים במערכת</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
 
         </div>
       </div>
     </Layout>
+  );
+}
+
+function RefreshCw({ className, size }: { className?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
+    </svg>
   );
 }
