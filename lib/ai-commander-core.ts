@@ -1,75 +1,57 @@
 import { supabase } from './supabase';
 
 export const processCommanderCommand = async (input: string, user: string) => {
-  // בדיקת הרשאת מפקד
-  if (user !== 'ראמי מסארווה') return { msg: 'גישה חסומה. פנה לראמי.' };
+  if (user !== 'ראמי מסארווה') return { msg: 'גישה חסומה למפקד בלבד.' };
 
-  const text = input.toLowerCase();
+  const text = input.trim();
+  const lowerText = text.toLowerCase();
 
-  // --- 1. לוגיקת מחיקה / ביטול ---
-  if (text.includes('מחק') || text.includes('בטל')) {
-    const id = input.match(/[0-9a-fA-F-]{36}/)?.[0] || input.match(/\d+/)?.[0];
-    if (!id) return { msg: 'בוס, תן לי מספר הזמנה למחיקה.' };
-
-    const { error } = await supabase.from('orders').delete().eq('id', id);
-    return error ? { msg: `נכשל: ${error.message}` } : { msg: `הזמנה ${id} הוסרה מהלוח.` };
-  }
-
-  // --- 2. לוגיקת עדכון (סטטוס / מספר הזמנה) ---
-  if (text.includes('עדכן') || text.includes('שנה')) {
-    const orderId = input.match(/[0-9a-fA-F-]{36}/)?.[0] || input.match(/\d+/)?.[0];
-    if (!orderId) return { msg: 'בוס, איזו הזמנה לעדכן?' };
-
-    let updateData: any = {};
-    
-    if (text.includes('סטטוס')) {
-      updateData.status = input.split('ל').pop()?.trim();
-    }
-    if (text.includes('מספר')) {
-      updateData.order_number = input.match(/\d{4,}/)?.[0];
-    }
-    if (text.includes('נהג')) {
-      updateData.driver_name = text.includes('חכמת') ? 'חכמת' : text.includes('עלי') ? 'עלי' : 'טרם שובץ';
-    }
-
-    const { error } = await supabase.from('orders').update(updateData).eq('id', orderId);
-    return error ? { msg: `עדכון נכשל: ${error.message}` } : { msg: 'עודכן בלוח בזמן אמת.' };
-  }
-
-  // --- 3. לוגיקת הזרקה חופשית (יצירה) ---
-  if (text.includes('תיצור') || text.includes('הזמנה') || text.includes('הובלה')) {
+  // --- 1. זיהוי כוונת יצירה (הזרקה) ---
+  if (lowerText.startsWith('תיצור') || lowerText.includes('הזמנה') || lowerText.includes('הובלה')) {
     
     // חילוץ נהג
     const driver = text.includes('חכמת') ? 'חכמת' : text.includes('עלי') ? 'עלי' : 'טרם שובץ';
     
-    // חילוץ לקוח - Regex חכם שמחפש אחרי "ללקוח" או "ל-"
-    const clientMatch = input.match(/(?:ללקוח|ל-)\s*([א-ת\s]+?)(?=\s+(?:לשעה|מחר|ממחסן|ב-|$))/);
-    const clientName = clientMatch ? clientMatch[1].trim() : (input.split('ל')[1]?.split(' ')[1] || 'לקוח כללי');
-    
-    // חילוץ שעה
-    const timeMatch = input.match(/(\d{2}:\d{2})/);
+    // חילוץ זמן (פורמט HH:MM)
+    const timeMatch = text.match(/(\d{2}:\d{2})/);
     const orderTime = timeMatch ? timeMatch[0] : '08:00';
     
-    // חילוץ מחסן/סניף
-    const warehouse = text.includes('החרש') ? 'החרש 10' : text.includes('התלמיד') ? 'התלמיד 6' : 'ראשי';
+    // חילוץ מחסן
+    const warehouse = text.includes('החרש') ? 'החרש' : text.includes('התלמיד') ? 'התלמיד' : 'ראשי';
 
-    // הזרקה לפי שמות העמודות ב-DB שלך
+    // חילוץ שם לקוח חכם - מנקה מילות פקודה
+    let clientName = text
+      .replace(/תיצור|הזמנה|הובלה|לחכמת|לעלי|לשעה|ממחסן|החרש|התלמיד|למחר|ב-/g, '')
+      .replace(/ללקוח|ל-/g, '')
+      .trim();
+    
+    if (!clientName || clientName.length < 2) clientName = "לקוח כללי";
+
+    // הזרקה ל-DB (שמות שדות מדויקים מה-SQL שלך)
     const { data, error } = await supabase.from('orders').insert([{
       client_info: clientName,
       order_time: orderTime,
       driver_name: driver,
       warehouse: warehouse,
       status: 'approved',
-      delivery_date: new Date(Date.now() + 86400000).toISOString().split('T')[0] // ברירת מחדל: למחר
+      delivery_date: new Date(Date.now() + 86400000).toISOString().split('T')[0]
     }]).select();
 
-    if (error) return { msg: `הזרקה נכשלה: ${error.message}` };
+    if (error) return { msg: `שגיאה ב-DB: ${error.message}` };
     
     return { 
-      msg: `בוס, בוצע! הזמנה ל-${clientName} הופקה לנהג ${driver} בשעה ${orderTime} ממחסן ${warehouse}.`,
-      data 
+      msg: `בוצע! הזמנה ל-${clientName} הופקה לנהג ${driver} בשעה ${orderTime} מסניף ${warehouse}.`,
+      data: data?.[0]
     };
   }
 
-  return { msg: "בוס, לא זיהיתי פקודה. נסה: 'תיצור הובלה לחכמת ללקוח אבי לוי ב-11:00'" };
+  // --- 2. לוגיקת מחיקה ---
+  if (lowerText.includes('מחק') || lowerText.includes('בטל')) {
+    const id = text.match(/[0-9a-fA-F-]{36}/)?.[0] || text.match(/\d+/)?.[0];
+    if (!id) return { msg: 'בוס, תן לי מספר הזמנה למחיקה.' };
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    return error ? { msg: 'המחיקה נכשלה' } : { msg: `הזמנה ${id} נמחקה.` };
+  }
+
+  return { msg: "לא זיהיתי פקודה. נסה: 'תיצור הזמנה לחכמת ללקוח אבי לוי ב-11:00'" };
 };
