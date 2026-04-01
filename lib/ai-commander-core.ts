@@ -1,4 +1,51 @@
 import { supabase } from './supabase';
+import { supabase } from './supabase';
+
+export const processCommanderCommand = async (input: string, user: string) => {
+  if (user !== 'ראמי מסארווה') return { error: 'Unauthorized' };
+
+  const text = input.toLowerCase();
+  
+  // 1. זיהוי כוונת יצירה
+  if (text.includes('תיצור') || text.includes('הזמנה') || text.includes('הובלה')) {
+    
+    // חילוץ נהג (חכמת/עלי/שארק)
+    const driver = text.includes('חכמת') ? 'חכמת' : text.includes('עלי') ? 'עלי' : 'טרם שובץ';
+    
+    // חילוץ לקוח (מחפש מילים אחרי "ללקוח" או "ל-")
+    const clientMatch = input.match(/(?:ללקוח|ל-)\s*([א-ת\s]+?)(?=\s+(?:לשעה|מחר|ממחסן|ב-|$))/);
+    const clientName = clientMatch ? clientMatch[1].trim() : 'לקוח כללי';
+    
+    // חילוץ שעה (HH:MM)
+    const timeMatch = input.match(/(\d{2}:\d{2})/);
+    const orderTime = timeMatch ? timeMatch[0] : '08:00';
+    
+    // חילוץ מחסן
+    const warehouse = text.includes('החרש') ? 'החרש 10' : text.includes('התלמיד') ? 'התלמיד 6' : 'ראשי';
+
+    // הזרקה ל-DB לפי המבנה המדויק שלך (client_info, order_time וכו')
+    const { data, error } = await supabase.from('orders').insert([{
+      client_info: clientName,
+      order_time: orderTime,
+      driver_name: driver,
+      warehouse: warehouse,
+      status: 'approved', // אישור מפקד אוטומטי
+      delivery_date: new Date(Date.now() + 86400000).toISOString().split('T')[0] // למחר
+    }]).select();
+
+    if (error) return { msg: `שגיאה בהזרקה: ${error.message}` };
+    
+    return { 
+      msg: `בוס, הפקודה בוצעה: הזמנה ל-${clientName} הופקה לנהג ${driver} בשעה ${orderTime} ממחסן ${warehouse}.`,
+      data 
+    };
+  }
+
+  // 2. פקודות עדכון/מחיקה (כפי שהגדרנו קודם)
+  // ... (שאר הלוגיקה)
+  return { msg: "לא זיהיתי פקודה ברורה. נסה: 'תיצור הובלה לחכמת ללקוח אבי לוי...'" };
+};
+
 
 export const processCommanderCommand = async (input: string, user: string) => {
   if (user !== 'ראמי מסארווה') return { error: 'Unauthorized' };
