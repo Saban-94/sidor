@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { supabase } from '../../lib/supabase'; // תיקון נתיב
+import { supabase } from '../lib/supabase'; // תיקון נתיב
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Truck, Box, MessageSquare, ChevronLeft, AlertTriangle } from 'lucide-react';
-import Layout from '../../components/Layout'; // תיקון נתיב ושם ה-Import
+import Layout from '../components/Layout'; // תיקון נתיב ושם ה-Import
 
 // רכיב טיימר עם הבהוב להזמנות דחופות
 const LiveTimer = ({ targetTime, date }: { targetTime: string, date: string }) => {
