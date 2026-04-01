@@ -1,7 +1,9 @@
 'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { supabase } from '../../lib/supabase';
+// תיקון נתיב הייבוא ל-lib/supabase המקובל בפרויקט
+import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, Send, Clock, MapPin, Bot, Truck, Box, 
   Timer, Activity, CheckCheck, AlertCircle, ArrowRightLeft, Warehouse
