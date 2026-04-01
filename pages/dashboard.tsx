@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { 
   LayoutDashboard, Send, Clock, MapPin, 
   Bot, Truck, Box, RefreshCcw, Trash2, 

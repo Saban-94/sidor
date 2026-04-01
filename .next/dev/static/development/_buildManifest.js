@@ -1,0 +1,50 @@
+self.__BUILD_MANIFEST = {
+  "/": [
+    "static/chunks/pages/index.js"
+  ],
+  "__rewrites": {
+    "afterFiles": [],
+    "beforeFiles": [],
+    "fallback": []
+  },
+  "sortedPages": [
+    "/",
+    "/_app",
+    "/_error",
+    "/admin/ai",
+    "/admin/ai-assistant",
+    "/admin/bot-flow-builder",
+    "/admin/chats",
+    "/admin/crm-manager",
+    "/admin/dashboard",
+    "/admin/dispatch-view",
+    "/admin/group-saban94",
+    "/admin/inventory-brain",
+    "/admin/master",
+    "/admin/master-dashboard",
+    "/admin/rami-board",
+    "/admin/sidor",
+    "/admin/studio",
+    "/admin/studio2-pro",
+    "/admin/users/page",
+    "/api/advisor-brain",
+    "/api/ai-analyst",
+    "/api/auto-reply",
+    "/api/containers",
+    "/api/dispatch-ai",
+    "/api/gemini",
+    "/api/save-order",
+    "/api/send-message",
+    "/api/unified-brain",
+    "/api/whatsapp/send",
+    "/chat/[phone]",
+    "/chat-premium",
+    "/chat2/[phone]",
+    "/containers",
+    "/crm",
+    "/dashboard",
+    "/knowledge-hub",
+    "/product/[id]",
+    "/start"
+  ]
+};self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()
