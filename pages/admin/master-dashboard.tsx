@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Truck, Box, MessageSquare, ChevronLeft, AlertTriangle } from 'lucide-react';
-import AppLayout from '../../components/Layout';
+import AppLayout from '../components/Layout';
 
 // רכיב טיימר עם הבהוב להזמנות דחופות
 const LiveTimer = ({ targetTime, date }: { targetTime: string, date: string }) => {
