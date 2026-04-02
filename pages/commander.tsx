@@ -11,7 +11,7 @@ import {
 // קונפיגורציה חזותית לפי מחסן
 const DESIGN_CONFIG: Record<string, { color: string, bg: string, logo: string, shadow: string }> = {
   'שארק 30': { color: '#0066FF', bg: 'bg-blue-50', logo: '/logos/shark30.png', shadow: 'shadow-blue-200' },
-  'כראדי 32': { color: '#10B981', bg: 'bg-emerald-50', logo: '/logos/karadi32.png', shadow: 'shadow-emerald-200' },
+  'כראדי 32': { color: '#10B981', bg: 'bg-emerald-50', logo: 'https://github.com/Saban-94/sidor/blob/main/public/logos/karadi32.png?raw=true', shadow: 'shadow-emerald-200' },
   'שי שרון 40': { color: '#F59E0B', bg: 'bg-amber-50', logo: '/logos/shai-sharon.png', shadow: 'shadow-amber-200' },
   'מכולות בשרון': { color: '#8B5CF6', bg: 'bg-purple-50', logo: '/logos/container-logo.png', shadow: 'shadow-purple-200' }
 };
