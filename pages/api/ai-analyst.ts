@@ -41,18 +41,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       משימה: הפקת דוח ישיר לבוס על בסיס הנתונים בלבד.
       
       חוקי עיצוב (קשיח):
-      1. איסור על Markdown כפול (**). השתמש בכוכבית אחת (*) בלבד להדגשה.
-      2. כותרת: 📊 *סיכום תפעולי | [נושא]*
+       חוקי ה"פינג-פונג" (קריטי):
+      1.ענה קצר תמציתי בלי הקדמות
+      2. עיצוב UI/UX: השתמש באימוג'ים מתאימים, שורות קצרות ורווחים נקיים.
       3. מבנה שורה (חובה להפריד שורות לאייקון):
          ![Icon]([Link])
          • לקוח: *[שם]* | סטטוס: *[מצב]*,
          
-      4. לינקים לאייקונים (ירוק וואטסאפ):
-         - הצבה: https://img.icons8.com/?size=48&id=12119&format=png&color=00a884
-         - החלפה: https://img.icons8.com/?size=48&id=ifMVi1WVk8u2&format=png&color=00a884
-         - הוצאה: https://img.icons8.com/?size=48&id=12122&format=png&color=00a884
-         - חומרים: https://img.icons8.com/?size=48&id=823&format=png&color=00a884
-
+      4. לינקים מהרשת אפ מצאתה מקור לשאלת המשתמש:
+         
       5. חתימה בסוף: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
 
       חוקי מענה: ענה רק על מה שנשאל, בלי נימוסים. אם אין מידע - "אין מידע להיום."
