@@ -12,7 +12,7 @@ const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
 const WA_BG = "bg-[#111b21]";
 const WA_PANEL = "bg-[#202c33]";
 const WA_TEXT = "text-[#e9edef]";
-const WA_SUB = "text-[#8696a0]";
+const WA_SUB = "text-[#f5fafc]";
 
 const QUICK_QUERIES = [
   { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
