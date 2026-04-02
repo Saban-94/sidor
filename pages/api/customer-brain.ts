@@ -16,7 +16,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה השאלה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API חסר בשרת." });
 
-  // עדכון ה-Model Pool כפי שביקשת
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
 
   try {
@@ -49,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       חוקים קשיחים:
       - השתמש ב"מידע רלוונטי מהמערכת" כתשובה המדויקת ביותר.
-      - אל תמציא נתונים (שעות, מחירים, נהלים) שאינם במידע המערכת.
+      - אל תמציא נתונים שאינם במידע המערכת.
       - אם שם המשתמש ידוע (${currentUserName}), אל תשאל אותו שוב.
       - סגנון: מקצועי, חד, ענייני, וקצר.
       
@@ -58,9 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `;
 
     let replyText = "";
-    let lastError = null;
+    let lastError: any = null; // תיקון הטיפוס כאן
 
-    // 4. ניסיון שליחה עם מנגנון Fallback בין המודלים ב-Pool
+    // 4. ניסיון שליחה עם מנגנון Fallback
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -72,10 +71,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const data = await response.json();
         replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
         
-        if (replyText) break; // אם הצלחנו לקבל תשובה, עוצרים את הלופ
+        if (replyText) break; 
       } catch (e) {
         lastError = e;
-        continue; // אם המודל נכשל, עוברים למודל הבא ב-Pool
+        continue; 
       }
     }
 
@@ -90,6 +89,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (e) {
     console.error("Brain Error:", e);
-    return res.status(200).json({ reply: "בוס, המוח בריענון נתונים. נסה שוב בעוד רגע." });
+    return res.status(200).json({ reply: "בוס, המוח בריענון נתונים. נסה שוב." });
   }
 }
