@@ -20,7 +20,7 @@ export default function Dashboard() {
   return (
     <div className="h-screen w-full bg-[#020617] overflow-hidden" dir="rtl">
       <Head>
-        <title>SABAN HUB | AI CORE</title>
+        <title>AI | ח.סבן</title>
       </Head>
 
       {/* פריסה של 100% מהמסך רק עבור הממשק החדש */}
