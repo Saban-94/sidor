@@ -4,43 +4,38 @@ import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { query, history = [], senderPhone = 'admin' } = req.body;
+  const { query, userName, history = [] } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    // 1. "שליפת נתונים בזמן אמת" - המוח בודק מה קורה בשטח
-    const [orders, containers, pastLessons] = await Promise.all([
+    const [orders, containers, memory] = await Promise.all([
       supabase.from('orders').select('*').eq('delivery_date', today),
       supabase.from('container_management').select('*').eq('is_active', true),
-      supabase.from('google_ai').select('*').limit(5).order('created_at', { ascending: false })
+      supabase.from('google_ai').select('*').order('created_at', { ascending: false }).limit(5)
     ]);
 
-    // 2. לוגיקת סדרן חכם (דוגמה לחכמת)
-    let driverStatus = "";
-    if (query.includes("חכמת") && query.includes("07:00")) {
-      const isBusy = orders.data?.some(o => o.driver_name === 'חכמת' && o.order_time.startsWith('07'));
-      if (isBusy) {
-        driverStatus = "חכמת תפוס ב-07:00. לפי חישוב זמני העמסה ונסיעה (שעתיים), הוא יתפנה ב-09:00.";
-      }
-    }
+    const chatHistory = history.map((h: any) => `${h.role}: ${h.content}`).join('\n');
 
-    // 3. בניית הפרומפט - "האנציקלופדיה של ח.סבן"
     const prompt = `
-      אתה Saban AI Core. תמציתי, מקצועי, בול בפוני.
-      משימה: סדרן עבודה חכם.
+      זהות: Saban OS Core. מוח תפעולי מקצועי. 
+      משתמש נוכחי: בוס ${userName}. פנה אליו בשמו.
       
-      נתוני שטח: ${JSON.stringify(orders.data)}
-      סטטוס ספציפי: ${driverStatus}
-      שיעורי עבר מהטבלה: ${JSON.stringify(pastLessons.data)}
-
-      חוקי מענה:
-      - אל תפתח ב"שלום" או "הנה המידע". לך ישר לפתרון.
-      - אם נהג תפוס, הצע שעה חלופית (+2 שעות) או נהג חלופי (עלי).
-      - תמיד סיים בשאלת המשך אופרטיבית (למשל: "לשלוח התראה לראמי לבדיקת חלופה?").
-      - חתימה בסוף: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
+      חוקי הסטודיו:
+      1. ענה קצר, חד, תמציתי. בלי הקדמות.
+      2. בדוק זמינות נהגים בטבלה. אם חכמת/עלי תפוסים בשעה המבוקשת, הצע הפרש של שעתיים.
+      3. הצג טבלאות Markdown אם יש יותר מ-3 פריטים.
+      
+      נתוני שטח:
+      הזמנות: ${JSON.stringify(orders.data)}
+      מכולות: ${JSON.stringify(containers.data)}
+      זיכרון לימוד: ${JSON.stringify(memory.data)}
+      
+      היסטוריית שיחה:
+      ${chatHistory}
 
       שאלה: ${query}
+      חתימה בסוף: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
     `;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -50,19 +45,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const data = await response.json();
-    const answer = data.candidates[0].content.parts[0].text.replace(/\*\*/g, '');
+    const answer = data.candidates[0].content.parts[0].text;
 
-    // 4. "לימוד וזיכרון" - שומר את השאלה והתשובה לטבלת google_ai
+    // תיעוד לטבלת הלימוד
     await supabase.from('google_ai').insert([{
       user_query: query,
       ai_response: answer,
-      context_tag: query.includes("חכמת") ? "הובלות" : "מכולות",
-      metadata: { driver_check: driverStatus }
+      context_tag: userName,
+      metadata: { date: today }
     }]);
 
     return res.status(200).json({ answer });
-
-  } catch (e) {
-    return res.status(200).json({ answer: "בוס, המוח בטעינה. נסה שוב." });
-  }
+  } catch (e) { return res.status(500).json({ answer: 'שגיאה בחיבור למוח.' }); }
 }
