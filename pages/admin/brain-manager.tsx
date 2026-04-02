@@ -1,19 +1,15 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Send, Brain, Database, Smartphone, Image as ImageIcon, CheckCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Brain, Database, Smartphone, RefreshCcw, LayoutGrid } from 'lucide-react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function BrainManager() {
-  // State לאימון
+  const [activeTab, setActiveTab] = useState<'inject' | 'simulator'>('inject');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
-  const [category, setCategory] = useState('general');
   const [isTraining, setIsTraining] = useState(false);
-  
-  // State לסימולטור
   const [simMessages, setSimMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
   const [simInput, setSimInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -23,19 +19,17 @@ export default function BrainManager() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [simMessages]);
 
-  // הזרקה ל-DB
   const injectKnowledge = async () => {
-    if (!question || !answer) return alert("אחי, תמלא שאלה ותשובה");
+    if (!question || !answer) return alert("אחי, תמלא את כל השדות");
     setIsTraining(true);
-    const { error } = await supabase.from('ai_training').insert([{ question, answer, category }]);
+    const { error } = await supabase.from('ai_training').insert([{ question, answer, category: 'manual' }]);
     setIsTraining(false);
     if (!error) {
-      alert("המוח אומן בהצלחה! 🧠✨");
+      alert("המוח אומן! 🧠");
       setQuestion(''); setAnswer('');
     }
   };
 
-  // בדיקה בסימולטור (מול ה-API הקיים שלך)
   const testInSimulator = async () => {
     if (!simInput.trim()) return;
     const userMsg = simInput;
@@ -52,104 +46,127 @@ export default function BrainManager() {
       const data = await res.json();
       setSimMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
     } catch (e) {
-      setSimMessages(prev => [...prev, { role: 'ai', content: "שגיאת תקשורת עם המוח" }]);
+      setSimMessages(prev => [...prev, { role: 'ai', content: "שגיאה בחיבור למוח" }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  // פונקציה לעיבוד טקסט והצגת תמונות מלינקים
   const renderMessage = (content: string) => {
     const urlRegex = /(https?:\/\/[^\s]+(?:\.jpg|\.png|\.webp|\.jpeg))/g;
     const parts = content.split(urlRegex);
     return parts.map((part, i) => (
       urlRegex.test(part) ? 
-      <img key={i} src={part} alt="media" className="max-w-full rounded-lg my-2 border border-white/10 shadow-lg" /> : 
+      <img key={i} src={part} alt="media" className="max-w-full rounded-lg my-2 border border-white/10" /> : 
       <span key={i}>{part}</span>
     ));
   };
 
   return (
-    <div className="min-h-screen bg-[#0b141a] text-[#e9edef] p-4 font-sans dir-rtl" dir="rtl">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+    <div className="min-h-screen bg-[#0b141a] text-[#e9edef] font-sans flex flex-col" dir="rtl">
+      
+      {/* Header & Tabs Selection */}
+      <div className="p-4 bg-[#111b21] border-b border-white/5 sticky top-0 z-50 shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Brain className="text-emerald-500" size={24} />
+            <h1 className="text-lg font-black uppercase tracking-tighter italic">Brain Control</h1>
+          </div>
+          <div className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-full font-bold">V 2.0</div>
+        </div>
+
+        <div className="flex p-1 bg-[#202c33] rounded-xl">
+          <button 
+            onClick={() => setActiveTab('inject')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'inject' ? 'bg-emerald-500 text-[#0b141a]' : 'text-[#8696a0]'}`}
+          >
+            <Database size={16} /> הזרקת ידע
+          </button>
+          <button 
+            onClick={() => setActiveTab('simulator')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'simulator' ? 'bg-emerald-500 text-[#0b141a]' : 'text-[#8696a0]'}`}
+          >
+            <Smartphone size={16} /> סימולטור
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto pb-20 p-4">
         
-        {/* צד שמאל: טופס הזרקת ידע */}
-        <div className="bg-[#111b21] rounded-3xl p-6 border border-white/5 shadow-2xl">
-          <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
-            <div className="p-3 bg-emerald-500/10 rounded-2xl"><Brain className="text-emerald-500" /></div>
-            <h2 className="text-2xl font-black italic">הזרקת ידע למוח</h2>
+        {/* Tab 1: Inject Knowledge */}
+        {activeTab === 'inject' && (
+          <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-[#111b21] rounded-2xl p-5 border border-white/5 shadow-xl">
+              <label className="text-xs font-bold text-emerald-400 mb-2 block uppercase tracking-widest">מילת מפתח (שאלה)</label>
+              <input 
+                value={question} 
+                onChange={e => setQuestion(e.target.value)} 
+                placeholder="למשל: מייל ראמי" 
+                className="w-full p-4 bg-[#202c33] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 mb-4 font-bold"
+              />
+
+              <label className="text-xs font-bold text-emerald-400 mb-2 block uppercase tracking-widest">תשובת המוח</label>
+              <textarea 
+                value={answer} 
+                onChange={e => setAnswer(e.target.value)} 
+                rows={6} 
+                placeholder="הכנס כאן את התשובה המדויקת..." 
+                className="w-full p-4 bg-[#202c33] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 mb-6"
+              />
+
+              <button 
+                onClick={injectKnowledge} 
+                disabled={isTraining}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-[#0b141a] rounded-xl font-black text-lg transition-all flex items-center justify-center gap-2"
+              >
+                {isTraining ? <RefreshCcw className="animate-spin" /> : <Database size={20} />}
+                {isTraining ? 'מעדכן DB...' : 'הזרק למוח'}
+              </button>
+            </div>
           </div>
+        )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-emerald-500 mb-2 block">מילת מפתח / שאלה</label>
-              <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="למשל: שעות פעילות" className="w-full p-4 bg-[#202c33] rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold" />
+        {/* Tab 2: Simulator */}
+        {activeTab === 'simulator' && (
+          <div className="max-w-[400px] mx-auto h-[70vh] flex flex-col bg-[#111b21] rounded-3xl border border-white/10 shadow-2xl overflow-hidden relative">
+            <div className="bg-[#202c33] p-4 flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-[#111b21] font-bold text-xs">S</div>
+              <div className="text-xs font-bold uppercase tracking-tighter">Saban AI Simulator</div>
             </div>
-
-            <div>
-              <label className="text-xs font-bold text-emerald-500 mb-2 block">תשובת המוח (כולל לינקים לתמונות)</label>
-              <textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={5} placeholder="הכנס את התשובה שהמוח ייתן..." className="w-full p-4 bg-[#202c33] rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium" />
-            </div>
-
-            <button onClick={injectKnowledge} disabled={isTraining} className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-[#0b141a] rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-              {isTraining ? <RefreshCcw className="animate-spin" /> : <Database size={20} />}
-              הזרק לזיכרון
-            </button>
-          </div>
-        </div>
-
-        {/* צד ימין: סימולטור מובייל */}
-        <div className="flex flex-col items-center">
-          <div className="w-full max-w-[380px] h-[750px] bg-[#111b21] rounded-[3rem] border-[8px] border-[#202c33] shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden flex flex-col">
             
-            {/* Notch */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#202c33] rounded-b-2xl z-20" />
-            
-            {/* Header */}
-            <div className="bg-[#202c33] p-6 pt-10 flex items-center gap-3 border-b border-white/5">
-              <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center font-black text-[#111b21]">S</div>
-              <div>
-                <div className="font-bold text-sm">SABAN AI SIMULATOR</div>
-                <div className="text-[10px] text-emerald-500 flex items-center gap-1">🟢 מחובר לזיכרון חיה</div>
-              </div>
-            </div>
-
-            {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-cover bg-fixed">
-              <div className="absolute inset-0 bg-[#0b141a]/80" />
-              <div className="relative z-10">
-                {simMessages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} mb-4`}>
-                    <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-md ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tr-none' : 'bg-[#005c4b] text-white rounded-tl-none'}`}>
-                      {renderMessage(m.content)}
-                    </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0b141a]">
+              {simMessages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-md ${m.role === 'user' ? 'bg-[#202c33] rounded-tr-none' : 'bg-[#005c4b] rounded-tl-none'}`}>
+                    {renderMessage(m.content)}
                   </div>
-                ))}
-                {isTyping && <div className="text-xs text-emerald-500 animate-pulse">המוח מעבד...</div>}
-                <div ref={scrollRef} />
-              </div>
+                </div>
+              ))}
+              {isTyping && <div className="text-emerald-500 text-[10px] animate-pulse">המוח מקליד...</div>}
+              <div ref={scrollRef} />
             </div>
 
-            {/* Input */}
-            <div className="p-3 bg-[#111b21] border-t border-white/5 relative z-10">
-              <div className="flex gap-2">
-                <input value={simInput} onChange={e => setSimInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && testInSimulator()} placeholder="בדוק את המוח..." className="flex-1 bg-[#2a3942] p-3 rounded-xl text-sm outline-none" />
-                <button onClick={testInSimulator} className="bg-emerald-500 p-3 rounded-xl text-[#111b21] active:scale-90 transition-all"><Send size={18} /></button>
-              </div>
+            <div className="p-3 bg-[#111b21] border-t border-white/5 flex gap-2">
+              <input 
+                value={simInput} 
+                onChange={e => setSimInput(e.target.value)} 
+                onKeyPress={e => e.key === 'Enter' && testInSimulator()}
+                placeholder="כתוב משהו..." 
+                className="flex-1 bg-[#2a3942] p-3 rounded-xl text-xs outline-none" 
+              />
+              <button onClick={testInSimulator} className="bg-emerald-500 p-3 rounded-xl text-[#111b21] active:scale-90 transition-all">
+                <Send size={18} />
+              </button>
             </div>
           </div>
-          <div className="mt-4 text-emerald-500/50 text-xs font-bold tracking-widest flex items-center gap-2">
-            <Smartphone size={14} /> LIVE PREVIEW MODE
-          </div>
-        </div>
+        )}
+      </div>
 
+      {/* Bottom Label Overlay */}
+      <div className="fixed bottom-0 left-0 right-0 p-2 text-center text-[10px] text-[#8696a0] bg-[#0b141a]/90 backdrop-blur-md">
+        © 2026 SABAN OS | BRAIN CONTROL SYSTEM
       </div>
     </div>
   );
 }
-
-const RefreshCcw = ({ className }: { className?: string }) => (
-  <svg className={`w-5 h-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-  </svg>
-);
