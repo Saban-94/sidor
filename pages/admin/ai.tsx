@@ -95,7 +95,7 @@ export default function SabanAIAssistant() {
             ))}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="max-w-4xl mx-auto flex gap-2">
-            <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב למוח..." className="flex-1 p-4 rounded-xl bg-[#202c33] border-none outline-none focus:ring-1 focus:ring-emerald-500 font-bold"/>
+            <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב משהו ..." className="flex-1 p-4 rounded-xl bg-[#202c33] border-none outline-none focus:ring-1 focus:ring-emerald-500 font-bold"/>
             <button type="submit" disabled={loading} className="w-14 h-14 bg-emerald-500 text-black rounded-xl flex items-center justify-center shadow-lg active:scale-90 disabled:opacity-50"><Send size={20} className="rotate-180"/></button>
           </form>
         </footer>
