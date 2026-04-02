@@ -18,11 +18,11 @@ const QUICK_QUERIES = [
   { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
   { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
   { label: 'מכולת פסולת בנין', icon: '🚛', color: 'text-blue-500' },
-  { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
+  { label: 'בצע הזמנה', icon: '🎯', color: 'text-red-500' },
   { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
-  { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
-  { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' },
-  { label: '피נוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
+  { label: 'יצירת לקוח', icon: '👤', color: 'text-purple-500' },
+  { label: 'תכין להצעת מחיר', icon: '📄', color: 'text-emerald-400' },
+  { label: 'קיבלתי התראת פינוי למכולה', icon: '⚠️', color: 'text-orange-500' }
 ];
 
 export default function SabanAIAssistant() {
@@ -64,7 +64,7 @@ export default function SabanAIAssistant() {
   return (
     <div className={`h-screen w-full flex flex-col font-sans relative overflow-hidden bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover bg-fixed ${WA_TEXT}`} dir="rtl">
       <div className="absolute inset-0 bg-[#0b141a]/70 z-0" />
-      <Head><title>SABAN AI | COMMAND CENTER</title></Head>
+      <Head><title>ח.סבן-AI</title></Head>
 
       <div className="relative z-10 flex flex-col h-full overflow-hidden">
         <AnimatePresence>{showSplash && <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}><img src={SABAN_LOGO} className="w-40 h-40 rounded-3xl shadow-2xl"/></motion.div>}</AnimatePresence>
