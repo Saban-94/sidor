@@ -55,7 +55,7 @@ export default function SabanAIAssistant() {
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
-      new Audio('/order-notification.mp3').play().catch(() => {});
+      new Audio('/order-notification1.mp3').play().catch(() => {});
     } catch (e) { 
       setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור." }]); 
     } finally { setLoading(false); }
