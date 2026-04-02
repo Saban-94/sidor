@@ -25,14 +25,14 @@ const STATUS_MAP: any = {
 };
 
 const QUICK_QUERIES = [
-  { label: "כמות הזמנות היום", icon: "📊" },
-  { label: "מצב מכולות בסידור", icon: "🏗️" },
-  { label: "העברות בין סניפים", icon: "🔄" },
-  { label: "סטטוס שארק 30", icon: "🦈" },
-  { label: "שעות פעילות סניפים", icon: "🕒" },
-  { label: "חיפוש לקוח מהיר", icon: "🔍" },
-  { label: "דוח סיכום יומי", icon: "📋" },
-  { label: "מכולות לפינוי", icon: "🗑️" }
+  { label: "סטטוס העמסות יומי", icon: "📈", color: "text-emerald-500" },
+  { label: "מצבת מכולות פעילה", icon: "🏗️", color: "text-amber-500" },
+  { label: "לוגיסטיקה בין-סניפית", icon: "🚛", color: "text-blue-500" },
+  { label: "מעקב שארק 30", icon: "🎯", color: "text-red-500" },
+  { label: "שעות פעילות ומענה", icon: "🏢", color: "text-slate-400" },
+  { label: "איתור לקוח במערכת", icon: "👤", color: "text-purple-500" },
+  { label: "דו"ח ביצועים יומי", icon: "📄", color: "text-emerald-400" },
+  { label: "פינוי מכולות דחוף", icon: "⚠️", color: "text-orange-500" }
 ];
 
 const getCountdown = (orderTime: string) => {
