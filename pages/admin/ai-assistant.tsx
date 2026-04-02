@@ -71,7 +71,7 @@ export default function SabanAIAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: query }]);
     setLoading(true); setInput('');
     try {
-      const res = await fetch('/api/ai-analyst', {
+      const res = await fetch('/api/customer-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })
