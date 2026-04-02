@@ -16,18 +16,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API." });
 
-  // רשימת המודלים - ללא שינוי כפי שביקשת
-  const modelPool = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-1.5-flash"
-  ];
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-1.5-flash"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון
+    // 1. שליפת זיכרון + מצב שטח נוכחי (מכולות פעילות)
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
+    let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
+    
     if (!memory) {
       const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
       memory = newUser;
@@ -36,34 +33,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let history = memory?.accumulated_knowledge || "";
     const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // 2. הפרומפט המקורי (עץ השאלות) - ללא שינוי
+    // 2. הפרומפט הטקטי - חוקי הפינג-פונג והשטח (ללא שינוי דינמיקה)
     const prompt = `
-      זהות: המוח של ח. סבן (ניהול מכולות).
-      תפקיד: חילוץ נתוני מכולות בפורמט JSON.
+      זהות: מפקח מכולות חכם של סבן. סגנון: קצר, חד וממוקד עמודות.
+      משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
       
-      חוקים:
-      1. אם חסר נתון (לקוח/כתובת/פעולה/קבלן) - תשאל בנימוס ואל תזריק.
-      2. פעולות: PLACEMENT (הצבה), EXCHANGE (החלפה), REMOVAL (הוצאה).
-      3. קבלנים: שארק 30, כראדי 32, שי שרון 40.
+      שטח נוכחי (מכולות אצל לקוחות): ${JSON.stringify(activeContainers)}
+      היסטוריית שיחה: ${localUpdatedHistory}
 
-      היסטוריה: ${localUpdatedHistory}
+      חוקי ה"פינג-פונג" (קריטי):
+      1. שאל שאלה אחת בלבד בכל פעם לפי סדר העץ.
+      2. אל תעבור לשאלה הבאה עד שהמשתמש סיפק תשובה ברורה לנתון הנוכחי.
+      3. אם המשתמש נתן כמה פרטים במכה, חלץ אותם ושאל רק על מה שחסר.
 
-      במידה והכל נמצא, הזרק:
+      עץ שאלות לפי עמודות:
+      1. מי הלקוח? (client_name)
+      2. מה הכתובת המדויקת? (delivery_address)
+      3. סוג פעולה: הצבה 🟢, החלפה ♻️ או הוצאה 🔴? (action_type)
+      4. מחסן מבצע: שארק 30, כראדי 32 או שי שרון 40? (contractor_name)
+      5. תאריך ושעה לביצוע? (date + time)
+
+      חוקי פיקוח שטח:
+      - במידה וצוינה כתובת שקיימת ב"שטח נוכחי", עצור ושאל: "בוס, יש שם מכולה כבר X ימים. לבצע החלפה או להוסיף עוד אחת?"
+      - אם המכולה בשטח מעל 9 ימים, הצע אקטיבית לבצע "הוצאה" או "החלפה".
+
+      סיום הזרקה: רק כשכל 5 השאלות נענו, ענה "בוצע 🚀" והוסף JSON מדויק:
       DATA_START{
-        "action": "PLACEMENT" | "EXCHANGE" | "REMOVAL",
-        "client": "שם הלקוח",
-        "address": "כתובת מדויקת",
+        "complete": true,
+        "client": "שם",
+        "address": "כתובת",
+        "action": "PLACEMENT/EXCHANGE/REMOVAL",
         "contractor": "שם הקבלן",
-        "size": "8 קוב / 10 קוב",
         "date": "YYYY-MM-DD",
         "time": "HH:mm"
       }DATA_END
     `;
 
-    // 3. הרצה מול ה-Model Pool
+    // 3. הרצה מול Gemini
     let replyText = "";
-    let success = false;
-
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -73,65 +80,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         const data = await response.json();
         replyText = data.candidates[0].content.parts[0].text.trim();
-        if (replyText) { success = true; break; }
+        if (replyText) break;
       } catch (e) { continue; }
     }
 
-    if (!success) throw new Error("Models failed");
-
     let isComplete = false;
 
-    // 4. הזרקה כפולה (Container Management + Orders Dashboard)
+    // 4. הזרקה חזקה - עדכון ה-Database ולוח ה-LIVE (Orders) בזמן אמת
     if (replyText.includes('DATA_START')) {
       try {
         const jsonMatch = replyText.match(/\{.*\}/s);
         if (jsonMatch) {
           const d = JSON.parse(jsonMatch[0]);
           
-          // א. כיבוי מכולות ישנות בכתובת הזו
+          // א. ניקוי מכולות קודמות במידת הצורך
           if (d.action === 'REMOVAL' || d.action === 'EXCHANGE') {
             await supabase.from('container_management').update({ is_active: false }).eq('delivery_address', d.address).eq('is_active', true);
           }
 
-          // ב. הזרקה לניהול מכולות
-          const { error: insertError } = await supabase.from('container_management').insert([{
+          // ב. הזרקה לניהול המכולות
+          const { error: containerErr } = await supabase.from('container_management').insert([{
             client_name: d.client,
             delivery_address: d.address,
             action_type: d.action,
             contractor_name: d.contractor,
-            container_size: d.size,
-            start_date: d.date || new Date().toISOString().split('T')[0],
-            order_time: d.time || "08:00",
+            start_date: d.date,
+            order_time: d.time,
             status: 'approved',
             is_active: d.action !== 'REMOVAL'
           }]);
 
-          // ג. הזרקה ללוח ה-Orders (כדי שיופיע ב-Master Dashboard)
-          const { error: orderError } = await supabase.from('orders').insert([{
+          // ג. הזרקה ללוח המשימות LIVE (טבלת orders) - כדי שיקפוץ בדשבורד מיד
+          const { error: orderErr } = await supabase.from('orders').insert([{
             client_info: `מכולה: ${d.client} (${d.action === 'PLACEMENT' ? 'הצבה' : d.action === 'EXCHANGE' ? 'החלפה' : 'הוצאה'})`,
             location: d.address,
-            order_time: d.time || "08:00",
-            delivery_date: d.date || new Date().toISOString().split('T')[0],
+            order_time: d.time,
+            delivery_date: d.date,
             driver_name: d.contractor,
             status: 'approved',
             warehouse: 'מכולות'
           }]);
 
-          if (!insertError && !orderError) isComplete = true;
+          if (!containerErr && !orderErr) isComplete = true;
         }
-      } catch (e) { console.error("Parse/Insert Error", e); }
+      } catch (e) { console.error("Injection Error", e); }
     }
 
-    // 5. עדכון זיכרון וסגירה
+    // 5. עדכון זיכרון וסגירת מעגל
     const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${replyText}`;
     await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
-    const finalReply = isComplete ? `בוס, המשימה הוזרקה בהצלחה לניהול וללוח הסידור! 🚀 (${replyText.split('DATA_START')[0].trim() || 'בוצע'})` : replyText;
+    const finalReply = isComplete ? `בוס, המשימה הוזרקה בהצלחה לניהול ולדשבורד! 🚀` : replyText;
 
     return res.status(200).json({ reply: finalReply });
 
   } catch (e) {
-    console.error(e);
-    return res.status(200).json({ reply: "בוס, המוח התעייף לרגע. נסה שוב." });
+    return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
   }
 }
