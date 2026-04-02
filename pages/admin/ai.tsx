@@ -87,20 +87,34 @@ export default function SabanAIAssistant() {
     } finally { setLoading(false); }
   };
 
-  return (
-    <div className={`h-screen ${WA_BG} ${WA_TEXT} flex flex-col font-sans overflow-hidden`} dir="rtl">
+return (
+    <div className={`
+      min-h-screen w-full flex flex-col font-sans overflow-hidden relative
+      /* הגדרות הרקע החדשות של המוח */
+      bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] 
+      bg-center 
+      bg-no-repeat 
+      bg-cover 
+      bg-fixed
+      ${WA_TEXT}
+    `} dir="rtl">
+      
+      {/* שכבת כהות עדינה כדי שהטקסט והכפתורים יקפצו לעין */}
+      <div className="absolute inset-0 bg-[#0b141a]/60 z-0" />
+
       <Head><title>SABAN | AI Companion</title></Head>
 
-      <AnimatePresence>
-        {showSplash && (
-          <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}>
-            <motion.img 
-              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              src={SABAN_LOGO} className="w-48 h-48 rounded-3xl object-cover shadow-2xl"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="relative z-10 flex flex-col h-full">
+        <AnimatePresence>
+          {showSplash && (
+            <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}>
+              <motion.img 
+                initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                src={SABAN_LOGO} className="w-48 h-48 rounded-3xl object-cover shadow-2xl"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       <header className={`h-16 flex items-center justify-between px-6 ${WA_PANEL} border-b border-white/5 z-50 shadow-md`}>
         <button onClick={() => setIsOpen(!isOpen)} className="p-2"><Menu size={28} /></button>
