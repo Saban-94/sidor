@@ -113,7 +113,7 @@ export default function SabanAIAssistant() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scrollbar-hide bg-[url('https://i.postimg.cc/3wTMxG7W/ai.jpg')] bg-repeat opacity-95">
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scrollbar-hide bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-(1).png')] bg-repeat opacity-95">
         {activeView === 'chat' ? (
           messages.map((m, i) => (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
