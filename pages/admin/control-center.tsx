@@ -12,7 +12,7 @@ import {
 const DESIGN_CONFIG: Record<string, { color: string, bg: string, logo: string, shadow: string }> = {
   'שארק 30': { color: '#0066FF', bg: 'bg-blue-50', logo: '/logos/shark30.png', shadow: 'shadow-blue-200' },
   'כראדי 32': { color: '#10B981', bg: 'bg-emerald-50', logo: 'https://ibb.co/ycwS3z15?raw=true', shadow: 'shadow-emerald-200' },
-  'שי שרון 40': { color: '#F59E0B', bg: 'bg-amber-50', logo: '/logos/shai-sharon.png', shadow: 'shadow-amber-200' },
+  'שי שרון 40': { color: '#F59E0B', bg: 'bg-amber-50', logo: 'https://i.postimg.cc/0Q4HvqVj/shai-sharon.png', shadow: 'shadow-amber-200' },
   'מכולות בשרון': { color: '#8B5CF6', bg: 'bg-purple-50', logo: '/logos/container-logo.png', shadow: 'shadow-purple-200' }
 };
 
