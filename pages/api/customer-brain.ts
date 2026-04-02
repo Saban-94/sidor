@@ -16,23 +16,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!cleanMsg) return res.status(200).json({ reply: "שלום, במה אוכל לעזור?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מערכת: מפתח API חסר." });
 
-  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
+  // עדכון Model Pool מורחב ליציבות וביצועים
+  const modelPool = [
+    "gemini-2.0-pro-exp-02-05", 
+    "gemini-2.0-flash", 
+    "gemini-3.1-flash-lite-preview"
+  ];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
     // 1. שליפת זיכרון ושם לקוח
-    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge, user_name').eq('clientId', phone).maybeSingle();
+    let { data: memory } = await supabase
+      .from('customer_memory')
+      .select('accumulated_knowledge, user_name')
+      .eq('clientId', phone)
+      .maybeSingle();
     
     if (!memory) {
-      const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }]).select().single();
+      const { data: newUser } = await supabase
+        .from('customer_memory')
+        .insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }])
+        .select().single();
       memory = newUser;
     }
 
     let currentUserName = memory?.user_name;
 
-    // 2. זיהוי שם אגרסיבי
-    if (!currentUserName && cleanMsg.length < 15) {
+    // 2. זיהוי שם חכם (למניעת לופים)
+    if (!currentUserName && cleanMsg.length < 12 && !cleanMsg.includes("?")) {
       const extracted = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
       if (extracted.length >= 2) {
         await supabase.from('customer_memory').update({ user_name: extracted }).eq('clientId', phone);
@@ -40,21 +52,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. שליפת ידע מאומן (AI Training)
-    const { data: trainingData } = await supabase.from('ai_training').select('answer').ilike('question', `%${cleanMsg}%`).limit(1).maybeSingle();
+    // 3. חיפוש ידע מאומן - חיפוש מילים גמיש (Keyword Match)
+    const words = cleanMsg.split(/\s+/);
+    let trainingAnswer = "";
+    
+    for (const word of words) {
+      if (word.length < 3) continue;
+      const { data: match } = await supabase
+        .from('ai_training')
+        .select('answer')
+        .ilike('question', `%${word}%`)
+        .limit(1)
+        .maybeSingle();
+      
+      if (match) {
+        trainingAnswer = match.answer;
+        break; 
+      }
+    }
 
-    // 4. בניית ה-Prompt (שפה שירותית בלבד)
+    // 4. בניית ה-Prompt (שפה שירותית, חדה וללא "בוס")
     const prompt = `
-      זהות: המוח של סבן 1994 (שירות לקוחות).
+      זהות: שירות לקוחות חכם - סבן 1994.
       לקוח: ${currentUserName || 'לא ידוע'}.
-      מידע מהמערכת (עדיפות עליונה): ${trainingData?.answer || "אין מידע ספציפי"}.
+      מידע מהמערכת: ${trainingAnswer || "אין מידע ספציפי בטבלה"}.
 
       חוקים קשיחים:
-      - לעולם אל תשתמש במילה "בוס". פנה ללקוח בצורה מכובדת ושירותית.
-      - אם שם הלקוח ידוע (${currentUserName}), חובה לפנות אליו בשמו.
-      - אם השם לא ידוע, בקש אותו בנימוס פעם אחת בלבד.
-      - אם קיים "מידע מהמערכת", ענה אך ורק לפיו. אל תמציא נתונים.
-      - היצמד להיסטוריית השיחה כדי לשמור על רצף.
+      - פנה ללקוח בשמו (${currentUserName || 'אורח'}). אם השם ידוע, אל תשאל אותו לעולם "מה שמך?".
+      - לעולם אל תשתמש במילה "בוס".
+      - אם קיים "מידע מהמערכת", ענה אך ורק לפיו! אל תמציא שעות או נתונים.
+      - היה תכליתי. אל תכתוב הקדמות ארוכות כמו "אשמח מאוד לסייע לך". תן את התשובה מיד.
+      - אם אין מידע במערכת ואין תשובה ברורה, בקש מהלקוח פרטים נוספים (כמו שם סניף או מספר הזמנה).
 
       הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || ""}
@@ -63,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let replyText = "";
     let lastError: any = null;
 
-    // 5. לופ המודלים עם מנגנון Fallback תקין
+    // 5. הרצה עם Fallback תקין
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -77,16 +105,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         if (text) {
           replyText = text;
-          break; // יוצא מהלופ ברגע שיש תשובה
+          break;
         }
       } catch (e) {
         lastError = e;
       }
     }
 
-    if (!replyText) throw lastError || new Error("כל המודלים נכשלו");
+    if (!replyText) throw lastError || new Error("Connection failed");
 
-    // 6. עדכון זיכרון
+    // 6. עדכון זיכרון (שומר רק את ה-1500 תווים האחרונים למניעת עומס)
     await supabase.from('customer_memory').update({ 
       accumulated_knowledge: (memory?.accumulated_knowledge || "").slice(-1500) + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
     }).eq('clientId', phone);
@@ -94,6 +122,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
 
   } catch (e) {
-    return res.status(200).json({ reply: "שלום, חלה תקלה זמנית. אנא נסה שוב." });
+    return res.status(200).json({ reply: "שלום, חלה תקלה זמנית בעיבוד הנתונים. אנא נסה שוב." });
   }
 }
