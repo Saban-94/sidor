@@ -9,49 +9,62 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  const { message, senderPhone } = req.body;
+  const { message, orderContext } = req.body;
   const cleanMsg = (message || "").trim();
+  const orderId = orderContext?.id; // מקבל את ה-ID מהכרטיס שלחצת עליו
 
   try {
-    const phone = senderPhone?.replace('@c.us', '') || 'admin';
-
-    // --- בלוק 1: שליפת נתונים וזיכרון ---
-    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
-    let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
+    // --- נתיב עקיפה מהיר: פקודות ישירות ---
     
-    // --- בלוק 2: בדיקת כפילות בכתובת (חוק חסימת הצבה כפולה) ---
-    let addressConflictWarning = "";
-    const addressMatch = cleanMsg.match(/(?:ב|בכתובת\s+)([א-ת\s\d]+)(?=\s|$)/)?.[1]?.trim();
-    
-    if (addressMatch) {
-      const existingInAddress = activeContainers?.filter(c => c.delivery_address.includes(addressMatch));
-      if (existingInAddress && existingInAddress.length > 0 && !cleanMsg.includes("נוספת")) {
-        addressConflictWarning = `⚠️ אזהרה: בכתובת זו כבר קיימת מכולה פעילה של ${existingInAddress[0].contractor_name}.`;
+    // 1. עדכון שעה מהיר
+    if (cleanMsg.includes("שנה") && (cleanMsg.includes("שעה") || cleanMsg.includes(":"))) {
+      const newTime = cleanMsg.match(/\d{2}:\d{2}/)?.[0];
+      if (newTime && orderId) {
+        await supabase.from('orders').update({ order_time: newTime }).eq('id', orderId);
+        return res.status(200).json({ reply: `✅ בוס, שעת האספקה עודכנה ל-${newTime}.` });
       }
     }
 
-    const localUpdatedHistory = (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}`;
+    // 2. סימון כבוצע / מחיקה
+    if (cleanMsg.includes("סמן כבוצע") || cleanMsg.includes("סיים")) {
+      await supabase.from('orders').update({ status: 'completed' }).eq('id', orderId);
+      return res.status(200).json({ reply: "✅ המשימה סומנה כבוצעה והוסרה מהלוח." });
+    }
 
-    // --- בלוק 3: הפרומפט הטקטי המעודכן ---
-    const prompt = `
-      זהות: חכם של מכולות פינוי פסולת בשרון.
-      משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
+    if (cleanMsg.includes("מחק")) {
+      await supabase.from('orders').delete().eq('id', orderId);
+      return res.status(200).json({ reply: "🗑️ ההזמנה נמחקה לצמיתות מהמערכת." });
+    }
+
+    // 3. שליפת מידע על ימי שכירות (למכולות)
+    if (cleanMsg.includes("כמה ימים") || cleanMsg.includes("שכירות")) {
+      const { data: container } = await supabase.from('container_management')
+        .select('start_date, return_deadline')
+        .eq('delivery_address', orderContext?.location).maybeSingle();
       
-      חוק חסימת הצבה כפולה:
-      - אם מצאת במידע השטח שיש כבר מכולה בכתובת: ${addressConflictWarning}
-      - חובה לעצור ולשאול: "בוס, יש שם כבר מכולה. להוסיף מכולה נוספת לאותה כתובת או לבצע החלפה?"
-      - אל תבצע הזרקה (DATA_START) אלא אם המשתמש כתב במפורש "מכולה נוספת".
+      if (container) {
+        const start = new Date(container.start_date);
+        const days = Math.floor((new Date().getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        return res.status(200).json({ reply: `📊 המכולה אצל הלקוח ${days} ימים. מועד פינוי צפוי: ${container.return_deadline}.` });
+      }
+    }
 
-      חוקים נוספים:
-      - איסור ערבוב קבלנים: רק מי שהציב יכול להחליף/להוציא.
-      - 10 ימי שכירות: תמיד חשב return_date (תאריך ביצוע + 10 ימים).
-      - ללא כוכביות (**). טקסט נקי ומעוצב.
+    // 4. חיפוש רשימות לפי מחסן או שם
+    if (cleanMsg.includes("הצג") || cleanMsg.includes("רשימה")) {
+      const warehouse = cleanMsg.includes("שארק") ? "שארק 30" : cleanMsg.includes("כראדי") ? "כראדי 32" : "";
+      if (warehouse) {
+        const { data: list } = await supabase.from('orders').select('client_info').eq('warehouse', warehouse).neq('status', 'completed');
+        const names = list?.map(o => o.client_info.split('|')[0]).join(', ');
+        return res.status(200).json({ reply: `📋 לקוחות תחת ${warehouse}: ${names || "אין הזמנות פעילות"}.` });
+      }
+    }
 
-      מידע שטח: ${JSON.stringify(activeContainers)}
-      היסטוריה: ${localUpdatedHistory}
-
-      DATA_START{"complete": true, "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "קבלן", "date": "YYYY-MM-DD", "time": "HH:mm", "return_date": "YYYY-MM-DD"}DATA_END
+    // --- אם זו לא פקודה ישירה, עוברים ל-AI הרגיל ---
+    const prompt = `
+      זהות: מפקח מכולות חכם. 
+      הקשר: אתה עובד על הזמנה #${orderContext?.number} של ${orderContext?.client}.
+      משימה: בצע עדכונים מהירים. אם המשתמש ביקש שינוי, ענה "בוצע" בצירוף JSON:
+      DATA_START{"update": true, "field": "שם השדה", "value": "הערך החדש"}DATA_END
     `;
 
     // --- בלוק 4: פנייה ל-AI ---
@@ -68,54 +81,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         replyText = data.candidates[0].content.parts[0].text.trim().replace(/\*\*/g, '');
         if (replyText) break;
       } catch (e) { continue; }
-    }
-
-    let isComplete = false;
-
-    // --- בלוק 5: הזרקה כפולה מותאמת ללוח חומרי בניין (Orders) ---
-    if (replyText.includes('DATA_START')) {
-      try {
-        const jsonMatch = replyText.match(/\{.*\}/s);
-        if (jsonMatch) {
-          const d = JSON.parse(jsonMatch[0]);
-
-          // א. ניקוי מכולות ישנות (רק אם זו לא הצבה נוספת)
-          if ((d.action === 'REMOVAL' || d.action === 'EXCHANGE') && !cleanMsg.includes("נוספת")) {
-            await supabase.from('container_management').update({ is_active: false }).eq('delivery_address', d.address).eq('is_active', true);
-          }
-
-          // ב. הזרקה לניהול מכולות
-          await supabase.from('container_management').insert([{
-            client_name: d.client, delivery_address: d.address, action_type: d.action,
-            contractor_name: d.contractor, start_date: d.date, order_time: d.time,
-            return_deadline: d.return_date, is_active: d.action !== 'REMOVAL', status: 'approved'
-          }]);
-
-          // ג. הזרקה מותאמת לטבלת ORDERS (להצגה בלוח חומרי בניין)
-          const { error: orderError } = await supabase.from('orders').insert([{
-            order_number: Math.floor(Math.random() * 9000) + 1000,
-            delivery_date: d.date,
-            order_time: d.time,
-            // עיצוב התיאור שיוצג בכרטיס
-            client_info: `📦 מכולה | ${d.client} | ${d.action} | יעד: ${d.return_date}`,
-            location: d.address,
-            driver_name: d.contractor,
-            status: 'approved',
-            warehouse: 'מכולות' // סיווג המקור
-          }]);
-
-          if (!orderError) isComplete = true;
-        }
-      } catch (e) { console.error("Error", e); }
-    }
-
-    // --- בלוק 6: עדכון זיכרון ---
-    const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${replyText}`;
-    await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
-
-    return res.status(200).json({ reply: isComplete ? `✅ בוס, המשימה בוצעה והוזרקה ללוח! יעד החזרה: ${JSON.parse(replyText.match(/\{.*\}/s)![0]).return_date} 🚀` : replyText });
+    }    
+    return res.status(200).json({ reply: "בוס, הפקודה בוצעה." });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
+    return res.status(200).json({ reply: "שגיאה בביצוע הפעולה." });
   }
 }
