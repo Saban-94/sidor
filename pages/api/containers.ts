@@ -59,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     const localUpdatedHistory = (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}`;
 
-    const modelPool = ["gemini-2.0-flash-exp", "gemini-1.5-flash"];
+    const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview"];
     const prompt = `
       זהות: מפקח מכולות חכם של סבן.
       הקשר: אתה עובד על הזמנה #${orderContext?.number || 'חדשה'} של ${orderContext?.client || 'לקוח לא מזוהה'}.
