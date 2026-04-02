@@ -4,7 +4,8 @@ import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Send, Bot, User, Zap, Database, MessageSquare, 
-  Settings, Loader2, Sparkles, Terminal, ShieldCheck 
+  Settings, Loader2, Sparkles, Terminal, ShieldCheck,
+  Box // <--- הוספתי את האייקון החסר כאן
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -84,7 +85,6 @@ export default function SabanAIStudio() {
     <div className="h-screen bg-[#F8FAFC] flex flex-col lg:flex-row font-sans overflow-hidden" dir="rtl">
       <Head><title>SABAN | AI Studio</title></Head>
 
-      {/* Sidebar - Dashboard (Desktop Only) */}
       <aside className="w-full lg:w-80 bg-white border-l border-slate-200 p-6 flex flex-col gap-8 shadow-xl z-20">
         <div className="flex items-center gap-3">
           <img src={SABAN_LOGO} className="w-12 h-12 rounded-2xl shadow-lg border-2 border-blue-500" />
@@ -122,9 +122,7 @@ export default function SabanAIStudio() {
         </div>
       </aside>
 
-      {/* Main Simulator Area */}
       <section className="flex-1 flex flex-col relative bg-[#F1F5F9]">
-        {/* Chat Header */}
         <header className="p-4 bg-white/80 backdrop-blur-md border-b flex justify-between items-center z-10">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -135,7 +133,6 @@ export default function SabanAIStudio() {
           </div>
         </header>
 
-        {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <AnimatePresence>
             {messages.map((m, i) => (
@@ -170,7 +167,6 @@ export default function SabanAIStudio() {
           <div ref={scrollRef} />
         </div>
 
-        {/* Input Area */}
         <footer className="p-6 bg-white/80 backdrop-blur-md border-t">
           <div className="max-w-4xl mx-auto flex flex-col gap-4">
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
