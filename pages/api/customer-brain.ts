@@ -16,57 +16,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה השאלה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API חסר בשרת." });
 
+  // עדכון ה-Model Pool כפי שביקשת
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
 
   try {
-    const phone = senderPhone?.replace('@c.us', '') || 'unknown';
+    const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון
+    // 1. שליפת זיכרון ושם משתמש
     let { data: memory } = await supabase
       .from('customer_memory')
       .select('accumulated_knowledge, user_name')
       .eq('clientId', phone)
       .maybeSingle();
     
-    if (!memory) {
-      const { data: newUser } = await supabase
-        .from('customer_memory')
-        .insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }])
-        .select()
-        .single();
-      memory = newUser;
-    }
-
-    // 2. זיהוי שם אגרסיבי (כדי למנוע לופים)
     let currentUserName = memory?.user_name;
-    const nameKeywords = ["אני", "שמי", "זה", "קוראים לי"];
-    
-    // אם אין שם ויש הודעה קצרה, או הודעה שמכילה מילת זיהוי
-    if (!currentUserName && (cleanMsg.length < 12 || nameKeywords.some(k => cleanMsg.includes(k)))) {
-      const extracted = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
-      if (extracted.length >= 2) {
-        await supabase.from('customer_memory').update({ user_name: extracted }).eq('clientId', phone);
-        currentUserName = extracted; // עדכון מיידי למשתנה המקומי
-      }
-    }
 
-    // 3. בניית ה-Prompt עם הוראה מפורשת
+    // 2. חיפוש ידע מאומן ב-DB (AI Training)
+    const { data: trainingData } = await supabase
+      .from('ai_training')
+      .select('answer')
+      .ilike('question', `%${cleanMsg}%`)
+      .limit(1)
+      .maybeSingle();
+
+    const trainedContext = trainingData ? `מידע רלוונטי מהמערכת (עדיפות עליונה): ${trainingData.answer}` : "";
+
+    // 3. בניית ה-Prompt
     const prompt = `
       זהות: המוח של סבן 1994. 
-      משתמש נוכחי: ${currentUserName || 'לא ידוע'}.
-      
-      חוקים קשיחים:
-      1. אם שם המשתמש הוא "${currentUserName || 'לא ידוע'}" וזה לא "לא ידוע", אסור לך בשום פנים ואופן לשאול מה שמו!
-      2. אם השם הוא "לא ידוע", בקש אותו בנימוס פעם אחת בלבד.
-      3. פנה תמיד בשם המשתמש אם הוא ידוע.
-      4. אל תציג רשימות הזמנות/דאטה אלא אם נשאלת במפורש על סטטוס או לו"ז.
-      5. סגנון: מקצועי, ענייני, וקצר.
+      משתמש: ${currentUserName || 'לא ידוע'}.
+      ${trainedContext}
 
-      הודעת המשתמש: ${cleanMsg}
-      היסטוריית שיחה: ${memory?.accumulated_knowledge || ""}
+      חוקים קשיחים:
+      - השתמש ב"מידע רלוונטי מהמערכת" כתשובה המדויקת ביותר.
+      - אל תמציא נתונים (שעות, מחירים, נהלים) שאינם במידע המערכת.
+      - אם שם המשתמש ידוע (${currentUserName}), אל תשאל אותו שוב.
+      - סגנון: מקצועי, חד, ענייני, וקצר.
+      
+      הודעה: ${cleanMsg}
+      היסטוריה: ${memory?.accumulated_knowledge || ""}
     `;
 
     let replyText = "";
+    let lastError = null;
+
+    // 4. ניסיון שליחה עם מנגנון Fallback בין המודלים ב-Pool
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -74,13 +68,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
+        
         const data = await response.json();
         replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-        if (replyText) break;
-      } catch (e) { continue; }
+        
+        if (replyText) break; // אם הצלחנו לקבל תשובה, עוצרים את הלופ
+      } catch (e) {
+        lastError = e;
+        continue; // אם המודל נכשל, עוברים למודל הבא ב-Pool
+      }
     }
 
-    // 4. שמירת היסטוריה
+    if (!replyText) throw lastError || new Error("כל המודלים נכשלו");
+
+    // 5. שמירת היסטוריה
     await supabase.from('customer_memory').update({ 
       accumulated_knowledge: (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
     }).eq('clientId', phone);
@@ -88,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח בטעינה. נסה שוב." });
+    console.error("Brain Error:", e);
+    return res.status(200).json({ reply: "בוס, המוח בריענון נתונים. נסה שוב בעוד רגע." });
   }
 }
