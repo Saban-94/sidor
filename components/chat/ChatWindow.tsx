@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Message } from '@/types';
 import { database } from '@/lib/firebase';
 import { ref, onValue, push, query, limitToLast } from 'firebase/database';
-import { Send, Loader2, MessageSquare } from 'lucide-react'; // <-- הוספתי MessageSquare כאן
+import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 
 interface ChatWindowProps {
@@ -53,13 +53,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanMsg = newMessage.trim();
-    
     if (!cleanMsg || !database || !customerId) return;
 
     setLoading(true);
     try {
       const messagesRef = ref(database, `messages/${customerId}`);
-      
       await push(messagesRef, {
         body: cleanMsg,
         fromMe: true,
@@ -67,7 +65,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
         status: 'sent',
         senderId: 'admin'
       });
-
       setNewMessage('');
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -79,12 +76,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
   return (
     <div className="flex flex-col h-full bg-[#111b21] overflow-hidden shadow-2xl rounded-xl border border-white/5" dir="rtl">
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[url('https://i.postimg.cc/7Z9y6vYV/wa-bg.png')] bg-repeat opacity-95">
+      {/* אזור ההודעות עם הרקע החדש והממורכז */}
+      <div className="
+        flex-1 
+        overflow-y-auto 
+        p-4 
+        space-y-4 
+        custom-scrollbar 
+        /* הגדרות הרקע החדשות של בוס: */
+        bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] 
+        bg-center 
+        bg-no-repeat 
+        bg-cover 
+        bg-fixed
+      ">
         {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center opacity-20 flex-col gap-2">
+          <div className="h-full flex items-center justify-center opacity-30 flex-col gap-2 bg-black/20 backdrop-blur-sm rounded-3xl">
             <MessageSquare size={48} className="text-white" />
             <p className="text-white font-bold italic uppercase tracking-widest text-xs text-center">
-              Saban OS<br/>No Messages
+              Saban OS<br/>Waiting for Action
             </p>
           </div>
         ) : (
@@ -95,9 +105,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
         <div ref={scrollRef} />
       </div>
       
+      {/* שדה הכתיבה - שקוף מעט כדי להשתלב עם הרקע */}
       <form 
         onSubmit={sendMessage} 
-        className="p-4 bg-[#202c33] border-t border-white/5 flex gap-3 items-center sticky bottom-0 z-10"
+        className="p-4 bg-[#202c33]/95 backdrop-blur-md border-t border-white/5 flex gap-3 items-center sticky bottom-0 z-10"
       >
         <div className="flex-1 relative">
           <input
