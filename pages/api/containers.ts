@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+// --- בלוק 1: חיבור למסד הנתונים ---
+// כאן אנחנו מגדירים את החיבור ל-Supabase כדי שנוכל לקרוא ולכתוב נתונים.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -13,9 +15,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API." });
+  // בדיקות תקינות ראשוניות
+  if (!cleanMsg) return res.status(200).json({ reply: "בוס, ההודעה ריקה." });
+  if (!apiKey) return res.status(200).json({ reply: "⚠️ חסר מפתח API." });
 
+  // --- בלוק 2: מאגר המודלים של AI ---
+  // הגדרת סדר העבודה של המודלים - אם אחד נכשל, עוברים לבא בתור.
   const modelPool = [
     "gemini-3.1-flash-lite-preview",
     "gemini-3.1-pro-preview",
@@ -25,7 +30,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון ומצב שטח נוכחי
+    // --- בלוק 3: שליפת זיכרון שיחה ונתוני שטח ---
+    // המערכת נזכרת על מה דיברנו קודם ובודקת אילו מכולות מוצבות כרגע בשטח.
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
     
@@ -34,7 +40,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       memory = newUser;
     }
 
-    // 2. תחקיר היסטוריה (למציאת לקוח קיים)
+    // --- בלוק 4: תחקיר לקוח והיסטוריית פעולות ---
+    // כאן המוח בודק אם הלקוח כבר קיים במערכת ומה הייתה הפעולה האחרונה שלו.
     let lastActionInfo = "אין היסטוריה קודמת.";
     let foundClientName = "";
     const potentialNames = cleanMsg.replace(/[?!,.]/g, '').split(' ').filter(w => w.length > 2);
@@ -50,55 +57,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (lastOrder) {
         foundClientName = lastOrder.client_name;
-        lastActionInfo = `נמצא לקוח: ${lastOrder.client_name}. פעולה אחרונה: ${lastOrder.action_type} בכתובת ${lastOrder.delivery_address} עם ${lastOrder.contractor_name}.`;
+        lastActionInfo = `נמצא לקוח: ${lastOrder.client_name}. פעולה אחרונה: ${lastOrder.action_type} בכתובת ${lastOrder.delivery_address}.`;
       }
     }
 
-    let history = memory?.accumulated_knowledge || "";
-    const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
+    const localUpdatedHistory = (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}`;
 
-    // 3. הפרומפט המעודכן - זהות, חוקים ו-UI/UX
+    // --- בלוק 5: הנחיות למפקח (הפרומפט) ---
+    // הגדרת האישיות של ה-AI, חוקי הפינג-פונג, ואיסור ערבוב קבלנים.
     const prompt = `
-      זהות: חכם של מכולות פינוי פסולת בשרון. סגנון: קצר, חד וממוקד עמודות.
+      זהות: חכם של מכולות פינוי פסולת בשרון. סגנון: קצר, חד ומעוצב UI/UX.
       משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
       
-      שטח נוכחי (מכולות פעילות): ${JSON.stringify(activeContainers)}
-      היסטוריית לקוח שנמצאה: ${lastActionInfo}
-      היסטוריית שיחה: ${localUpdatedHistory}
-
-      חוקי ה"פינג-פונג" (קריטי):
+      חוקי ברזל:
       1. שאל שאלה אחת בלבד בכל פעם לפי סדר העץ.
-      2. אם נמצא לקוח בהיסטוריה (${foundClientName}), שאל: "בוס, מצאתי את ${foundClientName}, לבצע עבורו את הפעולה?"
-      3. אל תמציא כתובת! אם המשתמש לא סיפק כתובת ברורה בשיחה, שאל עליה.
-      4. אל תבצע הזרקה (DATA_START) עד שכל 5 השאלות נענו בבירור.
-      5. אל תשתמש בסימון כוכביות (**) בטקסט בכלל.
-      6. עיצוב UI/UX: השתמש באימוג'ים מתאימים, שורות קצרות ורווחים נקיים.
+      2. אם נמצא לקוח (${foundClientName}), שאל לגביו בחוכמה.
+      3. איסור ערבוב: אם בכתובת יש מכולה של קבלן מסוים, רק הוא רשאי להחליף או להוציא.
+      4. גודל מכולה קבוע: 8 קוב. אל תשאל על גודל.
+      5. בלי כוכביות (**), טקסט נקי בלבד.
 
-      עץ שאלות:
-      1. מי הלקוח?
-      2. מה הכתובת המדויקת?
-      3. סוג פעולה: הצבה 🟢, החלפה ♻️ או הוצאה 🔴?
-      4. מחסן מבצע: שארק 30, כראדי 32 או שי שרון 40? (חוק: קבלן לא נוגע במכולה של קבלן אחר!)
-      5. תאריך ושעה לביצוע?
-
-      חוקים גלובליים:
-      - גודל מכולה: כל המכולות הן 8 קוב. אל תשאל על גודל.
-      - איסור ערבוב: אם בכתובת קיימת מכולה של קבלן מסוים, רק הוא יכול לבצע החלפה או הוצאה.
-
-      סיום הזרקה (JSON):
-      DATA_START{
-        "complete": true,
-        "client": "שם",
-        "address": "כתובת",
-        "action": "PLACEMENT/EXCHANGE/REMOVAL",
-        "contractor": "קבלן",
-        "date": "YYYY-MM-DD",
-        "time": "HH:mm",
-        "size": "8 קוב"
-      }DATA_END
+      עץ שאלות: 1. לקוח -> 2. כתובת -> 3. פעולה -> 4. קבלן -> 5. זמן.
+      
+      DATA_START{"complete": true, "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "קבלן", "date": "YYYY-MM-DD", "time": "HH:mm", "size": "8 קוב"}DATA_END
     `;
 
-    // 4. הרצה מול Gemini
+    // --- בלוק 6: פנייה לבינה המלאכותית ---
+    // שליחת הנתונים ל-Gemini וקבלת התשובה החכמה.
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -115,48 +99,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let isComplete = false;
 
-    // 5. הזרקה כפולה (ניהול + דשבורד LIVE)
+    // --- בלוק 7: הזרקה כפולה (Double Injection) ---
+    // ברגע שהפקודה הושלמה, אנחנו מעדכנים את טבלת המכולות ואת לוח המשימות (Orders) בו-זמנית.
     if (replyText.includes('DATA_START')) {
       try {
         const jsonMatch = replyText.match(/\{.*\}/s);
         if (jsonMatch) {
           const d = JSON.parse(jsonMatch[0]);
 
-          // הגנה תוכנתית על בעלות קבלן
+          // א. בדיקת בעלות קבלן למניעת טעויות
           const currentOwner = activeContainers?.find(c => c.delivery_address.includes(d.address))?.contractor_name;
           if ((d.action === 'EXCHANGE' || d.action === 'REMOVAL') && currentOwner && currentOwner !== d.contractor) {
-             return res.status(200).json({ reply: `❌ שלילי בוס. המכולה בכתובת זו שייכת ל${currentOwner}. ${d.contractor} לא מורשה לגעת בה.` });
-          }
-          
-          if (d.action === 'REMOVAL' || d.action === 'EXCHANGE') {
-            await supabase.from('container_management').update({ is_active: false }).eq('delivery_address', d.address).eq('is_active', true);
+             return res.status(200).json({ reply: `❌ המכולה בכתובת זו שייכת ל${currentOwner}. ${d.contractor} לא מורשה לגעת בה.` });
           }
 
-          const { error: containerErr } = await supabase.from('container_management').insert([{
+          // ב. הזרקה לטבלת ניהול מכולות
+          await supabase.from('container_management').insert([{
             client_name: d.client, delivery_address: d.address, action_type: d.action,
             contractor_name: d.contractor, container_size: d.size, start_date: d.date,
             order_time: d.time, status: 'approved', is_active: d.action !== 'REMOVAL'
           }]);
 
-          const { error: orderErr } = await supabase.from('orders').insert([{
-            client_info: `מכולה: ${d.client} (${d.action})`, location: d.address,
-            order_time: d.time, delivery_date: d.date, driver_name: d.contractor,
-            status: 'approved', warehouse: 'מכולות'
+          // ג. הזרקה ללוח ה-Orders (כדי שיופיע ב-Master Dashboard)
+          await supabase.from('orders').insert([{
+            client_info: `מכולה: ${d.client} (${d.action === 'PLACEMENT' ? 'הצבה' : d.action === 'EXCHANGE' ? 'החלפה' : 'הוצאה'})`,
+            location: d.address, order_time: d.time, delivery_date: d.date, 
+            driver_name: d.contractor, status: 'approved', warehouse: 'מכולות'
           }]);
 
-          if (!containerErr && !orderErr) isComplete = true;
+          isComplete = true;
         }
       } catch (e) { console.error("Injection Error", e); }
     }
 
-    // 6. עדכון זיכרון
+    // --- בלוק 8: עדכון זיכרון וסיום ---
+    // שמירת ההיסטוריה או ניקוי שלה אם המשימה בוצעה בהצלחה.
     const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${replyText}`;
     await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
-    const finalReply = isComplete ? `✅ המשימה הוזרקה בהצלחה לניהול ולדשבורד ה-LIVE! 🚀` : replyText;
-    return res.status(200).json({ reply: finalReply });
+    return res.status(200).json({ reply: isComplete ? "✅ בוס, המשימה עודכנה בלוח המשימות ובניהול המכולות! 🚀" : replyText });
 
   } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
+    return res.status(200).json({ reply: "בוס, המוח התעייף לרגע. נסה שוב." });
   }
 }
