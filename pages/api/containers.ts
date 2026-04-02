@@ -18,75 +18,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-1.5-flash"];
 
-  try {
+ try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון ומצב שטח נוכחי
+    // 1. שליפת זיכרון ומכולות פעילות
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
     
-    if (!memory) {
-      const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
-      memory = newUser;
-    }
-
-    // 2. תחקיר מקדים: האם הלקוח קיים ומה הפעולה האחרונה שלו?
-    const clientNameMatch = cleanMsg.match(/(?:של\s+|לקוח\s+)([א-ת\s]+?)(?=\s|$)/);
-    const searchedClient = clientNameMatch ? clientNameMatch[1].trim() : "";
-    let lastActionInfo = "אין היסטוריה קודמת מתועדת ללקוח זה בשיחה הנוכחית.";
+    // 2. תחקיר היסטוריה משופר - מחפש כל מילה בשם הלקוח בנפרד
+    let lastActionInfo = "אין היסטוריה קודמת.";
+    const potentialNames = cleanMsg.replace(/[?!,.]/g, '').split(' ').filter(w => w.length > 2);
     
-    if (searchedClient) {
+    if (potentialNames.length > 0) {
+      // מחפש התאמה לאחד השמות שצוינו (כמו 'אורני' או 'לוי')
       const { data: lastOrder } = await supabase
         .from('container_management')
-        .select('action_type, start_date, delivery_address')
-        .ilike('client_name', `%${searchedClient}%`)
+        .select('client_name, action_type, start_date, delivery_address')
+        .or(potentialNames.map(name => `client_name.ilike.%${name}%`).join(','))
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (lastOrder) {
-        lastActionInfo = `תחקיר מפקח: לקוח זה ביצע ${lastOrder.action_type} בכתובת ${lastOrder.delivery_address} בתאריך ${lastOrder.start_date}.`;
+        lastActionInfo = `🚨 תזכורת מפקח: נמצא לקוח דומה - ${lastOrder.client_name}. פעולה אחרונה: ${lastOrder.action_type} בכתובת ${lastOrder.delivery_address} בתאריך ${lastOrder.start_date}.`;
       }
     }
 
-    let history = memory?.accumulated_knowledge || "";
-    const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
+    const localUpdatedHistory = (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}`;
 
-    // 3. הפרומפט הטקטי - חוקי הברזל, הפינג-פונג והזרקת ההיסטוריה
+    // 3. פרומפט עם חוק "עצור ותשאל"
     const prompt = `
-      זהות: מפקח מכולות חכם של סבן. סגנון: קצר, חד וממוקד עמודות.
-      משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
+      זהות: מפקח מכולות חכם של סבן. 
+      משימה: ניהול מכולות בשיטת "פינג-פונג" (שאלה אחת בכל פעם).
       
-      שטח נוכחי (מכולות פעילות): ${JSON.stringify(activeContainers)}
-      היסטוריה: ${lastActionInfo}
+      מידע שטח נוכחי: ${JSON.stringify(activeContainers)}
+      מידע היסטורי שמצאתי: ${lastActionInfo}
+      היסטוריית שיחה: ${localUpdatedHistory}
 
-      חוקי ה"פינג-פונג" (קריטי):
-      1. שאל שאלה אחת בלבד בכל פעם לפי סדר העץ.
-      2. אם הלקוח קיים והפעולה האחרונה הייתה "הצבה", הצע לו בחוכמה לבצע "החלפה" או "הוצאה".
-      3. אל תעבור לשאלה הבאה עד שהמשתמש סיפק תשובה ברורה.
+      חוקי ברזל:
+      1. אם מצאת היסטוריה (כמו אבי לוי), חובה לשאול: "בוס, מצאתי את ${searchedClient}, לבצע עבורו את הפעולה בכתובת ${lastActionInfo.address}?"
+      2. אל תמציא כתובת! אם המשתמש לא אמר כתובת בפירוש בהודעה האחרונה, שאל: "מה הכתובת המדויקת?"
+      3. אל תבצע הזרקה (DATA_START) אם חסר אפילו פרט אחד מהעץ: לקוח, כתובת, פעולה, קבלן, זמן.
+      4. גודל: תמיד 8 קוב.
 
-      עץ שאלות:
-      1. מי הלקוח? (בדוק אם צוין בהיסטוריה)
-      2. כתובת מדויקת?
-      3. סוג פעולה: הצבה/החלפה/הוצאה?
-      4. קבלן: שארק 30, כראדי 32 או שי שרון 40?
-      5. תאריך ושעה?
-
-      חוקים גלובליים:
-      - גודל מכולה: כל המכולות בסבן הן 8 קוב בלבד. אל תשאל על גודל.
-      - במידה וצוינה כתובת שקיימת ב"שטח נוכחי", עצור ושאל לגבי כפילות.
-
-      סיום הזרקה: רק כשכל 5 השאלות נענו, ענה "בוצע 🚀" והוסף JSON מדויק:
-      DATA_START{
-        "complete": true,
-        "client": "שם",
-        "address": "כתובת",
-        "action": "PLACEMENT/EXCHANGE/REMOVAL",
-        "contractor": "שם הקבלן",
-        "date": "YYYY-MM-DD",
-        "time": "HH:mm",
-        "size": "8 קוב"
-      }DATA_END
+      עץ שאלות: 1. לקוח -> 2. כתובת -> 3. פעולה -> 4. קבלן -> 5. זמן.
     `;
 
     // 4. הרצה מול Gemini
