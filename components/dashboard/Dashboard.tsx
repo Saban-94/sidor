@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { CustomerIdentity } from '@/types';
 import { CustomerList } from './CustomerList';
-// ייבוא המנוע של ה-AI STUDIO (הקובץ שמריץ את /admin/ai)
-import { SabanAIStudio } from '../admin/SabanAIStudio'; 
+import SabanAIStudio from '../../pages/admin/ai';
+import { SabanAIStudio } from '../../admin/SabanAIStudio'; 
 import { Infrastructure } from './Infrastructure';
 import { ChatWindow } from '../chat/ChatWindow';
 
