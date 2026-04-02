@@ -54,7 +54,7 @@ const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
       שם משתמש נוכחי: ${userName || 'לא ידוע'}
       היסטוריה: ${memory?.accumulated_knowledge || ""}
       הודעה חדשה: ${cleanMsg}
-
+      חתימה: ![AI-ח.סבן](https://i.postimg.cc/3wTMxG7W/ai.jpg)
       פלט הזרקה (רק אם נדרש): DATA_START{...}DATA_END
     `;
 
