@@ -25,16 +25,15 @@ const STATUS_MAP: any = {
 };
 
 const QUICK_QUERIES = [
-  { label: "סטטוס העמסות יומי", icon: "📈", color: "text-emerald-500" },
-  { label: "מצבת מכולות פעילה", icon: "🏗️", color: "text-amber-500" },
-  { label: "לוגיסטיקה בין-סניפית", icon: "🚛", color: "text-blue-500" },
-  { label: "מעקב שארק 30", icon: "🎯", color: "text-red-500" },
-  { label: "שעות פעילות ומענה", icon: "🏢", color: "text-slate-400" },
-  { label: "איתור לקוח במערכת", icon: "👤", color: "text-purple-500" },
-  { label: "דו"ח ביצועים יומי", icon: "📄", color: "text-emerald-400" },
-  { label: "פינוי מכולות דחוף", icon: "⚠️", color: "text-orange-500" }
+  { label: 'סטטוס העמסות יומי', icon: '📈', color: 'text-emerald-500' },
+  { label: 'מצבת מכולות פעילה', icon: '🏗️', color: 'text-amber-500' },
+  { label: 'לוגיסטיקה בין-סניפית', icon: '🚛', color: 'text-blue-500' },
+  { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
+  { label: 'שעות פעילות ומענה', icon: '🏢', color: 'text-slate-400' },
+  { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
+  { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' }, // כאן היה התיקון
+  { label: 'פינוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
 ];
-
 const getCountdown = (orderTime: string) => {
   if (!orderTime) return null;
   const [h, m] = orderTime.split(':').map(Number);
