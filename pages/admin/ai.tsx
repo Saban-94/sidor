@@ -52,9 +52,9 @@ export default function SabanAIAssistant() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // פונקציה להשמעת צליל
+  // פונקציה להשמעת צליל מהנתיב שביקשת
   const playNotificationSound = () => {
-    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+    const audio = new Audio('/order-notification.mp3');
     audio.play().catch(e => console.log("Audio play failed:", e));
   };
 
@@ -88,7 +88,7 @@ export default function SabanAIAssistant() {
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
-      playNotificationSound(); // צליל בקבלת תשובה
+      playNotificationSound(); // השמעת צליל במענה
     } catch (e) { 
       setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למערכת." }]); 
     } finally { setLoading(false); }
