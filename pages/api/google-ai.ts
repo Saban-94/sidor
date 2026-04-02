@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ${chatHistory}
 
       שאלה: "${cleanMsg}"
-      חתימה: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
+      חתימה: ![AI-ח.סבן](https://i.postimg.cc/3wTMxG7W/ai.jpg)
     `;
 
     let aiText = "";
