@@ -17,62 +17,66 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API." });
 
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-1.5-flash"];
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // ... (בדיקות API Key והודעה ריקה - ללא שינוי) ...
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון + מצב שטח נוכחי (מכולות פעילות)
+    // 1. שליפת זיכרון ומצב שטח נוכחי (ללא שינוי)
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
+
+    // --- חדש: בדיקת היסטוריית לקוח ופעולה אחרונה ---
+    // ננסה לחלץ שם לקוח מההודעה הנוכחית או מהזיכרון כדי לבצע חיפוש
+    const clientNameFromMsg = cleanMsg.match(/של\s+([^,]+)|לקוח\s+([^,]+)/)?.[1] || "";
+    let lastActionInfo = "אין היסטוריה קודמת ללקוח זה.";
     
-    if (!memory) {
-      const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
-      memory = newUser;
+    if (clientNameFromMsg) {
+      const { data: lastOrder } = await supabase
+        .from('container_management')
+        .select('action_type, start_date, delivery_address')
+        .ilike('client_name', `%${clientNameFromMsg}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastOrder) {
+        lastActionInfo = `היסטוריה: פעולה אחרונה של ${clientNameFromMsg} הייתה ${lastOrder.action_type} בכתובת ${lastOrder.delivery_address} בתאריך ${lastOrder.start_date}.`;
+      }
     }
+    // -------------------------------------------
 
     let history = memory?.accumulated_knowledge || "";
     const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
 
-    // 2. הפרומפט הטקטי - חוקי הפינג-פונג והשטח (ללא שינוי דינמיקה)
+    // 2. הפרומפט הטקטי - הזרקתי את lastActionInfo פנימה
     const prompt = `
       זהות: מפקח מכולות חכם של סבן. סגנון: קצר, חד וממוקד עמודות.
       משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
       
-      שטח נוכחי (מכולות אצל לקוחות): ${JSON.stringify(activeContainers)}
-      היסטוריית שיחה: ${localUpdatedHistory}
-
-      חוקי ה"פינג-פונג" (קריטי):
-      1. שאל שאלה אחת בלבד בכל פעם לפי סדר העץ.
-      2. אל תעבור לשאלה הבאה עד שהמשתמש סיפק תשובה ברורה לנתון הנוכחי.
-      3. אם המשתמש נתן כמה פרטים במכה, חלץ אותם ושאל רק על מה שחסר.
-
-      עץ שאלות לפי עמודות:
-      1. מי הלקוח? (client_name)
-      2. מה הכתובת המדויקת? (delivery_address)
-      3. סוג פעולה: הצבה 🟢, החלפה ♻️ או הוצאה 🔴? (action_type)
-      4. מחסן מבצע: שארק 30, כראדי 32 או שי שרון 40? (contractor_name)
-      5. תאריך ושעה לביצוע? (date + time)
-
-        חוקים גלובליים:
-      - גודל מכולה: כל המכולות בסבן הן 8 קוב בלבד. אל תשאל על גודל.
-      - במידה וצוינה כתובת שקיימת ב"שטח נוכחי"... (המשך החוקים שלך)
+      מידע שטח (מכולות פעילות): ${JSON.stringify(activeContainers)}
+      ${lastActionInfo}  <-- נתון היסטורי שהתווסף
       
-      חוקי פיקוח שטח:
-      - במידה וצוינה כתובת שקיימת ב"שטח נוכחי", עצור ושאל: "בוס, יש שם מכולה כבר X ימים. לבצע החלפה או להוסיף עוד אחת?"
-      - אם המכולה בשטח מעל 9 ימים, הצע אקטיבית לבצע "הוצאה" או "החלפה".
+      חוקי ה"פינג-פונג":
+      1. שאל שאלה אחת בלבד לפי סדר העץ.
+      2. אם הלקוח קיים והפעולה האחרונה הייתה "הצבה", הצע לו בחוכמה לבצע "החלפה" או "הוצאה".
+      3. אל תעבור לשאלה הבאה עד שהמשתמש סיפק תשובה ברורה.
 
-      סיום הזרקה: רק כשכל 5 השאלות נענו, ענה "בוצע 🚀" והוסף JSON מדויק:
-      DATA_START{
-        "complete": true,
-        "client": "שם",
-        "address": "כתובת",
-        "action": "PLACEMENT/EXCHANGE/REMOVAL",
-        "contractor": "שם הקבלן",
-        "date": "YYYY-MM-DD",
-        "time": "HH:mm"
-      }DATA_END
+      עץ שאלות:
+      1. מי הלקוח? (חפש בהיסטוריה שצוינה אם זה אותו אחד)
+      2. כתובת מדויקת?
+      3. פעולה: הצבה/החלפה/הוצאה?
+      4. קבלן: שארק 30/כראדי 32/שי שרון 40?
+      5. תאריך ושעה?
+
+      חוקים גלובליים:
+      - גודל מכולה: תמיד 8 קוב. אל תשאל על גודל.
+      
+      סיום הזרקה:
+      DATA_START{"complete": true, "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "קבלן", "date": "YYYY-MM-DD", "time": "HH:mm", "size": "8 קוב"}DATA_END
     `;
-
+    
     // 3. הרצה מול Gemini
     let replyText = "";
     for (const modelName of modelPool) {
