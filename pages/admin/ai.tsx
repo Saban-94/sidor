@@ -18,11 +18,11 @@ const QUICK_QUERIES = [
   { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
   { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
   { label: 'מכולת פסולת בנין', icon: '🚛', color: 'text-blue-500' },
-  { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
+  { label: 'תבדוק לי איפה הנהג?', icon: '🎯', color: 'text-red-500' },
   { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
-  { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
-  { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' },
-  { label: '피נוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
+  { label: 'תיצור לי כרטיס לקוח ', icon: '👤', color: 'text-purple-500' },
+  { label: 'איך מזמינים', icon: '📄', color: 'text-emerald-400' },
+  { label: 'קיבלתי התראה פינוי למכולה', icon: '⚠️', color: 'text-orange-500' }
 ];
 
 export default function SabanAIAssistant() {
