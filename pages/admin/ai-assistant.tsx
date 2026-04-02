@@ -6,7 +6,8 @@ import {
   Menu, X, Send, Bot, Calendar, RefreshCcw, User, MapPin, Clock, MessageSquare, Timer 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import ReactMarkdown from 'https://esm.sh/react-markdown@9?bundle';
+import remarkGfm from 'https://esm.sh/remark-gfm@4?bundle';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 // הלוגו החדש של סבן
