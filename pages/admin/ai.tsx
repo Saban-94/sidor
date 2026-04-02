@@ -71,7 +71,7 @@ export default function SabanAIAssistant() {
 
         <header className="h-16 flex items-center justify-between px-6 bg-[#202c33]/80 backdrop-blur-md border-b border-white/5 shrink-0">
           <Menu size={24} />
-          <div className="flex items-center gap-2"><img src={SABAN_LOGO} className="w-8 h-8 rounded-full"/><span className="font-black text-emerald-500">SABAN AI</span></div>
+          <div className="flex items-center gap-2"><img src={https://ibb.co/jPFtvHfY} className="w-8 h-8 rounded-full"/><span className="font-black text-emerald-500">SABAN AI</span></div>
           <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs">ON</div>
         </header>
 
