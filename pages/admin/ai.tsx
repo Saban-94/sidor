@@ -26,11 +26,12 @@ const QUICK_QUERIES = [
 ];
 
 export default function SabanAIAssistant() {
-  const [activeView, setActiveView] = useState<'chat' | 'live'>('chat');
   const [showSplash, setShowSplash] = useState(true);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // אפקט חושב
+  const [streamingText, setStreamingText] = useState(""); // הטקסט שרץ כרגע
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,8 +42,27 @@ export default function SabanAIAssistant() {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, loading]);
+  }, [messages, loading, streamingText]);
 
+  // פונקציית אפקט ההקלדה האנושי
+  const typeEffect = (fullText: string) => {
+    setStreamingText("");
+    const words = fullText.split(" ");
+    let i = 0;
+
+    const interval = setInterval(() => {
+      if (i < words.length) {
+        setStreamingText((prev) => prev + (i === 0 ? "" : " ") + words[i]);
+        i++;
+      } else {
+        clearInterval(interval);
+        // בסיום ההקלדה - מעבירים את הטקסט הסופי למערך ההודעות הכללי
+        setMessages(prev => [...prev, { role: 'ai', content: fullText }]);
+        setStreamingText("");
+        setIsTyping(false);
+      }
+    }, 45); // מהירות ההקלדה (מילישניות למילה)
+  };
   const askAI = async (query: string) => {
     if (!query.trim() || loading) return;
     setMessages(prev => [...prev, { role: 'user', content: query }]);
