@@ -9,9 +9,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuItems = [
-    { name: 'לוח בקרה LIVE', href: '/admin/master-dashboard', icon: Truck },
-    { name: 'ניהול מכולות', href: '/admin/containers', icon: Box },
-    { name: 'צ\'אט סבן AI', href: '/chat', icon: MessageSquare },
+    { name: 'לוח בקרה LIVE', href: 'admin/control-center', icon: Truck },
+    { name: 'ניהול מכולות', href: '/containers', icon: Box },
+    { name: 'צ\'אט סבן AI', href: 'admin/group-saban94', icon: MessageSquare },
     { name: 'הגדרות מערכת', href: '/settings', icon: Settings },
   ];
 
