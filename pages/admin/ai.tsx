@@ -227,28 +227,51 @@ export default function SabanAIAssistant() {
         </main>
 
         {activeView === 'chat' && (
-          <footer className={`fixed bottom-0 left-0 right-0 p-4 pb-6 bg-[#111b21] bg-opacity-90 backdrop-blur-lg z-40 border-t border-white/5`}>
-            <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar max-w-full">
-              {QUICK_QUERIES.map((q, i) => (
-                <button key={i} onClick={() => askAI(q)} className={`whitespace-nowrap px-5 py-2 ${WA_PANEL} rounded-full text-[11px] font-bold border border-white/5 hover:bg-[#2a3942] active:scale-95 transition-all`}>{q}</button>
-              ))}
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative flex gap-2">
-              <input 
-                value={input} 
-                onChange={e => setInput(e.target.value)} 
-                placeholder="כתוב הודעה למוח..." 
-                className={`flex-1 p-4 rounded-2xl ${WA_PANEL} border-none outline-none focus:ring-1 focus:ring-[#00a884] font-bold text-white placeholder:opacity-40 transition-shadow shadow-inner`} 
-              />
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-14 h-14 bg-[#00a884] hover:bg-[#00c99e] text-[#111b21] rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-50"
-              >
-                <Send size={22} className="rotate-180" />
-              </button>
-            </form>
-          </footer>
+<footer className={`fixed bottom-0 left-0 right-0 p-4 pb-8 bg-[#111b21]/90 backdrop-blur-xl z-40 border-t border-white/5`}>
+  
+  {/* מסגרת המילים - ה-Quick Queries Container */}
+  <div className="max-w-4xl mx-auto mb-4 bg-white/5 p-3 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm">
+    <div className="flex gap-3 overflow-x-auto no-scrollbar px-1 py-1">
+      {QUICK_QUERIES.map((q, i) => (
+        <button 
+          key={i} 
+          onClick={() => askAI(q.label)} 
+          className={`
+            whitespace-nowrap px-5 py-2.5 
+            ${WA_PANEL} rounded-2xl 
+            text-[11px] font-black uppercase tracking-tighter
+            border border-white/5 
+            hover:border-emerald-500/40 hover:bg-[#2a3942] 
+            active:scale-95 transition-all 
+            flex items-center gap-3 shadow-lg
+          `}
+        >
+          <span className={`text-sm ${q.color}`}>{q.icon}</span>
+          <span className="opacity-90 text-white">{q.label}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+
+  {/* שדה הכתיבה */}
+  <div className="max-w-4xl mx-auto">
+    <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative flex gap-3">
+      <input 
+        value={input} 
+        onChange={e => setInput(e.target.value)} 
+        placeholder="כתוב הודעה למוח..." 
+        className={`flex-1 p-5 rounded-2xl ${WA_PANEL} border border-white/5 outline-none focus:ring-1 focus:ring-[#00a884] font-bold text-white placeholder:opacity-30 shadow-2xl`} 
+      />
+      <button 
+        type="submit" 
+        disabled={loading}
+        className="w-16 h-16 bg-[#00a884] hover:bg-[#00c99e] text-[#111b21] rounded-2xl flex items-center justify-center shadow-2xl active:scale-90 transition-all disabled:opacity-50"
+      >
+        <Send size={24} className="rotate-180" />
+      </button>
+    </form>
+  </div>
+</footer>
         )}
       </div>
 
