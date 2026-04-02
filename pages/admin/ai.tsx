@@ -1,83 +1,111 @@
+'use client';
+import React, { useState, useEffect, useRef } from 'react';
+import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { Menu, Send, RefreshCcw, MapPin, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
+const WA_BG = "bg-[#111b21]";
+const WA_PANEL = "bg-[#202c33]";
+const WA_TEXT = "text-[#e9edef]";
+const WA_SUB = "text-[#8696a0]";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+const QUICK_QUERIES = [
+  { label: 'סטטוס העמסות יומי', icon: '📈', color: 'text-emerald-500' },
+  { label: 'מצבת מכולות פעילה', icon: '🏗️', color: 'text-amber-500' },
+  { label: 'לוגיסטיקה בין-סניפית', icon: '🚛', color: 'text-blue-500' },
+  { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
+  { label: 'שעות פעילות ומענה', icon: '🏢', color: 'text-slate-400' },
+  { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
+  { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' },
+  { label: '피נוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
+];
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  const { message, senderPhone } = req.body;
-  const cleanMsg = (message || "").trim();
+export default function SabanAIAssistant() {
+  const [activeView, setActiveView] = useState<'chat' | 'live'>('chat');
+  const [showSplash, setShowSplash] = useState(true);
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה השאלה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API חסר בשרת." });
+  useEffect(() => {
+    setTimeout(() => setShowSplash(false), 800);
+  }, []);
 
-  const modelPool = ["gemini-2.0-flash", "gemini-1.5-flash"];
-
-  try {
-    const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-
-    let { data: memory } = await supabase
-      .from('customer_memory')
-      .select('accumulated_knowledge, user_name')
-      .eq('clientId', phone)
-      .maybeSingle();
-    
-    if (!memory) {
-      const { data: newUser } = await supabase
-        .from('customer_memory')
-        .insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }])
-        .select()
-        .single();
-      memory = newUser;
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
+  }, [messages, loading]);
 
-    // תיקון זיהוי שם משתמש - זיהוי שמות קצרים (כמו "אבי")
-    let currentUserName = memory?.user_name;
-    if (!currentUserName && cleanMsg.length < 15) {
-      const extracted = cleanMsg.replace(/אני|שמי|זה|קוראים לי/g, "").trim();
-      if (extracted.length >= 2) {
-        await supabase.from('customer_memory').update({ user_name: extracted }).eq('clientId', phone);
-        currentUserName = extracted;
-      }
-    }
+  const askAI = async (query: string) => {
+    if (!query.trim() || loading) return;
+    setMessages(prev => [...prev, { role: 'user', content: query }]);
+    setLoading(true); setInput('');
+    try {
+      const res = await fetch('/api/customer-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: query, senderPhone: 'admin' })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
+      new Audio('/order-notification.mp3').play().catch(() => {});
+    } catch (e) { 
+      setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור." }]); 
+    } finally { setLoading(false); }
+  };
 
-    const prompt = `
-      זהות: המוח של סבן 1994. 
-      סגנון: מקצועי, חד, ענייני, ואישי מאוד.
-      חוקים:
-      - אם ה-userName הוא "לא ידוע", בקש שם בנימוס.
-      - אל תציג רשימות הזמנות אלא אם נשאלת במפורש.
-      - פנה למשתמש בשמו: ${currentUserName || 'לא ידוע'}.
-      הודעה: ${cleanMsg}
-      היסטוריה: ${memory?.accumulated_knowledge || ""}
-    `;
+  return (
+    <div className={`h-screen w-full flex flex-col font-sans relative overflow-hidden bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover bg-fixed ${WA_TEXT}`} dir="rtl">
+      <div className="absolute inset-0 bg-[#0b141a]/70 z-0" />
+      <Head><title>SABAN AI | COMMAND CENTER</title></Head>
 
-    let replyText = "";
-    for (const modelName of modelPool) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        const data = await response.json();
-        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-        if (replyText) break;
-      } catch (e) { continue; }
-    }
+      <div className="relative z-10 flex flex-col h-full overflow-hidden">
+        <AnimatePresence>{showSplash && <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}><img src={SABAN_LOGO} className="w-40 h-40 rounded-3xl shadow-2xl"/></motion.div>}</AnimatePresence>
 
-    await supabase.from('customer_memory').update({ 
-      accumulated_knowledge: (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
-    }).eq('clientId', phone);
+        <header className="h-16 flex items-center justify-between px-6 bg-[#202c33]/80 backdrop-blur-md border-b border-white/5 shrink-0">
+          <Menu size={24} />
+          <div className="flex items-center gap-2"><img src={SABAN_LOGO} className="w-8 h-8 rounded-full"/><span className="font-black text-emerald-500">SABAN AI</span></div>
+          <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs">ON</div>
+        </header>
 
-    return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
+        {/* האזור הגולל - תוקן עם flex-1 ו-overflow-y-auto */}
+        <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar scroll-smooth">
+          {messages.map((m, i) => (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+              <div className={`max-w-[85%] p-4 rounded-2xl shadow-xl ${m.role === 'user' ? 'bg-[#202c33] rounded-tr-none' : 'bg-[#005c4b] rounded-tl-none border border-emerald-400/10'}`}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+              </div>
+            </motion.div>
+          ))}
+          {loading && <div className="flex justify-end"><div className="bg-[#005c4b] p-3 rounded-xl animate-pulse text-xs">המוח חושב...</div></div>}
+          <div ref={scrollRef} className="h-20" />
+        </main>
 
-  } catch (e) {
-    return res.status(200).json({ reply: "בוס, המוח בטעינה." });
-  }
+        <footer className="p-4 bg-[#111b21]/90 backdrop-blur-xl border-t border-white/5 shrink-0">
+          <div className="max-w-4xl mx-auto mb-4 bg-white/5 p-2 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar flex gap-2">
+            {QUICK_QUERIES.map((q, i) => (
+              <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] rounded-xl text-[11px] font-bold flex items-center gap-2 border border-white/5 active:scale-95"><span className={q.color}>{q.icon}</span>{q.label}</button>
+            ))}
+          </div>
+          <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="max-w-4xl mx-auto flex gap-2">
+            <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב למוח..." className="flex-1 p-4 rounded-xl bg-[#202c33] border-none outline-none focus:ring-1 focus:ring-emerald-500 font-bold"/>
+            <button type="submit" disabled={loading} className="w-14 h-14 bg-emerald-500 text-black rounded-xl flex items-center justify-center shadow-lg active:scale-90 disabled:opacity-50"><Send size={20} className="rotate-180"/></button>
+          </form>
+        </footer>
+      </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+      `}</style>
+    </div>
+  );
 }
