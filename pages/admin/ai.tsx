@@ -46,23 +46,27 @@ export default function SabanAIAssistant() {
 
   // פונקציית אפקט ההקלדה האנושי
   const typeEffect = (fullText: string) => {
-    setStreamingText("");
-    const words = fullText.split(" ");
-    let i = 0;
+  setStreamingText("");
+  const words = fullText.split(" ");
+  let i = 0;
 
-    const interval = setInterval(() => {
-      if (i < words.length) {
-        setStreamingText((prev) => prev + (i === 0 ? "" : " ") + words[i]);
-        i++;
-      } else {
-        clearInterval(interval);
-        // בסיום ההקלדה - מעבירים את הטקסט הסופי למערך ההודעות הכללי
-        setMessages(prev => [...prev, { role: 'ai', content: fullText }]);
-        setStreamingText("");
-        setIsTyping(false);
-      }
-    }, 45); // מהירות ההקלדה (מילישניות למילה)
+  const playNextWord = () => {
+    if (i < words.length) {
+      setStreamingText((prev) => prev + (i === 0 ? "" : " ") + words[i]);
+      i++;
+      
+      // יצירת זמן המתנה אקראי בין 30 ל-100 מילישניות
+      const randomSpeed = Math.floor(Math.random() * (100 - 30 + 1)) + 30;
+      setTimeout(playNextWord, randomSpeed); 
+    } else {
+      setMessages(prev => [...prev, { role: 'ai', content: fullText }]);
+      setStreamingText("");
+      setIsTyping(false);
+    }
   };
+
+  playNextWord();
+};
   const askAI = async (query: string) => {
     if (!query.trim() || loading) return;
     setMessages(prev => [...prev, { role: 'user', content: query }]);
@@ -104,7 +108,7 @@ export default function SabanAIAssistant() {
               </div>
             </motion.div>
           ))}
-          {loading && <div className="flex justify-end"><div className="bg-[#005c4b] p-3 rounded-xl animate-pulse text-xs">המוח חושב...</div></div>}
+          {loading && <div className="flex justify-end"><div className="bg-[#005c4b] p-3 rounded-xl animate-pulse text-xs">חושב על תשובה ...</div></div>}
           <div ref={scrollRef} className="h-20" />
         </main>
 
