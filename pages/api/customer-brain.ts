@@ -14,84 +14,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
 
   if (!cleanMsg) return res.status(200).json({ reply: "שלום, במה אוכל לעזור?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מערכת: מפתח API חסר." });
 
-  // עדכון Model Pool מורחב ליציבות וביצועים
-  const modelPool = [
-    "gemini-2.0-pro-exp-02-05", 
-    "gemini-2.0-flash", 
-    "gemini-3.1-flash-lite-preview"
-  ];
+  const modelPool = ["gemini-2.0-pro-exp-02-05", "gemini-2.0-flash", "gemini-3.1-flash-lite-preview"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון ושם לקוח
-    let { data: memory } = await supabase
-      .from('customer_memory')
-      .select('accumulated_knowledge, user_name')
-      .eq('clientId', phone)
-      .maybeSingle();
-    
-    if (!memory) {
-      const { data: newUser } = await supabase
-        .from('customer_memory')
-        .insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }])
-        .select().single();
-      memory = newUser;
-    }
-
+    // 1. שליפת זיכרון
+    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge, user_name').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name;
 
-    // 2. זיהוי שם חכם (למניעת לופים)
-    if (!currentUserName && cleanMsg.length < 12 && !cleanMsg.includes("?")) {
-      const extracted = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
-      if (extracted.length >= 2) {
-        await supabase.from('customer_memory').update({ user_name: extracted }).eq('clientId', phone);
-        currentUserName = extracted;
-      }
-    }
-
-    // 3. חיפוש ידע מאומן - חיפוש מילים גמיש (Keyword Match)
-    const words = cleanMsg.split(/\s+/);
+    // 2. חיפוש ידע מאומן (AI Training) - חיפוש משופר
+    // אנחנו בודקים אם יש התאמה לאחד המילים המרכזיות בהודעה
+    const searchTerms = cleanMsg.split(/\s+/).filter(w => w.length > 2);
     let trainingAnswer = "";
-    
-    for (const word of words) {
-      if (word.length < 3) continue;
-      const { data: match } = await supabase
+
+    if (searchTerms.length > 0) {
+      // מחפשים בטבלה שורות שמכילות את המילים ששאל הלקוח
+      const { data: matches } = await supabase
         .from('ai_training')
         .select('answer')
-        .ilike('question', `%${word}%`)
-        .limit(1)
-        .maybeSingle();
+        .or(searchTerms.map(word => `question.ilike.%${word}%`).join(','));
       
-      if (match) {
-        trainingAnswer = match.answer;
-        break; 
+      if (matches && matches.length > 0) {
+        trainingAnswer = matches.map(m => m.answer).join("\n\n");
       }
     }
 
-    // 4. בניית ה-Prompt (שפה שירותית, חדה וללא "בוס")
+    // 3. בניית ה-Prompt - פקודות ברזל
     const prompt = `
-      זהות: שירות לקוחות חכם - סבן 1994.
-      לקוח: ${currentUserName || 'לא ידוע'}.
-      מידע מהמערכת: ${trainingAnswer || "אין מידע ספציפי בטבלה"}.
+      זהות: שירות לקוחות סבן 1994.
+      לקוח: ${currentUserName || 'אורח'}.
+      מידע מהמערכת (חובה להשתמש!): ${trainingAnswer || "לא נמצא מידע ספציפי בטבלה"}.
 
-      חוקים קשיחים:
-      - פנה ללקוח בשמו (${currentUserName || 'אורח'}). אם השם ידוע, אל תשאל אותו לעולם "מה שמך?".
+      חוקים:
+      - אם יש "מידע מהמערכת", תן אותו מיד! אל תגיד שאין לך מידע.
       - לעולם אל תשתמש במילה "בוס".
-      - אם קיים "מידע מהמערכת", ענה אך ורק לפיו! אל תמציא שעות או נתונים.
-      - היה תכליתי. אל תכתוב הקדמות ארוכות כמו "אשמח מאוד לסייע לך". תן את התשובה מיד.
-      - אם אין מידע במערכת ואין תשובה ברורה, בקש מהלקוח פרטים נוספים (כמו שם סניף או מספר הזמנה).
-
+      - היה קצר ותכליתי. בלי חפירות ובלי הקדמות מיותרות.
+      - אם השם ידוע (${currentUserName}), פנה אליו בשמו.
+      
       הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || ""}
     `;
 
     let replyText = "";
-    let lastError: any = null;
-
-    // 5. הרצה עם Fallback תקין
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -99,29 +65,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        
         const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        
-        if (text) {
-          replyText = text;
-          break;
-        }
-      } catch (e) {
-        lastError = e;
-      }
+        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+        if (replyText) break;
+      } catch (e) { continue; }
     }
 
-    if (!replyText) throw lastError || new Error("Connection failed");
+    if (!replyText) throw new Error("No response");
 
-    // 6. עדכון זיכרון (שומר רק את ה-1500 תווים האחרונים למניעת עומס)
+    // 4. עדכון זיכרון
     await supabase.from('customer_memory').update({ 
-      accumulated_knowledge: (memory?.accumulated_knowledge || "").slice(-1500) + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
+      accumulated_knowledge: (memory?.accumulated_knowledge || "").slice(-1000) + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
     }).eq('clientId', phone);
 
     return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
 
   } catch (e) {
-    return res.status(200).json({ reply: "שלום, חלה תקלה זמנית בעיבוד הנתונים. אנא נסה שוב." });
+    return res.status(200).json({ reply: "שלום, חלה תקלה זמנית. נסה שוב בעוד רגע." });
   }
 }
