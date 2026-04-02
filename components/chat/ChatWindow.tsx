@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Message } from '@/types';
 import { database } from '@/lib/firebase';
 import { ref, onValue, push, query, limitToLast } from 'firebase/database';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
+// ייבוא הבועה החכמה שסיפקת
+import { MessageBubble } from './MessageBubble';
 
 interface ChatWindowProps {
   customerId?: string;
@@ -15,9 +15,11 @@ interface ChatWindowProps {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // הגנה ל-Build ובדיקת קיום לקוח
     if (!database || !customerId) {
       setMessages([]);
       return;
@@ -46,76 +48,100 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ customerId }) => {
     }
   }, [customerId]);
 
+  // גלילה אוטומטית להודעה האחרונה בכל עדכון
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !database || !customerId) return;
+    const cleanMsg = newMessage.trim();
+    
+    if (!cleanMsg || !database || !customerId) return;
 
-    const messagesRef = ref(database, `messages/${customerId}`);
-    await push(messagesRef, {
-      text: newMessage,
-      senderId: 'admin', // מעודכן ל-senderId לפי ה-Type
-      timestamp: Date.now(),
-    });
-    setNewMessage('');
+    setLoading(true);
+    try {
+      const messagesRef = ref(database, `messages/${customerId}`);
+      
+      // הזרקת נתונים בפורמט שה-MessageBubble מצפה לו
+      await push(messagesRef, {
+        body: cleanMsg,      // התוכן שהבועה מציגה
+        fromMe: true,        // אדמין שולח (צבע ירוק סבן)
+        timestamp: Date.now(),
+        status: 'sent',      // סטטוס התחלתי ל-V
+        senderId: 'admin'    // מזהה אופציונלי
+      });
+
+      setNewMessage('');
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fa] overflow-hidden" dir="rtl">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-[url('https://i.postimg.cc/7Z9y6vYV/wa-bg.png')] bg-repeat opacity-95">
-        {messages.map((msg: any) => ( // השתמשתי ב-any זמני כדי לעקוף חסימת Build קשיחה
-          <div key={msg.id} className={`flex ${msg.senderId === 'admin' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm relative ${
-              msg.senderId === 'admin' 
-              ? 'bg-white text-slate-800 rounded-tr-none border border-slate-100' 
-              : 'bg-[#dcf8c6] text-slate-800 rounded-tl-none'
-            }`}>
-              <div className="prose prose-sm max-w-none font-bold leading-relaxed text-inherit">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    img: ({ node, alt, ...props }) => {
-                      if (alt === 'Saban') {
-                        return (
-                          <img 
-                            {...props} 
-                            alt={alt}
-                            className="w-8 h-8 rounded-full inline-block mt-2 border-2 border-white shadow-md bg-white object-cover" 
-                          />
-                        );
-                      }
-                      return <img {...props} className="rounded-xl max-w-full h-auto my-2 shadow-sm" />;
-                    },
-                  }}
-                >
-                  {msg.text}
-                </ReactMarkdown>
-              </div>
-              <div className="text-[9px] opacity-40 mt-1 text-left font-mono">
-                {new Date(msg.timestamp).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
+    <div className="flex flex-col h-full bg-[#111b21] overflow-hidden shadow-2xl rounded-xl border border-white/5" dir="rtl">
+      
+      {/* אזור ההודעות - עם רקע וואטסאפ לוגו של סבן */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[url('https://i.postimg.cc/7Z9y6vYV/wa-bg.png')] bg-repeat opacity-95">
+        {messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center opacity-20 flex-col gap-2">
+            <MessageSquare size={48} className="text-white" />
+            <p className="text-white font-bold italic uppercase tracking-widest text-xs">Saban OS | No Messages</p>
           </div>
-        ))}
+        ) : (
+          messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))
+        )}
         <div ref={scrollRef} />
       </div>
       
-      {/* Input Form */}
-      <form onSubmit={sendMessage} className="p-4 bg-white border-t border-slate-200 flex gap-3 items-center shadow-2xl">
-        <input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="הקלד הודעה..."
-          className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 ring-brand/20 font-bold text-sm"
-        />
-        <button type="submit" className="bg-brand text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
-          <Send size={20} className="rotate-180" />
+      {/* שדה הכתיבה המעוצב */}
+      <form 
+        onSubmit={sendMessage} 
+        className="p-4 bg-[#202c33] border-t border-white/5 flex gap-3 items-center sticky bottom-0 z-10"
+      >
+        <div className="flex-1 relative">
+          <input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            disabled={loading}
+            placeholder="הקלד הודעה למוח..."
+            className="w-full p-4 bg-[#2a3942] text-[#e9edef] rounded-2xl border-none outline-none focus:ring-1 ring-[#00a884] font-bold text-sm transition-all placeholder:opacity-30 disabled:opacity-50"
+          />
+        </div>
+        
+        <button 
+          type="submit" 
+          disabled={loading || !newMessage.trim()}
+          className="w-12 h-12 bg-[#00a884] hover:bg-[#00c99e] text-[#111b21] rounded-2xl flex items-center justify-center shadow-lg transition-all active:scale-90 disabled:opacity-50 disabled:grayscale"
+        >
+          {loading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <Send size={20} className="rotate-180" />
+          )}
         </button>
       </form>
+
+      {/* סטייל לסקרולר המותאם */}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 168, 132, 0.5);
+        }
+      `}</style>
     </div>
   );
 };
