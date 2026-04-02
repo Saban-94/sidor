@@ -22,7 +22,7 @@ const QUICK_QUERIES = [
   { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
   { label: 'יצירת לקוח', icon: '👤', color: 'text-purple-500' },
   { label: 'תכין להצעת מחיר', icon: '📄', color: 'text-emerald-400' },
-  { label: 'קיבלתי התראת פינוי למכולה', icon: '⚠️', color: 'text-orange-500' }
+  { label: 'התראת פינוי למכולה', icon: '⚠️', color: 'text-orange-500' }
 ];
 
 export default function SabanAIAssistant() {
