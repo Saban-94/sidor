@@ -13,75 +13,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (GEMINI_API_KEY)." });
+  // בדיקות תקינות כפי שביקשת
+  if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה השאלה?" });
+  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API חסר בשרת." });
 
-  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
+  // עדכון שמות המודלים
+  const modelPool = ["gemini-2.0-flash", "gemini-1.5-flash"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // --- שלב א': בדיקה בטבלת אימונים (הזרקת ידע מהבוס) ---
-    const { data: trainingMatch } = await supabase
-      .from('ai_training')
-      .select('answer')
-      .ilike('question', `%${cleanMsg}%`) // חיפוש גמיש בשאלה
-      .limit(1)
+    // 1. שליפת זיכרון לקוח ושם משתמש
+    let { data: memory } = await supabase
+      .from('customer_memory')
+      .select('accumulated_knowledge, user_name')
+      .eq('clientId', phone)
       .maybeSingle();
-
-    if (trainingMatch) {
-      return res.status(200).json({ 
-        reply: `${trainingMatch.answer}\n\n![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)` 
-      });
-    }
-
-    // --- שלב ב': ניהול זיכרון ופנייה ל-AI ---
-    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     
     if (!memory) {
-      const { data: newUser } = await supabase.from('customer_memory').insert([{ clientId: phone, accumulated_knowledge: '' }]).select().single();
+      const { data: newUser } = await supabase
+        .from('customer_memory')
+        .insert([{ clientId: phone, accumulated_knowledge: '', user_name: null }])
+        .select()
+        .single();
       memory = newUser;
     }
 
-    let history = memory?.accumulated_knowledge || "";
-    const localUpdatedHistory = history + `\nUser: ${cleanMsg}`;
+    const userName = memory?.user_name;
 
+    // 2. בניית ה-Prompt האישי (ללא הצגת דאטה מיותרת)
     const prompt = `
-      זהות: העוזר האישי של ראמי (ח. סבן). סגנון: מקצועי, חד, ענייני.
+      זהות: המוח של סבן 1994. 
+      סגנון: מקצועי, חד, ענייני, ואישי מאוד.
       
-      תפקיד א': הזרקת נתונים (אם המשתמש נותן פרטי הזמנה):
-      1. ORDER (חומרים): נהג חכמת/עלי.
-      2. CONTAINER (מכולות): קבלן שארק 30/כראדי 32/שי שרון 40.
-         סוגי פעולה: "הצבה" (חדש/ירוק), "החלפה" (כתום), "הוצאה" (פינוי/אדום).
-      3. TRANSFER (העברות): מהחרש/מהתלמיד.
-      חלץ order_id אם צוין מספר (למשל 6212303).
+      חוקי ניהול שיחה:
+      - אם ה-userName הוא "${userName || 'לא ידוע'}", ואין לך שם, ברך את המשתמש ובקש את שמו לפני הכל.
+      - אל תציג רשימות הזמנות או נתונים אלא אם נשאלת במפורש "מה הלו"ז?" או "הצג הזמנות".
+      - לווה כל תשובה בפנייה אישית בשם המשתמש (אם ידוע).
+      - אם המשתמש מוסר פרטי הזמנה (מכולה/חומרים), בצע הזרקה ולווה באישור אישי.
 
-      תפקיד ב': חיפוש לקוחות (אם המשתמש שאל "חפש לקוח" או "מי הלקוחות"):
-      הצג את הרשימה הבאה בפורמט בועות מודגשות עם אימוג'י מתאים:
-      - 🏗️ למכולה, 🚛 להובלה, 🛠️ לשיפוץ.
-      רשימה: גבריאל מזרחי, מודי יבוא, גבי מזרחי, וגשל דאו, גל בן דוד, לירן/ביל"ו, קדם גלעד/מזל דלי, אורניל/אבי לוי, ד.ניב/שיפוצים הוד הש, אלנבי על הים/האגדה.
+      שם משתמש נוכחי: ${userName || 'לא ידוע'}
+      היסטוריה: ${memory?.accumulated_knowledge || ""}
+      הודעה חדשה: ${cleanMsg}
 
-      היסטוריה: ${localUpdatedHistory}
-
-      פלט הזרקה (חובה JSON בין DATA_START ל-DATA_END אם זו פקודת הזרקה):
-      DATA_START{
-        "type": "ORDER" | "CONTAINER" | "TRANSFER",
-        "action_type": "הצבה" | "החלפה" | "הוצאה",
-        "order_id": "מספר",
-        "client": "שם",
-        "address": "כתובת",
-        "date": "YYYY-MM-DD",
-        "time": "HH:mm",
-        "executor": "שם מבצע",
-        "from_branch": "מקור",
-        "to_branch": "יעד"
-      }DATA_END
-
-      אם זה חיפוש לקוחות, ענה בטקסט חופשי מעוצב עם בועות (Bold) וחתימה בסוף.
-      חתימה: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
+      פלט הזרקה (רק אם נדרש): DATA_START{...}DATA_END
     `;
 
     let replyText = "";
+    // לופ ניסיון בין המודלים המעודכנים
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -95,65 +74,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { continue; }
     }
 
-    let finalReply = replyText;
-    let isComplete = false;
-
-    if (replyText.includes('DATA_START')) {
-      const jsonMatch = replyText.match(/\{.*\}/s);
-      if (jsonMatch) {
-        try {
-          const d = JSON.parse(jsonMatch[0]);
-          const commonData: any = { order_time: d.time, status: 'approved' };
-          if (d.order_id) commonData.order_number = d.order_id;
-
-          if (d.type === "CONTAINER") {
-            await Promise.all([
-              supabase.from('container_management').insert([{
-                ...commonData,
-                client_name: d.client,
-                delivery_address: d.address,
-                start_date: d.date,
-                contractor_name: d.executor,
-                action_type: d.action_type,
-                is_active: true
-              }]),
-              supabase.from('orders').insert([{
-                ...commonData,
-                client_info: `מכולה: ${d.client} (${d.action_type})`,
-                location: d.address,
-                delivery_date: d.date,
-                driver_name: d.executor
-              }])
-            ]);
-          } else if (d.type === "TRANSFER") {
-            await supabase.from('transfers').insert([{
-              ...commonData,
-              from_branch: d.from_branch,
-              to_branch: d.to_branch,
-              transfer_date: d.date,
-              driver_name: d.executor
-            }]);
-          } else {
-            await supabase.from('orders').insert([{
-              ...commonData,
-              client_info: d.client,
-              location: d.address,
-              delivery_date: d.date,
-              driver_name: d.executor
-            }]);
-          }
-          finalReply = `✅ בוס, הזמנה ${d.order_id ? '#' + d.order_id : ''} הזרקה ללוח של ${d.executor}.\n![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)`;
-          isComplete = true;
-        } catch (e) {
-          console.error("JSON Parse Error", e);
+    // 3. זיהוי ושמירת שם משתמש אם הוצג בשיחה
+    if (!userName && cleanMsg.length < 25) {
+        const nameKeywords = ["אני", "שמי", "קוראים לי", "זה"];
+        if (nameKeywords.some(k => cleanMsg.includes(k))) {
+            const extractedName = cleanMsg.split(" ").pop()?.replace(/[?!.]/g, "");
+            if (extractedName) {
+                await supabase.from('customer_memory').update({ user_name: extractedName }).eq('clientId', phone);
+            }
         }
-      }
     }
 
-    const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${finalReply}`;
-    await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
+    // 4. עדכון הזיכרון הכללי
+    await supabase.from('customer_memory').update({ 
+      accumulated_knowledge: (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
+    }).eq('clientId', phone);
 
-    return res.status(200).json({ reply: finalReply.replace(/\*\*/g, '*') });
+    return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
 
   } catch (e) {
     return res.status(200).json({ reply: "בוס, המוח בטעינה. נסה שוב." });
