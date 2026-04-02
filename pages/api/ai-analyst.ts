@@ -7,30 +7,22 @@ const supabase = createClient(
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+  // 1. הגדרות בסיס ומניעת קריסה
+  if (req.method !== 'POST') return res.status(405).json({ answer: 'Method not allowed' });
 
   const { query, history = [] } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   const cleanMsg = (query || "").trim();
 
-  // --- בדיקות תקינות למניעת קריסה ---
-  if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
-  if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API." });
+  if (!cleanMsg) return res.status(200).json({ answer: "בוס, הודעה ריקה?" });
+  if (!apiKey) return res.status(200).json({ answer: "⚠️ שגיאת מפתח API חסר בשרת." });
 
   const today = new Date().toISOString().split('T')[0];
-
-  // מאגר מודלים מעודכן (2026)
-  const modelPool = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-1.5-flash"
-  ];
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview"];
 
   try {
-    // 1. בדיקת מסלול מהיר לדוח יומי (UI/UX מקובץ)
-    if (cleanMsg.includes("דוח") || cleanMsg.includes("כמה סופקו")) {
+    // 2. לוגיקת דוח מהיר (UI/UX מקובץ) - אם המילה "דוח" או "סופקו" מופיעה
+    if (cleanMsg.includes("דוח") || cleanMsg.includes("סופקו")) {
       const { data: rawOrders } = await supabase
         .from('orders')
         .select('client_info')
@@ -38,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .neq('status', 'deleted');
 
       if (!rawOrders || rawOrders.length === 0) {
-        return res.status(200).json({ reply: "בוס, אין הזמנות רשומות להיום." });
+        return res.status(200).json({ answer: "בוס, אין הזמנות רשומות להיום." });
       }
 
       const grouped = rawOrders.reduce((acc: any, curr: any) => {
@@ -53,30 +45,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         report += `👤 *${name}*\n└  ✅ ${count} הזמנות אושרו\n\n`;
       });
       report += `──────────────────\n`;
-      report += `📊 *סה"כ כללי:* ${rawOrders.length} משימות בביצוע\n`;
-      report += `🚀 *Saban OS - Live Update*`;
+      report += `📊 *סה"כ כללי:* ${rawOrders.length} משימות\n`;
+      report += `![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)`;
 
-      return res.status(200).json({ reply: report });
+      return res.status(200).json({ answer: report });
     }
 
-    // 2. שליפת נתונים רחבה ל-AI (עבור שאלות כלליות)
+    // 3. שליפת נתונים כללית ל-AI
     const [orders, containers] = await Promise.all([
       supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted'),
       supabase.from('container_management').select('*').eq('is_active', true)
     ]);
 
-    // בניית הקשר שיחה (Context) מההיסטוריה
-    const chatContext = history.slice(-5).map((h: any) => `${h.role === 'user' ? 'User' : 'AI'}: ${h.text}`).join('\n');
+    const chatContext = history.slice(-5).map((h: any) => `${h.role === 'user' ? 'משתמש' : 'AI'}: ${h.text}`).join('\n');
 
     const prompt = `
-      זהות: Saban OS Core - מוח תפעולי ויזואלי.
+      זהות: Saban OS Core. מוח תפעולי.
+      משימה: ענה לבוס קצר ולעניין.
+      חוקים: בלי **, השתמש ב-Markdown נקי. חתימה בסוף חובה.
       
-      חוקי Markdown:
-      - אל תשתמש ב-** להדגשה. השתמש ברשימות או כותרות.
-      - הצג נתונים בטבלאות אם יש רשימה ארוכה.
-      - תמיד סיים בחתימה: ![Saban-AI](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
-
-      היסטוריית שיחה:
+      הקשר שיחה:
       ${chatContext}
 
       נתונים להיום:
@@ -84,38 +72,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       מכולות: ${JSON.stringify(containers.data || [])}
 
       שאלה: "${cleanMsg}"
+      
+      חתימה: ![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)
     `;
 
+    // 4. פנייה למודל עם Fallback
     let aiText = "";
-    // לולאת Fallback על המודלים
-    for (const modelName of modelPool) {
+    for (const model of modelPool) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2 }
-          })
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-
         const data = await response.json();
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          aiText = data.candidates[0].content.parts[0].text;
-          break; // מצאנו מענה, עוצרים
-        }
-      } catch (e) {
-        console.error(`Model ${modelName} failed, trying next...`);
-      }
+        aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (aiText) break;
+      } catch (e) { console.error(`Model ${model} failed`); }
     }
 
-    // ניקוי אחרון של כוכביות אם המודל התעקש
-    const finalAnswer = (aiText || "בוס, המערכת בעומס, נסה שוב.").replace(/\*\*/g, '');
-
-    return res.status(200).json({ reply: finalAnswer });
+    const finalAnswer = (aiText || "בוס, המוח בשיפוצים. נסה שוב.").replace(/\*\*/g, '');
+    
+    // חשוב: מחזירים שדה בשם answer כי זה מה שה-Frontend שלך מחפש
+    return res.status(200).json({ answer: finalAnswer });
 
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(200).json({ reply: "בוס, יש תקלה בגישה לנתונים." });
+    console.error(error);
+    return res.status(200).json({ answer: "בוס, יש תקלה טכנית בחיבור לנתונים." });
   }
 }
