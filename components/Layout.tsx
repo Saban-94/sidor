@@ -11,7 +11,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     { name: 'לוח בקרה LIVE', href: '/control-center', icon: Truck },
     { name: 'ניהול מכולות', href: '/containers', icon: Box },
-    { name: 'צ\'אט סבן AI', href: 'admin/group-saban94', icon: MessageSquare },
+    { name: 'צ\'אט סבן AI', href: 'group-saban94', icon: MessageSquare },
     { name: 'הגדרות מערכת', href: '/settings', icon: Settings },
   ];
 
