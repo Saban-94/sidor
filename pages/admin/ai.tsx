@@ -15,11 +15,11 @@ const WA_TEXT = "text-[#e9edef]";
 const WA_SUB = "text-[#8696a0]";
 
 const QUICK_QUERIES = [
-  { label: 'סטטוס העמסות יומי', icon: '📈', color: 'text-emerald-500' },
-  { label: 'מצבת מכולות פעילה', icon: '🏗️', color: 'text-amber-500' },
-  { label: 'לוגיסטיקה בין-סניפית', icon: '🚛', color: 'text-blue-500' },
+  { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
+  { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
+  { label: 'מכולת פסולת בנין', icon: '🚛', color: 'text-blue-500' },
   { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
-  { label: 'שעות פעילות ומענה', icon: '🏢', color: 'text-slate-400' },
+  { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
   { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
   { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' },
   { label: '피נוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
