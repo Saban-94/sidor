@@ -16,32 +16,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'admin';
 
-    // 1. שליפת זיכרון ומצב שטח
+    // --- בלוק 1: שליפת נתונים וזיכרון ---
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     let { data: activeContainers } = await supabase.from('container_management').select('*').eq('is_active', true);
     
-    // 2. חילוץ שמות ומידע למניעת לופים
-    const searchTerms = cleanMsg.replace(/הלקוח|של|זה|הוא|אני/g, '').trim();
+    // --- בלוק 2: בדיקת כפילות בכתובת (חוק חסימת הצבה כפולה) ---
+    let addressConflictWarning = "";
+    const addressMatch = cleanMsg.match(/(?:ב|בכתובת\s+)([א-ת\s\d]+)(?=\s|$)/)?.[1]?.trim();
+    
+    if (addressMatch) {
+      const existingInAddress = activeContainers?.filter(c => c.delivery_address.includes(addressMatch));
+      if (existingInAddress && existingInAddress.length > 0 && !cleanMsg.includes("נוספת")) {
+        addressConflictWarning = `⚠️ אזהרה: בכתובת זו כבר קיימת מכולה פעילה של ${existingInAddress[0].contractor_name}.`;
+      }
+    }
+
     const localUpdatedHistory = (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}`;
 
-    // 3. הפרומפט המהודק - "חוק ההודעה המלאה"
+    // --- בלוק 3: הפרומפט הטקטי המעודכן ---
     const prompt = `
-      זהות: מפקח מכולות בשרון. סגנון: קצר, חד, ללא כוכביות.
-      משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴.
+      זהות: חכם של מכולות פינוי פסולת בשרון.
+      משימה: ניהול הצבה 🟢, החלפה ♻️, הוצאה 🔴 בשיטת "פינג-פונג".
       
-      חוקים קריטיים למניעת לופים:
-      - חוק הודעה מלאה: אם המשתמש סיפק שם, כתובת וקבלן בהודעה אחת - בצע הזרקה (DATA_START) מיד! אל תשאל שאלות נוספות.
-      - אם המשתמש אישר "כן" לשם הלקוח, עבור מיד לכתובת.
-      - חוק 10 ימים: תאריך סיום = תאריך ביצוע + 10 ימים.
-      - מכולות פעילות בשטח: ${JSON.stringify(activeContainers)}
-      - היסטוריית שיחה: ${localUpdatedHistory}
+      חוק חסימת הצבה כפולה:
+      - אם מצאת במידע השטח שיש כבר מכולה בכתובת: ${addressConflictWarning}
+      - חובה לעצור ולשאול: "בוס, יש שם כבר מכולה. להוסיף מכולה נוספת לאותה כתובת או לבצע החלפה?"
+      - אל תבצע הזרקה (DATA_START) אלא אם המשתמש כתב במפורש "מכולה נוספת".
 
-      עץ שאלות (אם חסר מידע): 1. לקוח -> 2. כתובת -> 3. פעולה -> 4. קבלן -> 5. זמן.
+      חוקים נוספים:
+      - איסור ערבוב קבלנים: רק מי שהציב יכול להחליף/להוציא.
+      - 10 ימי שכירות: תמיד חשב return_date (תאריך ביצוע + 10 ימים).
+      - ללא כוכביות (**). טקסט נקי ומעוצב.
+
+      מידע שטח: ${JSON.stringify(activeContainers)}
+      היסטוריה: ${localUpdatedHistory}
 
       DATA_START{"complete": true, "client": "שם", "address": "כתובת", "action": "PLACEMENT/EXCHANGE/REMOVAL", "contractor": "קבלן", "date": "YYYY-MM-DD", "time": "HH:mm", "return_date": "YYYY-MM-DD"}DATA_END
     `;
 
-    // 4. הרצה מול Gemini
+    // --- בלוק 4: פנייה ל-AI ---
     let replyText = "";
     const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview"];
     for (const modelName of modelPool) {
@@ -59,30 +72,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let isComplete = false;
 
-    // 5. הזרקה כפולה מותאמת (Containers + Orders)
+    // --- בלוק 5: הזרקה כפולה מותאמת ללוח חומרי בניין (Orders) ---
     if (replyText.includes('DATA_START')) {
       try {
         const jsonMatch = replyText.match(/\{.*\}/s);
         if (jsonMatch) {
           const d = JSON.parse(jsonMatch[0]);
 
-          // א. הזרקה לניהול מכולות
+          // א. ניקוי מכולות ישנות (רק אם זו לא הצבה נוספת)
+          if ((d.action === 'REMOVAL' || d.action === 'EXCHANGE') && !cleanMsg.includes("נוספת")) {
+            await supabase.from('container_management').update({ is_active: false }).eq('delivery_address', d.address).eq('is_active', true);
+          }
+
+          // ב. הזרקה לניהול מכולות
           await supabase.from('container_management').insert([{
             client_name: d.client, delivery_address: d.address, action_type: d.action,
             contractor_name: d.contractor, start_date: d.date, order_time: d.time,
             return_deadline: d.return_date, is_active: d.action !== 'REMOVAL', status: 'approved'
           }]);
 
-          // ב. הזרקה לטבלת Orders (מבנה ה-SQL שלך)
+          // ג. הזרקה מותאמת לטבלת ORDERS (להצגה בלוח חומרי בניין)
           const { error: orderError } = await supabase.from('orders').insert([{
             order_number: Math.floor(Math.random() * 9000) + 1000,
             delivery_date: d.date,
             order_time: d.time,
-            client_info: `📦 מכולה: ${d.client} | ${d.action} | יעד החזרה: ${d.return_date}`,
+            // עיצוב התיאור שיוצג בכרטיס
+            client_info: `📦 מכולה | ${d.client} | ${d.action} | יעד: ${d.return_date}`,
             location: d.address,
             driver_name: d.contractor,
             status: 'approved',
-            warehouse: 'מכולות בשרון'
+            warehouse: 'מכולות' // סיווג המקור
           }]);
 
           if (!orderError) isComplete = true;
@@ -90,11 +109,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { console.error("Error", e); }
     }
 
-    // 6. עדכון זיכרון
+    // --- בלוק 6: עדכון זיכרון ---
     const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${replyText}`;
     await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
-    return res.status(200).json({ reply: isComplete ? `✅ בוס, המשימה בוצעה! יעד החזרה: ${JSON.parse(replyText.match(/\{.*\}/s)![0]).return_date} 🚀` : replyText });
+    return res.status(200).json({ reply: isComplete ? `✅ בוס, המשימה בוצעה והוזרקה ללוח! יעד החזרה: ${JSON.parse(replyText.match(/\{.*\}/s)![0]).return_date} 🚀` : replyText });
 
   } catch (e) {
     return res.status(200).json({ reply: "בוס, המוח התעייף. נסה שוב." });
