@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!cleanMsg) return res.status(200).json({ reply: "שלום, במה אוכל לעזור?" });
 
-  const modelPool = ["gemini-2.0-pro-exp-02-05", "gemini-2.0-flash", "gemini-3.1-flash-lite-preview"];
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
@@ -24,36 +24,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge, user_name').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name;
 
-    // 2. חיפוש ידע מאומן (AI Training) - חיפוש משופר
-    // אנחנו בודקים אם יש התאמה לאחד המילים המרכזיות בהודעה
+    // 2. חיפוש ידע מאומן (AI Training) - לוגיקה חכמה
     const searchTerms = cleanMsg.split(/\s+/).filter(w => w.length > 2);
     let trainingAnswer = "";
 
     if (searchTerms.length > 0) {
-      // מחפשים בטבלה שורות שמכילות את המילים ששאל הלקוח
       const { data: matches } = await supabase
         .from('ai_training')
         .select('answer')
         .or(searchTerms.map(word => `question.ilike.%${word}%`).join(','));
       
       if (matches && matches.length > 0) {
-        trainingAnswer = matches.map(m => m.answer).join("\n\n");
+        trainingAnswer = matches.map(m => m.answer).join("\n");
       }
     }
 
-    // 3. בניית ה-Prompt - פקודות ברזל
+    // 3. בניית ה-Prompt - הוראות שירותיות ללא "באגים" בטקסט
     const prompt = `
       זהות: שירות לקוחות סבן 1994.
-      לקוח: ${currentUserName || 'אורח'}.
-      מידע מהמערכת (חובה להשתמש!): ${trainingAnswer || "לא נמצא מידע ספציפי בטבלה"}.
+      שם הלקוח: ${currentUserName || 'אורח'}.
+      מידע פנימי מהמערכת: ${trainingAnswer || "השתמש בידע כללי שירותי בלבד"}.
 
-      חוקים:
-      - אם יש "מידע מהמערכת", תן אותו מיד! אל תגיד שאין לך מידע.
-      - לעולם אל תשתמש במילה "בוס".
-      - היה קצר ותכליתי. בלי חפירות ובלי הקדמות מיותרות.
-      - אם השם ידוע (${currentUserName}), פנה אליו בשמו.
+      חוקים קשיחים:
+      - לעולם אל תגיד את המשפט "לא נמצא מידע ספציפי בטבלה"! זה משפט פנימי.
+      - אם יש "מידע פנימי מהמערכת", הוא המקור הבלעדי והמחייב שלך. תן אותו מיד.
+      - אם אין מידע פנימי לגבי מייל או טלפון, ענה שאינך יודע ובקש מהלקוח להמתין למענה אנושי או לנסח שוב.
+      - פנה ללקוח בשמו (${currentUserName || 'אורח'}).
+      - היה אדיב, קצר ותכליתי. ללא המילה "בוס".
       
-      הודעה: ${cleanMsg}
+      שאלה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || ""}
     `;
 
@@ -75,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 4. עדכון זיכרון
     await supabase.from('customer_memory').update({ 
-      accumulated_knowledge: (memory?.accumulated_knowledge || "").slice(-1000) + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
+      accumulated_knowledge: (memory?.accumulated_knowledge || "").slice(-1200) + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
     }).eq('clientId', phone);
 
     return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
