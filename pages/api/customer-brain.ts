@@ -13,16 +13,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  // בדיקות תקינות כפי שביקשת
   if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה השאלה?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח API חסר בשרת." });
 
-  // עדכון שמות המודלים
-const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
+
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון לקוח ושם משתמש
+    // 1. שליפת זיכרון
     let { data: memory } = await supabase
       .from('customer_memory')
       .select('accumulated_knowledge, user_name')
@@ -38,28 +37,36 @@ const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
       memory = newUser;
     }
 
-    const userName = memory?.user_name;
+    // 2. זיהוי שם אגרסיבי (כדי למנוע לופים)
+    let currentUserName = memory?.user_name;
+    const nameKeywords = ["אני", "שמי", "זה", "קוראים לי"];
+    
+    // אם אין שם ויש הודעה קצרה, או הודעה שמכילה מילת זיהוי
+    if (!currentUserName && (cleanMsg.length < 12 || nameKeywords.some(k => cleanMsg.includes(k)))) {
+      const extracted = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
+      if (extracted.length >= 2) {
+        await supabase.from('customer_memory').update({ user_name: extracted }).eq('clientId', phone);
+        currentUserName = extracted; // עדכון מיידי למשתנה המקומי
+      }
+    }
 
-    // 2. בניית ה-Prompt האישי (ללא הצגת דאטה מיותרת)
+    // 3. בניית ה-Prompt עם הוראה מפורשת
     const prompt = `
       זהות: המוח של סבן 1994. 
-      סגנון: מקצועי, חד, ענייני, ואישי מאוד.
+      משתמש נוכחי: ${currentUserName || 'לא ידוע'}.
       
-      חוקי ניהול שיחה:
-      - אם ה-userName הוא "${userName || 'לא ידוע'}", ואין לך שם, ברך את המשתמש ובקש את שמו לפני הכל.
-      - אל תציג רשימות הזמנות או נתונים אלא אם נשאלת במפורש "מה הלו"ז?" או "הצג הזמנות".
-      - לווה כל תשובה בפנייה אישית בשם המשתמש (אם ידוע).
-      - אם המשתמש מוסר פרטי הזמנה (מכולה/חומרים), בצע הזרקה ולווה באישור אישי.
+      חוקים קשיחים:
+      1. אם שם המשתמש הוא "${currentUserName || 'לא ידוע'}" וזה לא "לא ידוע", אסור לך בשום פנים ואופן לשאול מה שמו!
+      2. אם השם הוא "לא ידוע", בקש אותו בנימוס פעם אחת בלבד.
+      3. פנה תמיד בשם המשתמש אם הוא ידוע.
+      4. אל תציג רשימות הזמנות/דאטה אלא אם נשאלת במפורש על סטטוס או לו"ז.
+      5. סגנון: מקצועי, ענייני, וקצר.
 
-      שם משתמש נוכחי: ${userName || 'לא ידוע'}
-      היסטוריה: ${memory?.accumulated_knowledge || ""}
-      הודעה חדשה: ${cleanMsg}
-      חתימה: ![AI-ח.סבן](https://i.postimg.cc/3wTMxG7W/ai.jpg)
-      פלט הזרקה (רק אם נדרש): DATA_START{...}DATA_END
+      הודעת המשתמש: ${cleanMsg}
+      היסטוריית שיחה: ${memory?.accumulated_knowledge || ""}
     `;
 
     let replyText = "";
-    // לופ ניסיון בין המודלים המעודכנים
     for (const modelName of modelPool) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -73,18 +80,7 @@ const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-flash"];
       } catch (e) { continue; }
     }
 
-    // 3. זיהוי ושמירת שם משתמש אם הוצג בשיחה
-    if (!userName && cleanMsg.length < 25) {
-        const nameKeywords = ["אני", "שמי", "קוראים לי", "זה"];
-        if (nameKeywords.some(k => cleanMsg.includes(k))) {
-            const extractedName = cleanMsg.split(" ").pop()?.replace(/[?!.]/g, "");
-            if (extractedName) {
-                await supabase.from('customer_memory').update({ user_name: extractedName }).eq('clientId', phone);
-            }
-        }
-    }
-
-    // 4. עדכון הזיכרון הכללי
+    // 4. שמירת היסטוריה
     await supabase.from('customer_memory').update({ 
       accumulated_knowledge: (memory?.accumulated_knowledge || "") + `\nUser: ${cleanMsg}\nAI: ${replyText}` 
     }).eq('clientId', phone);
