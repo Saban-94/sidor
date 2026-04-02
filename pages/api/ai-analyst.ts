@@ -27,6 +27,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted'),
       supabase.from('container_management').select('*').eq('start_date', today).neq('status', 'deleted'),
       supabase.from('transfers').select('*').eq('transfer_date', today)
+  
+
+if (cleanMsg.includes("דוח") || cleanMsg.includes("כמה סופקו")) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 1. שליפת הנתונים הגולמיים
+  const { data: rawOrders } = await supabase
+    .from('orders')
+    .select('client_info')
+    .eq('delivery_date', today)
+    .neq('status', 'deleted');
+
+  if (!rawOrders || rawOrders.length === 0) {
+    return res.status(200).json({ reply: "בוס, אין הזמנות רשומות להיום." });
+  }
+
+  // 2. לוגיקת ה-UI/UX: קיבוץ לפי שם לקוח (כאן הקסם קורה!)
+  const grouped = rawOrders.reduce((acc: any, curr: any) => {
+    // מנקה את שם הלקוח מתוך ה-client_info (לוקח רק את השם לפני ה-|)
+    const name = curr.client_info.split('|')[0].trim().replace('📦', '');
+    acc[name] = (acc[name] || 0) + 1;
+    return acc;
+  }, {});
+
+  // 3. בניית המענה המעוצב
+  let report = `📦 *סיכום אספקות יומי* | ${today}\n`;
+  report += `──────────────────\n`;
+
+  Object.entries(grouped).forEach(([name, count]) => {
+    report += `👤 *${name}*\n└  ✅ ${count} הזמנות אושרו\n\n`;
+  });
+
+  report += `──────────────────\n`;
+  report += `📊 *סה"כ כללי:* ${rawOrders.length} משימות בביצוע\n`;
+  report += `🚀 *Saban OS - Live Update*`;
+
+  // 4. שליחת המענה המעוצב סופית
+  return res.status(200).json({ reply: report });
+}
     ]);
 
     const contextData = `
