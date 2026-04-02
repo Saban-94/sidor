@@ -20,8 +20,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-    
-    // 1. ניהול זיכרון לקוח
+
+    // --- שלב א': בדיקה בטבלת אימונים (הזרקת ידע מהבוס) ---
+    const { data: trainingMatch } = await supabase
+      .from('ai_training')
+      .select('answer')
+      .ilike('question', `%${cleanMsg}%`) // חיפוש גמיש בשאלה
+      .limit(1)
+      .maybeSingle();
+
+    if (trainingMatch) {
+      return res.status(200).json({ 
+        reply: `${trainingMatch.answer}\n\n![Saban](https://cdn-icons-png.flaticon.com/512/2318/2318048.png)` 
+      });
+    }
+
+    // --- שלב ב': ניהול זיכרון ופנייה ל-AI ---
     let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge').eq('clientId', phone).maybeSingle();
     
     if (!memory) {
@@ -84,7 +98,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let finalReply = replyText;
     let isComplete = false;
 
-    // 2. עיבוד הזרקה ל-DB
     if (replyText.includes('DATA_START')) {
       const jsonMatch = replyText.match(/\{.*\}/s);
       if (jsonMatch) {
@@ -137,7 +150,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. עדכון זיכרון - אם בוצעה פעולה, מנקים היסטוריה זמנית
     const newHistory = isComplete ? "" : localUpdatedHistory + `\nAssistant: ${finalReply}`;
     await supabase.from('customer_memory').update({ accumulated_knowledge: newHistory }).eq('clientId', phone);
 
