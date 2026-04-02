@@ -18,11 +18,11 @@ const QUICK_QUERIES = [
   { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
   { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
   { label: 'מכולת פסולת בנין', icon: '🚛', color: 'text-blue-500' },
-  { label: 'תבדוק לי איפה הנהג?', icon: '🎯', color: 'text-red-500' },
+  { label: 'מעקב שארק 30', icon: '🎯', color: 'text-red-500' },
   { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
-  { label: 'תיצור לי כרטיס לקוח ', icon: '👤', color: 'text-purple-500' },
-  { label: 'איך מזמינים', icon: '📄', color: 'text-emerald-400' },
-  { label: 'קיבלתי התראה פינוי למכולה', icon: '⚠️', color: 'text-orange-500' }
+  { label: 'איתור לקוח במערכת', icon: '👤', color: 'text-purple-500' },
+  { label: 'דו"ח ביצועים יומי', icon: '📄', color: 'text-emerald-400' },
+  { label: '피נוי מכולות דחוף', icon: '⚠️', color: 'text-orange-500' }
 ];
 
 export default function SabanAIAssistant() {
@@ -71,7 +71,7 @@ export default function SabanAIAssistant() {
 
         <header className="h-16 flex items-center justify-between px-6 bg-[#202c33]/80 backdrop-blur-md border-b border-white/5 shrink-0">
           <Menu size={24} />
-          <div className="flex items-center gap-2"><img src={https://ibb.co/jPFtvHfY} className="w-8 h-8 rounded-full"/><span className="font-black text-emerald-500">SABAN AI</span></div>
+          <div className="flex items-center gap-2"><img src={SABAN_LOGO} className="w-8 h-8 rounded-full"/><span className="font-black text-emerald-500">SABAN AI</span></div>
           <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs">ON</div>
         </header>
 
