@@ -2,45 +2,39 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
-import Head from 'next/head';
 
-// טעינה דינמית של ה-AI STUDIO החדש - פריסה מלאה
+// טעינה דינמית של ה-AI STUDIO כרכיב הראשי והיחיד
 const SabanAIStudio = dynamic(() => import('../../pages/admin/ai'), { 
   ssr: false,
   loading: () => (
     <div className="h-screen w-full bg-[#020617] flex items-center justify-center">
       <div className="text-emerald-500 animate-pulse font-black text-xl italic tracking-tighter">
-        SABAN AI CORE LOADING...
+        SABAN AI CORE | INITIALIZING...
       </div>
     </div>
   )
 });
 
-export default function Dashboard() {
+export const Dashboard: React.FC = () => {
   return (
-    <div className="h-screen w-full bg-[#020617] overflow-hidden" dir="rtl">
-      <Head>
-        <title>AI | ח.סבן</title>
-      </Head>
-
-      {/* פריסה של 100% מהמסך רק עבור הממשק החדש */}
-      <main className="h-full w-full">
+    <div className="h-screen w-full bg-[#020617] overflow-hidden">
+      {/* אין יותר Sidebars, אין יותר ChatWindow חיצוני - רק המוח החדש */}
+      <main className="h-full w-full relative">
         <SabanAIStudio />
-      </div>
+      </main>
 
-      {/* ביטול גלילה מיותרת ותיקון באגים ויזואליים */}
       <style jsx global>{`
+        /* ביטול שוליים וגלילה כפולה של הדף הישן */
         body, html {
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-          background-color: #020617;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
         }
-        /* הסתרת אלמנטים שעלולים לצוף מהדף המקורי */
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
+        /* הסתרת אלמנטים ישנים שעלולים להופיע מה-Layout הכללי */
+        aside, header:not(.ai-header) {
+          display: none !important;
         }
       `}</style>
     </div>
   );
-}
+};
