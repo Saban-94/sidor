@@ -11,7 +11,7 @@ export default function InventoryBrain() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [huntQuery, setHuntQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]); // תוצאות מרובות מגוגל
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,7 +28,6 @@ export default function InventoryBrain() {
     return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="%2394a3b8">אין תמונה</text></svg>`;
   };
 
-  // ציד מרוב תוצאות
   const runHunt = async () => {
     if (!huntQuery) return;
     setLoading(true);
@@ -40,12 +39,11 @@ export default function InventoryBrain() {
         body: JSON.stringify({ query: huntQuery, multi: true }),
       });
       const data = await res.json();
-      setSearchResults(data.results || []); // גוגל מחזיר עכשיו מערך
+      setSearchResults(data.results || []);
       setIsMobileMenuOpen(false);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-  // הזרקה בלחיצה מהגלריה לטופס
   const injectResult = (res: any) => {
     setEditingProduct({
       ...editingProduct,
@@ -54,11 +52,10 @@ export default function InventoryBrain() {
       image_url: res.image || editingProduct?.image_url,
       youtube_url: res.youtube || editingProduct?.youtube_url,
       sku: editingProduct?.sku || `SBN-${Math.floor(10000 + Math.random() * 89999)}`,
-      // שדות טכניים חדשים
-      dry_time: "",
-      coverage_rate: "",
-      application_method: "",
-      price: 0
+      dry_time: editingProduct?.dry_time || "",
+      coverage_rate: editingProduct?.coverage_rate || "",
+      application_method: editingProduct?.application_method || "",
+      price: editingProduct?.price || 0
     });
     setIsModalOpen(true);
   };
@@ -87,6 +84,13 @@ export default function InventoryBrain() {
     } else { alert("שגיאה: " + error.message); }
   };
 
+  const deleteProduct = async (id: string) => {
+    if (!confirm('למחוק מוצר זה מהמוח?')) return;
+    const { error } = await supabase.from('inventory').delete().eq('id', id);
+    if (!error) fetchInventory();
+    else alert("שגיאה במחיקה: " + error.message);
+  };
+
   return (
     <div className="min-h-screen bg-[#fcfdfe] text-slate-900 font-sans overflow-x-hidden" dir="rtl">
       
@@ -100,7 +104,6 @@ export default function InventoryBrain() {
       </div>
 
       <div className="flex max-w-[1600px] mx-auto">
-        {/* Desktop Sidebar */}
         <aside className="hidden lg:flex flex-col w-80 h-screen sticky top-0 border-l bg-white p-6 overflow-y-auto">
           <h1 className="text-2xl font-black mb-8 italic">Saban OS <span className="text-blue-600 text-sm not-italic font-bold">V3.0</span></h1>
           
@@ -121,7 +124,6 @@ export default function InventoryBrain() {
             </button>
           </div>
 
-          {/* תוצאות ציד מהירות בסיידבר */}
           {searchResults.length > 0 && (
             <div className="mt-10 space-y-4">
               <h3 className="text-xs font-black text-blue-600 uppercase">תוצאות שנמצאו ({searchResults.length})</h3>
@@ -135,11 +137,8 @@ export default function InventoryBrain() {
           )}
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-4 lg:p-10 overflow-y-auto">
+        <main className="flex-1 p-4 lg:p-10">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            
-            {/* Inventory List */}
             <div className="xl:col-span-8 space-y-6">
               <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-50 overflow-hidden">
                 <div className="p-8 border-b bg-slate-50/30 flex justify-between items-center">
@@ -160,13 +159,8 @@ export default function InventoryBrain() {
                               <div className="text-[10px] text-slate-400">#{p.sku}</div>
                             </div>
                           </td>
-                          <td className="p-6">
-                            <div className="flex flex-col items-center gap-1">
-                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500" style={{ width: '90%' }}></div>
-                              </div>
-                              <span className="text-[9px] font-bold text-slate-400">90% מושלם</span>
-                            </div>
+                          <td className="p-6 text-center font-bold text-xs">
+                             <div className="inline-block px-3 py-1 bg-green-50 text-green-600 rounded-full">Optimized</div>
                           </td>
                           <td className="p-6 flex justify-end gap-2">
                             <button onClick={() => { setEditingProduct(p); setIsModalOpen(true); }} className="p-2 bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600"><Edit2 size={16}/></button>
@@ -180,90 +174,61 @@ export default function InventoryBrain() {
               </div>
             </div>
 
-            {/* Mobile Simulator (The Link Magic) */}
+            {/* Mobile Simulator Preview */}
             <div className="xl:col-span-4 flex justify-center">
               <div className="sticky top-24 w-[300px] h-[620px] bg-slate-900 rounded-[3.5rem] p-3 shadow-2xl border-[8px] border-slate-800 hidden xl:block">
                 <div className="bg-white h-full w-full rounded-[2.5rem] overflow-hidden flex flex-col relative">
-                   <div className="absolute top-2 right-2 bg-blue-600 text-white text-[8px] font-black px-2 py-1 rounded-full z-10 animate-pulse">LIVE PREVIEW</div>
                   <img src={getSafeImage(editingProduct?.image_url)} className="w-full h-48 object-cover" />
                   <div className="p-5 flex-1 flex flex-col">
                     <h3 className="text-lg font-black leading-tight text-slate-800">{editingProduct?.product_name || "ממתין לבחירה..."}</h3>
-                    <div className="grid grid-cols-2 gap-2 mt-4">
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                         <span className="text-[8px] text-slate-400 font-bold block">ייבוש</span>
-                         <span className="text-[10px] font-black text-slate-700">{editingProduct?.dry_time || "---"}</span>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                         <span className="text-[8px] text-slate-400 font-bold block">כיסוי</span>
-                         <span className="text-[10px] font-black text-slate-700">{editingProduct?.coverage_rate || "---"}</span>
-                      </div>
+                    <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] font-bold">
+                       <div className="bg-slate-50 p-2 rounded-lg">ייבוש: {editingProduct?.dry_time || "---"}</div>
+                       <div className="bg-slate-50 p-2 rounded-lg">כיסוי: {editingProduct?.coverage_rate || "---"}</div>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-4 line-clamp-3 italic leading-relaxed">{editingProduct?.description || "מפרט טכני יופיע כאן..."}</p>
-                    <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
+                    <p className="text-[10px] text-slate-500 mt-4 line-clamp-3 leading-relaxed">{editingProduct?.description || "מפרט טכני יופיע כאן..."}</p>
+                    <div className="mt-auto pt-4 flex justify-between items-center border-t">
                       <div className="text-xl font-black text-slate-900">₪{editingProduct?.price || '0'}</div>
-                      <button className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-[10px] shadow-lg shadow-slate-200">הוספה לסל</button>
+                      <button className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-[10px]">הוספה לסל</button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
         </main>
       </div>
 
-      {/* Modern Ingestion Modal with Tech Fields */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-0 lg:p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
           <div className="relative bg-white w-full max-w-4xl rounded-t-[2.5rem] lg:rounded-[3rem] shadow-2xl p-6 lg:p-10 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-black">הזרקת מוצר <span className="text-blue-600 font-normal italic">Smart Ingest</span></h2>
+              <h2 className="text-2xl font-black">הזרקת מוצר <span className="text-blue-600 font-normal italic">V3</span></h2>
               <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={24}/></button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar p-2">
-              {/* עמודה 1: בסיס */}
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <Field label="שם המוצר" value={editingProduct?.product_name} onChange={v => setEditingProduct({...editingProduct, product_name: v})} />
                 <Field label="מק״ט (SKU)" value={editingProduct?.sku} onChange={v => setEditingProduct({...editingProduct, sku: v})} />
-                <Field label="מחיר סבן (₪)" type="number" value={editingProduct?.price} onChange={v => setEditingProduct({...editingProduct, price: v})} />
+                <Field label="מחיר (₪)" type="number" value={editingProduct?.price} onChange={v => setEditingProduct({...editingProduct, price: v})} />
               </div>
-              
-              {/* עמודה 2: מפרט טכני למחשבון */}
-              <div className="space-y-6">
-                 <div className="bg-blue-50 p-4 rounded-3xl space-y-4">
-                    <h4 className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2"><Info size={12}/> נתוני מחשבון כמויות</h4>
-                    <Field label="זמן ייבוש (למשל: 4 שעות)" value={editingProduct?.dry_time} onChange={v => setEditingProduct({...editingProduct, dry_time: v})} />
-                    <Field label="כמות כיסוי (מ״ר לק״ג/ליטר)" value={editingProduct?.coverage_rate} onChange={v => setEditingProduct({...editingProduct, coverage_rate: v})} />
-                    <Field label="שיטת יישום (מברשת/רולר/התזה)" value={editingProduct?.application_method} onChange={v => setEditingProduct({...editingProduct, application_method: v})} />
-                 </div>
+              <div className="space-y-4 bg-blue-50/50 p-4 rounded-3xl">
+                <Field label="זמן ייבוש" value={editingProduct?.dry_time} onChange={v => setEditingProduct({...editingProduct, dry_time: v})} />
+                <Field label="כמות כיסוי" value={editingProduct?.coverage_rate} onChange={v => setEditingProduct({...editingProduct, coverage_rate: v})} />
+                <Field label="שיטת יישום" value={editingProduct?.application_method} onChange={v => setEditingProduct({...editingProduct, application_method: v})} />
               </div>
-
-              {/* עמודה 3: מדיה ותיאור */}
-              <div className="space-y-6">
-                 <Field label="לינק לתמונה" value={editingProduct?.image_url} onChange={v => setEditingProduct({...editingProduct, image_url: v})} />
-                 <Field label="לינק סרטון (Youtube)" value={editingProduct?.youtube_url} onChange={v => setEditingProduct({...editingProduct, youtube_url: v})} />
-                 <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">תיאור מוצר מלא</label>
-                    <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs h-32 outline-none focus:border-blue-500 font-medium" value={editingProduct?.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
-                 </div>
+              <div className="space-y-4">
+                <Field label="לינק תמונה" value={editingProduct?.image_url} onChange={v => setEditingProduct({...editingProduct, image_url: v})} />
+                <textarea className="w-full p-4 bg-slate-50 border-2 rounded-2xl text-xs h-24 outline-none font-medium" placeholder="תיאור מלא" value={editingProduct?.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
               </div>
             </div>
-
             <div className="mt-10 flex gap-4">
-              <button onClick={saveToDB} className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-2xl shadow-blue-200 hover:scale-[1.02] transition-all">שמור והזרק למוח המלאי</button>
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-white text-slate-500 py-5 rounded-[2rem] font-black border-2 border-slate-100">ביטול</button>
+              <button onClick={saveToDB} className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl hover:scale-[1.01] transition-all">שמור והזרק למוח המלאי</button>
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-white text-slate-500 py-5 rounded-[2rem] font-black border-2">ביטול</button>
             </div>
           </div>
         </div>
       )}
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        body { -webkit-overflow-scrolling: touch; }
-      `}</style>
     </div>
   );
 }
@@ -271,13 +236,8 @@ export default function InventoryBrain() {
 function Field({ label, value, onChange, type = "text" }: any) {
   return (
     <div>
-      <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block tracking-tight">{label}</label>
-      <input 
-        type={type} 
-        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-[1.2rem] text-sm outline-none focus:border-blue-500 font-bold transition-all" 
-        value={value || ''} 
-        onChange={e => onChange(e.target.value)} 
-      />
+      <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">{label}</label>
+      <input type={type} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-[1.2rem] text-sm outline-none focus:border-blue-500 font-bold" value={value || ''} onChange={e => onChange(e.target.value)} />
     </div>
   );
 }
