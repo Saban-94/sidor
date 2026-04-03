@@ -42,6 +42,28 @@ export default function SabanAIAssistant() {
     }
   }, [messages, loading, streamingText]);
 
+  // useEffect חדש: האזנה להודעות מה-Iframe של כרטיס המוצר
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // בדיקה שההודעה הגיעה מהסוג ששלחנו בכרטיס המוצר
+      if (event.data.type === 'ADD_TO_ORDER') {
+        const { productName, quantity, sku } = event.data;
+        
+        // 1. סגירת הכרטיס הצף
+        setSelectedProductSku(null);
+        
+        // 2. הזנת הטקסט בתיבת הקלט באופן אוטומטי
+        setInput(`אני רוצה להזמין ${quantity} שקים של ${productName} (מק"ט ${sku})`);
+        
+        // אופציונלי: אם תרצה שהבוט ישלח את ההודעה מיד, בטל את ההערה למטה:
+        // askAI(`אני רוצה להזמין ${quantity} שקים של ${productName} (מק"ט ${sku})`);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // פונקציה לזיהוי פקודות נסתרות מה-AI (כמו הקפצת כרטיס מוצר)
   const handleInternalCommands = (text: string) => {
     if (text.includes("SHOW_PRODUCT_CARD:")) {
@@ -117,7 +139,8 @@ export default function SabanAIAssistant() {
                 <button onClick={() => setSelectedProductSku(null)} className="p-2 hover:bg-white/5 rounded-full transition"><X size={20}/></button>
               </div>
               <div className="h-[500px] w-full bg-white">
-                <iframe src={`/product/${selectedProductSku}`} className="w-full h-full border-none" />
+                {/* הוספת embed=true כדי שהדף יידע להסתיר Header */}
+                <iframe src={`/product/${selectedProductSku}?embed=true`} className="w-full h-full border-none" />
               </div>
               <div className="p-4 bg-[#2a3942]">
                 <button onClick={() => setSelectedProductSku(null)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition shadow-lg">חזרה לשיחה</button>
@@ -144,7 +167,7 @@ export default function SabanAIAssistant() {
       </header>
 
       {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-fixed bg-center">
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-fixed bg-center bg-cover">
         <div className="absolute inset-0 bg-[#0b141a]/85 -z-10" />
         
         {messages.map((m, i) => (
