@@ -6,10 +6,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// פונקציית צייד מוצרים ברשת
+async function huntProductOnline(query: string) {
+  const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+  const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
+  
+  if (!apiKey || !cx) return null;
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מוצר טכני חומרי בניין")}`);
+    const data = await res.json();
+    
+    if (!data.items || data.items.length === 0) return null;
+
+    // לוקחים את 2 התוצאות הראשונות ומאחדים לתיאור
+    const description = data.items.slice(0, 2).map((item: any) => item.snippet).join(" | ");
+    const firstTitle = data.items[0].title;
+
+    return {
+      product_name: firstTitle.split('|')[0].trim(),
+      description: description,
+      sku: `AI-${Math.floor(1000 + Math.random() * 9000)}`,
+      search_text: query.toLowerCase()
+    };
+  } catch (e) {
+    console.error("Google Search Error:", e);
+    return null;
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
@@ -45,38 +74,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. חיפוש מוצר ואימון - לוגיקה מדויקת
+    // 3. חיפוש מוצר ואימון
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let trainingAnswer = "";
     let inventoryData = "";
 
     if (searchWords.length > 0) {
-      // א. חיפוש מוצר מדויק במלאי (עדיפות עליונה)
+      // א. חיפוש מוצר מדויק במלאי
       const { data: exactProduct } = await supabase
         .from('inventory')
-        .select('product_name, sku, consumption_per_mm, packaging_size, price, search_text')
+        .select('*')
         .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`)
         .limit(1)
         .maybeSingle();
 
       if (exactProduct) {
-        inventoryData = `מוצר מדויק נמצא: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, צריכה: ${exactProduct.consumption_per_mm}, שק: ${exactProduct.packaging_size}. לינק: https://sidor.vercel.app/product/${exactProduct.sku}`;
+        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, צריכה: ${exactProduct.consumption_per_mm}, שק: ${exactProduct.packaging_size}.`;
       } else {
-        // ב. חיפוש גמיש אם לא נמצא מוצר מדויק
+        // ב. חיפוש גמיש במלאי
         const { data: relatedProducts } = await supabase
           .from('inventory')
-          .select('product_name, sku, consumption_per_mm, packaging_size, price')
+          .select('product_name, sku, price, search_text')
           .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
           .limit(2);
 
         if (relatedProducts && relatedProducts.length > 0) {
           inventoryData = relatedProducts.map(p => 
-            `מוצר רלוונטי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}, צריכה: ${p.consumption_per_mm}, שק: ${p.packaging_size}. לינק: https://sidor.vercel.app/product/${p.sku}`
+            `מוצר רלוונטי במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}.`
           ).join("\n");
+        } else {
+          // ג. אם אין כלום במלאי - יוצאים לציד ברשת!
+          const hunted = await huntProductOnline(cleanMsg);
+          if (hunted) {
+            // שמירה לשימוש חוזר (Ingestion)
+            const { data: saved } = await supabase.from('inventory').insert([{
+              ...hunted,
+              is_ai_learned: true,
+              price: 0 // מחיר דמה עד שסבן יעדכן
+            }]).select().single();
+
+            if (saved) {
+              inventoryData = `מוצר חדש אותר ברשת ונשמר למערכת: ${saved.product_name}, מק"ט זמני: ${saved.sku}. תיאור: ${saved.description}`;
+            }
+          }
         }
       }
 
-      // ג. חיפוש בטבלת אימון (תמיד רץ במקביל)
+      // ד. חיפוש בטבלת אימון
       const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
       const { data: matches } = await supabase
         .from('ai_training')
@@ -84,55 +128,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .or(orCondition);
       
       if (matches && matches.length > 0) {
-        trainingAnswer = matches.map(m => m.answer).join("\n\n---\n\n");
+        trainingAnswer = matches.map(m => m.answer).join("\n");
       }
     }
 
     // 4. בניית ה-Prompt
     const prompt = `
-      זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין" (חומרי בניין ולוגיסטיקה).
+      זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין".
       לקוח: ${currentUserName || 'אורח'}.
       
-      מידע פנימי (אימון): 
-      ${trainingAnswer || "אין מידע ספציפי."}
-      
-      נתוני מלאי חיים:
-      ${inventoryData || "לא נמצאו מוצרים תואמים במלאי."}
+      מידע פנימי (אימון): ${trainingAnswer || "אין."}
+      נתוני מלאי: ${inventoryData || "לא נמצאו מוצרים תואמים."}
 
-      חוקים קשיחים:
-      1. אם מצאת מוצר במלאי, ענה עליו במקצועיות והוסף בסוף התשובה את הקוד: SHOW_PRODUCT_CARD:[SKU] (החלף [SKU] במק"ט האמיתי).
-      2. השתמש בלינק הקסם: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
-      3. פנה ללקוח בשמו אם הוא ידוע.
-      4. אל תשתמש לעולם במילה "בוס".
-      5. היה תמציתי ומקצועי. שמור על פורמט Markdown.
+      חוקים:
+      1. אם מצאת מוצר (גם כזה שנלמד עכשיו), הוסף בסוף: SHOW_PRODUCT_CARD:[SKU].
+      2. לינק להזמנה: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
+      3. אם המוצר "חדש מהרשת", ציין שזה מידע טכני כללי ומומלץ לוודא זמינות סופית מול הנציג.
+      4. היה תמציתי ומקצועי. אל תשתמש במילה "בוס".
       
-      הודעת הלקוח: ${cleanMsg}
+      הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
 
-    // 5. הרצה מול ה-AI
+    // 5. הרצה מול ה-AI (עם Fallback)
     let replyText = "";
     for (const modelName of modelPool) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        
-        if (text) {
-          replyText = text;
-          break;
-        }
-      } catch (e) {
-        console.error(`Error with model ${modelName}:`, e);
-      }
+        if (text) { replyText = text; break; }
+      } catch (e) { console.error(`Fallback error: ${modelName}`); }
     }
 
-    if (!replyText) throw new Error("All models failed");
+    if (!replyText) throw new Error("No AI response");
 
     // 6. עדכון זיכרון
     const newKnowledge = ((memory?.accumulated_knowledge || "") + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-1200);
@@ -145,6 +178,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     console.error("Brain Error:", error);
-    return res.status(200).json({ reply: "מצטער, אני חווה עומס קל. תוכל לנסות שוב בעוד רגע?" });
+    return res.status(200).json({ reply: "מצטער, אני חווה עומס קל. נסה שוב בעוד רגע." });
   }
 }
