@@ -1,12 +1,12 @@
+'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
   PackageSearch, Save, Youtube, Image as ImageIcon, Calculator, 
-  BrainCircuit, Search, Send, Activity, ArrowRight, HardHat
+  BrainCircuit, Search, Send, Activity, HardHat, FileText
 } from 'lucide-react';
 
-// אתחול Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -17,7 +17,6 @@ export default function InventoryBrain() {
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   
-  // שדות טופס
   const [formData, setFormData] = useState({
     product_name: '',
     description: '',
@@ -70,14 +69,22 @@ export default function InventoryBrain() {
     if (!selectedProduct) return;
     setIsSaving(true);
     
+    // יצירת מחרוזת החיפוש עבור המוח (search_text)
+    const searchText = `${formData.product_name} ${selectedProduct.sku} ${formData.description}`.toLowerCase().trim();
+    
+    const updatePayload = {
+      ...formData,
+      search_text: searchText // עדכון עמודת החיפוש שלינק קסם והמוח משתמשים בה
+    };
+
     const { error } = await supabase
       .from('inventory')
-      .update(formData)
+      .update(updatePayload)
       .eq('sku', selectedProduct.sku);
       
     setIsSaving(false);
     if (!error) {
-      alert('✅ עודכן בהצלחה במסד הנתונים!');
+      alert('✅ המוח הטכני ועמודת החיפוש עודכנו בהצלחה!');
       fetchInventory();
     } else {
       alert('❌ שגיאה בשמירה: ' + error.message);
@@ -92,51 +99,31 @@ export default function InventoryBrain() {
     setSimMessages(prev => [...prev, { role: 'user', text: userText }]);
     setIsSimTyping(true);
 
-    setTimeout(() => {
-      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, 100);
-
-    // הזרקת ה-DNA הטכני של המוצר הספציפי לסימולטור
     const dynamicContext = `
       אתה יועץ טכני מומחה של "ח. סבן".
-      הלקוח שואל כרגע על המוצר: ${formData.product_name}.
-      
-      -- נתונים טכניים יבשים --
-      ${formData.description}
-      אריזה: ${formData.packaging_size} ק"ג.
-      צריכה ממוצעת: ${formData.consumption_per_mm} למ"מ.
-      וידאו הדרכה: ${formData.youtube_url || 'אין'}
-      
-      -- 🔴 פרוטוקול חובה (הנחיות התנהגות מול המוצר) 🔴 --
-      ${formData.ai_protocol || 'הסבר באופן מקצועי, קצר וברור. הצע עזרה בחישוב כמויות.'}
-      
-      הוראה: אם הלקוח שואל איך ליישם או מה היתרונות, ענה אך ורק לפי הפרוטוקול מעלה. תהיה קצר וקולע.
+      המוצר: ${formData.product_name}.
+      נתונים: ${formData.description}. אריזה: ${formData.packaging_size} ק"ג. צריכה: ${formData.consumption_per_mm}.
+      -- פרוטוקול AI --
+      ${formData.ai_protocol}
     `;
 
     try {
-      const res = await fetch('/api/gemini', {
+      const res = await fetch('/api/customer-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userText,
-          senderPhone: "simulator",
-          context: dynamicContext
-        })
+        body: JSON.stringify({ message: userText, senderPhone: "simulator", context: dynamicContext })
       });
       const data = await res.json();
       setSimMessages(prev => [...prev, { role: 'ai', text: data.reply || 'שגיאה מהמוח' }]);
     } catch (e) {
-      setSimMessages(prev => [...prev, { role: 'ai', text: 'שגיאת תקשורת עם המוח המקומי' }]);
+      setSimMessages(prev => [...prev, { role: 'ai', text: 'שגיאת תקשורת' }]);
     } finally {
       setIsSimTyping(false);
-      setTimeout(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }, 100);
     }
   };
 
   const filteredProducts = products.filter(p => 
-    p.sku?.toString().includes(search) || p.product_name?.includes(search)
+    p.sku?.toString().includes(search) || p.product_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   if (!isMounted) return null;
@@ -147,12 +134,12 @@ export default function InventoryBrain() {
 
       {/* 1. רשימת מלאי */}
       <aside className="w-80 bg-white border-l shadow-xl flex flex-col shrink-0 z-20">
-        <header className="p-6 bg-slate-900 text-white border-b-4 border-amber-500">
-          <h1 className="text-xl font-black flex items-center gap-2"><HardHat /> SABAN <span className="text-amber-400">TECH</span></h1>
-          <p className="text-xs font-bold text-amber-200 mt-1">ניהול מלאי ויועץ טכני AI</p>
+        <header className="p-6 bg-slate-900 text-white border-b-4 border-emerald-500">
+          <h1 className="text-xl font-black flex items-center gap-2"><HardHat /> SABAN <span className="text-emerald-400">TECH</span></h1>
+          <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">ניהול מלאי ואימון המוח</p>
         </header>
 
-        <div className="p-4 border-b">
+        <div className="p-4 border-b bg-slate-50">
           <div className="relative">
             <Search className="absolute right-3 top-3 text-slate-400" size={18} />
             <input 
@@ -160,130 +147,135 @@ export default function InventoryBrain() {
               placeholder="חיפוש מקט או שם..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-100 pr-10 pl-4 py-2 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full bg-white border pr-10 pl-4 py-2 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredProducts.map(p => (
             <div 
               key={p.sku} 
               onClick={() => handleSelectProduct(p)}
-              className={`p-3 mb-1 rounded-xl cursor-pointer flex items-center gap-3 transition-all ${selectedProduct?.sku === p.sku ? 'bg-amber-50 border border-amber-200' : 'hover:bg-slate-50 border border-transparent'}`}
+              className={`p-3 rounded-xl cursor-pointer flex items-center gap-3 transition-all border ${selectedProduct?.sku === p.sku ? 'bg-emerald-50 border-emerald-200' : 'hover:bg-slate-50 border-transparent'}`}
             >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black overflow-hidden shrink-0 ${selectedProduct?.sku === p.sku ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black overflow-hidden shrink-0 ${selectedProduct?.sku === p.sku ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
                 {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <PackageSearch size={18} />}
               </div>
               <div className="flex-1 overflow-hidden">
                 <h3 className="font-bold text-sm text-slate-800 truncate">{p.product_name}</h3>
-                <p className="text-xs font-mono text-slate-500">{p.sku}</p>
+                <p className="text-[10px] font-mono text-slate-500">SKU: {p.sku}</p>
               </div>
             </div>
           ))}
         </div>
       </aside>
 
-      {/* 2. אזור העריכה */}
-      <main className="flex-1 p-8 overflow-y-auto flex flex-col lg:flex-row gap-8 relative">
+      {/* 2. אזור העריכה והאימון */}
+      <main className="flex-1 p-8 overflow-y-auto bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
         {!selectedProduct ? (
-          <div className="m-auto flex flex-col items-center justify-center text-slate-400 opacity-50">
-            <BrainCircuit size={80} className="mb-4" />
-            <h2 className="text-2xl font-bold">בחר מוצר מהרשימה לקידוד המוח הטכני</h2>
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
+            <BrainCircuit size={80} className="mb-4 animate-pulse" />
+            <h2 className="text-2xl font-black">בחר מוצר מהרשימה לקידוד המוח</h2>
           </div>
         ) : (
-          <>
-            <div className="flex-1 max-w-2xl space-y-6">
-              <header className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex justify-center items-center border border-amber-200 overflow-hidden">
-                   {formData.image_url ? <img src={formData.image_url} className="w-full h-full object-cover"/> : <HardHat size={32} />}
+          <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
+            <div className="flex-1 space-y-6">
+              {/* כותרת מוצר */}
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border overflow-hidden">
+                    {formData.image_url ? <img src={formData.image_url} className="w-full h-full object-cover"/> : <PackageSearch size={32} className="m-auto mt-4 text-slate-300" />}
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-900">{formData.product_name}</h1>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">ACTIVE PRODUCT</span>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900">{formData.product_name}</h1>
-                  <p className="text-sm font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">מק"ט: {selectedProduct.sku}</p>
+                <div className="text-left">
+                   <p className="text-[10px] font-black text-slate-400">SKU</p>
+                   <p className="font-mono font-bold">{selectedProduct.sku}</p>
                 </div>
-              </header>
+              </div>
 
-              {/* נתונים לוגיסטיים ומחשבון */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4">
-                <h2 className="font-black flex items-center gap-2 text-slate-800"><Calculator size={18} className="text-blue-500"/> נתוני מחשבון ומדיה</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">משקל שק/אריזה (ק"ג)</label>
-                    <input type="number" value={formData.packaging_size} onChange={e => setFormData({...formData, packaging_size: Number(e.target.value)})} className="w-full bg-slate-50 border p-3 rounded-xl outline-none focus:border-blue-500 font-bold" />
+              {/* נתונים טכניים למחשבון */}
+              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 space-y-6">
+                <h2 className="font-black flex items-center gap-2 text-slate-800 text-lg border-b pb-4"><Calculator className="text-emerald-500"/> נתונים למחשבון ומדיה</h2>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500">משקל אריזה (ק"ג)</label>
+                    <input type="number" value={formData.packaging_size} onChange={e => setFormData({...formData, packaging_size: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-emerald-500 font-bold" />
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">צריכה למ"מ (מקדם)</label>
-                    <input type="number" step="0.1" value={formData.consumption_per_mm} onChange={e => setFormData({...formData, consumption_per_mm: Number(e.target.value)})} className="w-full bg-slate-50 border p-3 rounded-xl outline-none focus:border-blue-500 font-bold" />
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500">צריכה למ"מ (מקדם)</label>
+                    <input type="number" step="0.1" value={formData.consumption_per_mm} onChange={e => setFormData({...formData, consumption_per_mm: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-emerald-500 font-bold" />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-2">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1 flex items-center gap-1"><ImageIcon size={12}/> לינק לתמונה</label>
-                    <input type="text" value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} className="w-full bg-slate-50 border p-3 rounded-xl outline-none text-sm dir-ltr text-left" placeholder="https://..." />
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500">לינק תמונה</label>
+                    <input type="text" value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none text-sm font-mono" />
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1 flex items-center gap-1"><Youtube size={12}/> סרטון יוטיוב</label>
-                    <input type="text" value={formData.youtube_url} onChange={e => setFormData({...formData, youtube_url: e.target.value})} className="w-full bg-slate-50 border p-3 rounded-xl outline-none text-sm dir-ltr text-left" placeholder="https://youtube.com/..." />
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500">לינק יוטיוב (הדרכה)</label>
+                    <input type="text" value={formData.youtube_url} onChange={e => setFormData({...formData, youtube_url: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none text-sm font-mono" />
                   </div>
                 </div>
               </div>
 
-              {/* המוח (DNA טכני) */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4">
-                <h2 className="font-black flex items-center gap-2 text-slate-800"><BrainCircuit size={18} className="text-emerald-500"/> קידוד המוח הטכני</h2>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">מפרט טכני יבש (Description)</label>
-                  <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full bg-slate-50 border p-3 rounded-xl outline-none focus:border-emerald-500 text-sm" placeholder="תיאור המוצר, תקנים..." />
+              {/* פרוטוקול AI */}
+              <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl space-y-6">
+                <h2 className="font-black flex items-center gap-2 text-emerald-400 text-lg"><BrainCircuit /> קידוד ה-DNA של המוח</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-widest">מפרט טכני לחיפוש (Description)</label>
+                    <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl outline-none focus:border-emerald-500 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-emerald-500 block mb-2 uppercase tracking-widest">פרוטוקול שירות ומכירה (AI Protocol)</label>
+                    <textarea value={formData.ai_protocol} onChange={e => setFormData({...formData, ai_protocol: e.target.value})} rows={5} className="w-full bg-white/10 border-2 border-emerald-500/20 p-4 rounded-2xl outline-none focus:border-emerald-500 text-white text-sm font-bold" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-800 block mb-1 bg-amber-100 p-2 rounded-lg">פרוטוקול התנהגות AI מול הלקוח (AI Protocol) 🧠</label>
-                  <textarea value={formData.ai_protocol} onChange={e => setFormData({...formData, ai_protocol: e.target.value})} rows={4} className="w-full bg-slate-50 border-2 border-amber-200 p-3 rounded-xl outline-none focus:border-amber-500 text-sm font-bold text-slate-700" placeholder='לדוגמה: "הדגש ללקוח שחובה למרוח פריימר לפני. אם הוא שואל על כמויות - השתמש בנתוני המחשבון כדי לתת לו תשובה מדוייקת. דבר אליו כמו מנהל עבודה."' />
-                </div>
+                <button onClick={handleSave} disabled={isSaving} className="w-full bg-emerald-500 text-slate-900 font-black py-5 rounded-2xl shadow-lg hover:bg-emerald-400 active:scale-95 transition-all flex justify-center items-center gap-3">
+                  <Save size={20} /> {isSaving ? 'מעדכן DB...' : 'שמור נתונים ואימון המוח'}
+                </button>
               </div>
-
-              <button onClick={handleSave} disabled={isSaving} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">
-                <Save size={18} /> {isSaving ? 'שומר ב-Supabase...' : 'שמור נתונים ופרוטוקול'}
-              </button>
             </div>
 
-            {/* 3. סימולטור חי */}
-            <div className="w-[350px] shrink-0 flex flex-col items-center">
-              <div className="bg-slate-200 text-slate-600 text-xs font-black px-4 py-1 rounded-full mb-4 flex items-center gap-2">
-                <Activity size={14} className="animate-pulse text-emerald-500" />
-                Live Tech Simulator
-              </div>
-
-              <div className="w-full h-[600px] bg-white border-[12px] border-slate-800 rounded-[3rem] shadow-2xl relative flex flex-col overflow-hidden">
-                <div className="bg-slate-800 p-3 text-white flex items-center gap-3 shrink-0">
-                  <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center"><HardHat size={16} /></div>
-                  <div className="leading-tight">
-                    <div className="font-bold text-sm">יועץ טכני AI</div>
-                    <div className="text-[10px] text-amber-200 truncate w-40">{formData.product_name}</div>
+            {/* סימולטור */}
+            <div className="w-[380px] shrink-0 sticky top-8">
+              <div className="bg-white border-[14px] border-slate-900 rounded-[3.5rem] h-[700px] shadow-2xl relative flex flex-col overflow-hidden">
+                <div className="bg-slate-900 p-4 text-white flex items-center gap-3 shrink-0">
+                  <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center font-black">AI</div>
+                  <div>
+                    <div className="font-black text-sm">סימולטור המוח</div>
+                    <div className="text-[9px] text-emerald-400 font-bold uppercase tracking-widest">Live Testing Mode</div>
                   </div>
                 </div>
-
-                <div ref={scrollRef} className="flex-1 p-3 overflow-y-auto flex flex-col gap-2 bg-[#f0f2f5]">
-                  <div className="bg-amber-100 text-amber-800 text-[10px] text-center p-2 rounded-lg font-bold mx-2 shadow-sm">הסימולטור מריץ את הפרוטוקול הנוכחי (לפני שמירה)</div>
-                  {simMessages.map((msg, i) => (
-                    <div key={i} className={`p-2.5 max-w-[85%] text-sm rounded-xl shadow-sm ${msg.role === 'ai' ? 'bg-white rounded-tr-none self-start border border-slate-200' : 'bg-[#dcf8c6] rounded-tl-none self-end'}`}>
+                
+                <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto bg-slate-50 space-y-4">
+                   <div className="text-[10px] text-center bg-emerald-100 text-emerald-700 py-2 rounded-xl font-bold border border-emerald-200">בדיקת המוח על המוצר הנוכחי</div>
+                   {simMessages.map((msg, i) => (
+                    <div key={i} className={`p-3 max-w-[90%] text-sm rounded-2xl shadow-sm ${msg.role === 'ai' ? 'bg-white self-start border border-slate-200 rounded-tr-none' : 'bg-emerald-500 text-white self-end rounded-tl-none'}`}>
                       <div className="whitespace-pre-wrap">{msg.text}</div>
                     </div>
                   ))}
-                  {isSimTyping && <div className="bg-white p-2.5 rounded-xl rounded-tr-none self-start shadow-sm animate-pulse">חושב...</div>}
+                  {isSimTyping && <div className="bg-white p-3 rounded-2xl self-start animate-pulse text-xs font-bold text-slate-400">המוח חושב...</div>}
                 </div>
 
-                <div className="bg-slate-100 p-2 flex items-center gap-2 shrink-0 border-t border-slate-200">
-                  <input type="text" value={simInput} onChange={e => setSimInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSimulate()} placeholder="שאל שאלה טכנית..." disabled={isSimTyping} className="flex-1 bg-white rounded-full px-4 py-2 text-sm outline-none border border-slate-300" />
-                  <button onClick={handleSimulate} disabled={isSimTyping || !simInput.trim()} className="w-10 h-10 bg-slate-800 rounded-full flex justify-center items-center text-white disabled:opacity-50">
-                    <Send size={16} className="rotate-180 ml-1" />
-                  </button>
+                <div className="p-4 bg-white border-t flex items-center gap-2 shrink-0">
+                  <input type="text" value={simInput} onChange={e => setSimInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSimulate()} placeholder="שאל שאלה טכנית..." className="flex-1 bg-slate-100 rounded-xl px-4 py-3 text-sm outline-none font-bold" />
+                  <button onClick={handleSimulate} className="w-12 h-12 bg-slate-900 rounded-xl flex justify-center items-center text-white"><Send size={18} className="rotate-180 ml-1" /></button>
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </main>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.3); border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+      `}</style>
     </div>
   );
 }
