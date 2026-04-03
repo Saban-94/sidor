@@ -23,10 +23,20 @@ export default function InventoryBrain() {
     if (data) setProducts(data);
   };
 
-  const getSafeImage = (url: string) => {
-    if (url && url.startsWith('http')) return url;
-    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="%2394a3b8">אין תמונה</text></svg>`;
-  };
+const getSafeImage = (url: string) => {
+  // 1. הגנה מפני לינקים ריקים, לא תקינים או לינקים של פלייסהולדרים שבורים
+  const isInvalid = !url || 
+                    !url.startsWith('http') || 
+                    url.includes('placeholder') || 
+                    url.includes('e5e7eb');
+
+  if (isInvalid) {
+    // החזרת ה-SVG הפנימי (לא דורש אינטרנט, לא מייצר שגיאות בקונסול)
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="%2394a3b8" font-weight="bold">Saban OS - No Image</text></svg>`;
+  }
+
+  return url;
+};
 
   const runHunt = async () => {
     if (!huntQuery) return;
