@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  // הגדרת מאגר מודלים (Fallback)
+  // הגדרת מאגר מודלים (Fallback) - ללא שינוי שמות
   const modelPool = [
     "gemini-3.1-flash-lite-preview",
     "gemini-2.0-pro-exp-02-05", 
@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון לקוח (שם והיסטוריה)
+    // 1. שליפת זיכרון לקוח
     let { data: memory } = await supabase
       .from('customer_memory')
       .select('accumulated_knowledge, user_name')
@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     let currentUserName = memory?.user_name;
 
-    // 2. זיהוי שם אוטומטי (אם הלקוח פשוט כתב את שמו)
+    // 2. זיהוי שם אוטומטי
     if (!currentUserName && cleanMsg.length < 12 && !cleanMsg.includes("?")) {
       const extractedName = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
       if (extractedName.length >= 2) {
@@ -47,41 +47,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. חיפוש ידע מאומן (AI Training) - חיפוש מילים גמיש
+    // 3. חיפוש ידע מאומן (AI Training) + חיפוש מלאי (Inventory)
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let trainingAnswer = "";
+    let inventoryData = "";
 
     if (searchWords.length > 0) {
-      // מחפש ב-DB שורות שבהן השאלה מכילה לפחות אחת מהמילים של המשתמש
+      const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
+      
+      // חיפוש בטבלת אימון
       const { data: matches } = await supabase
         .from('ai_training')
         .select('answer')
-        .or(searchWords.map(word => `question.ilike.%${word}%`).join(','));
+        .or(orCondition);
       
       if (matches && matches.length > 0) {
         trainingAnswer = matches.map(m => m.answer).join("\n\n---\n\n");
       }
+
+      // חדש: חיפוש מוצר במלאי במידה ויש מילת מפתח רלוונטית
+      const { data: products } = await supabase
+        .from('inventory')
+        .select('product_name, sku, consumption_per_mm, packaging_size, price')
+        .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
+        .limit(2);
+
+      if (products && products.length > 0) {
+        inventoryData = products.map(p => 
+          `מוצר במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}, צריכה למ"מ: ${p.consumption_per_mm}, משקל שק: ${p.packaging_size}. לינק: https://sidor.vercel.app/product/${p.sku}`
+        ).join("\n");
+      }
     }
 
-    // 4. בניית ה-Prompt (הנחיות קשיחות למודל)
+    // 4. בניית ה-Prompt
     const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח. סבן 1994" (חומרי בניין ולוגיסטיקה).
       לקוח: ${currentUserName || 'אורח'}.
-      מידע פנימי מהמערכת (עדיפות עליונה): 
-      ${trainingAnswer || "אין מידע ספציפי בטבלה. השתמש בידע כללי שירותי בלבד."}
+      מידע פנימי (אימון): 
+      ${trainingAnswer || "אין מידע ספציפי."}
+      
+      נתוני מלאי חיים:
+      ${inventoryData || "לא נמצאו מוצרים תואמים במלאי."}
 
       חוקים קשיחים:
-      1. אם יש "מידע פנימי" - תן אותו מיד! אל תבקש שם, אל תבקש טלפון ואל תגיד שאתה לא יודע.
-      2. אם שם הלקוח ידוע (${currentUserName}), פנה אליו בשמו ואל תשאל "מה שמך?".
-      3. אל תשתמש לעולם במילה "בוס".
-      4. היה תמציתי, מקצועי וישיר. בלי חפירות והקדמות ארוכות.
-      5. תמיכה ב-Markdown: אם יש לינקים לניווט במבנה [טקסט](לינק) או לינקים לתמונות, שמור עליהם בדיוק ככה בתשובה.
+      1. אם מצאת מוצר במלאי, ענה עליו במקצועיות והוסף בסוף התשובה את הקוד: SHOW_PRODUCT_CARD:[SKU] (החלף [SKU] במק"ט האמיתי).
+      2. השתמש בלינק הקסם: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
+      3. אם שם הלקוח ידוע (${currentUserName}), פנה אליו בשמו.
+      4. אל תשתמש לעולם במילה "בוס".
+      5. היה תמציתי ומקצועי. שמור על פורמט Markdown.
       
       הודעת הלקוח: ${cleanMsg}
-      היסטוריה אחרונה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
+      היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
 
-    // 5. הרצה מול ה-AI עם מנגנון Fallback
+    // 5. הרצה מול ה-AI
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -105,15 +124,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!replyText) throw new Error("All models failed");
 
-    // 6. עדכון זיכרון השיחה (שומר 1200 תווים אחרונים למניעת עומס)
+    // 6. עדכון זיכרון
     const newKnowledge = ((memory?.accumulated_knowledge || "") + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-1200);
     await supabase.from('customer_memory').upsert({ 
       clientId: phone, 
       accumulated_knowledge: newKnowledge 
     }, { onConflict: 'clientId' });
 
-    // 7. החזרת תשובה נקייה (ללא כוכביות כפולות של Markdown אם לא צריך)
-    return res.status(200).json({ reply: replyText.replace(/\*\*/g, '*') });
+    // 7. החזרת תשובה
+    return res.status(200).json({ reply: replyText });
 
   } catch (error) {
     console.error("Brain Error:", error);
