@@ -44,20 +44,55 @@ export default function InventoryBrain() {
     return url;
   };
 
-  const runHunt = async () => {
-    if (!huntQuery) return;
+const runHunt = async (e?: React.MouseEvent) => {
+    // מניעת רענון דף אם זה בתוך Form
+    if (e) e.preventDefault();
+    
+    console.log("🚀 Hunter Activation:", huntQuery);
+    
+    if (!huntQuery || huntQuery.trim() === "") {
+      alert("בוס, תכתוב שם מוצר לחיפוש");
+      return;
+    }
+
     setLoading(true);
+    setSearchResults([]); // איפוס תוצאות קודמות
+
     try {
       const res = await fetch('/api/admin/inventory-hunter', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: huntQuery, multi: true }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+          query: huntQuery.trim(), 
+          multi: true 
+        }),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `Server error: ${res.status}`);
+      }
+
       const data = await res.json();
-      setSearchResults(data.results || []);
-      if (!isModalOpen) setIsMobileMenuOpen(false); // סגירת תפריט רק אם אנחנו לא באמצע עריכה
-    } catch (e) { 
-      console.error("Search failed:", e); 
+      
+      if (!data.results || data.results.length === 0) {
+        alert("לא נמצאו תוצאות בגוגל, נסה שם מוצר אחר");
+      } else {
+        setSearchResults(data.results);
+        console.log("✅ Results Found:", data.results.length);
+      }
+      
+      // סגירת תפריט מובייל רק אם הצלחנו למצוא תוצאות
+      if (data.results?.length > 0) {
+        setIsMobileMenuOpen(false);
+      }
+
+    } catch (e: any) { 
+      console.error("❌ Hunter Failure:", e.message); 
+      alert("שגיאת מערכת בציד: " + e.message);
     } finally { 
       setLoading(false); 
     }
