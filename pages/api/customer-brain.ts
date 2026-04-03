@@ -52,8 +52,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let trainingAnswer = "";
     let inventoryData = "";
 
-    if (searchWords.length > 0) {
-      const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
+// 3. חיפוש ידע במלאי עם עדיפות (Ranking)
+if (searchWords.length > 0) {
+  const { data: products } = await supabase
+    .from('inventory')
+    .select('product_name, sku, consumption_per_mm, packaging_size, price, search_text')
+    .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%,search_text.ilike.%${cleanMsg}%`)
+    // כאן הקסם: סדר עדיפויות קשיח
+    .order('sku', { ascending: true }) 
+    .limit(1) 
+    .maybeSingle();
+
+  if (products) {
+    inventoryData = `מוצר מדויק נמצא: ${products.product_name}, מק"ט: ${products.sku}...`;
+  }
+}
       
       // חיפוש בטבלת אימון
       const { data: matches } = await supabase
@@ -81,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 4. בניית ה-Prompt
     const prompt = `
-      זהות: אתה שירות הלקוחות החכם של "ח. סבן 1994" (חומרי בניין ולוגיסטיקה).
+      זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין" (חומרי בניין ולוגיסטיקה).
       לקוח: ${currentUserName || 'אורח'}.
       מידע פנימי (אימון): 
       ${trainingAnswer || "אין מידע ספציפי."}
