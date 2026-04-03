@@ -8,7 +8,129 @@ export default function InventoryBrain() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [huntQuery, setHuntQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { Zap, Database, Plus, Search, ExternalLink, Package, Droplets } from 'lucide-react';
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+export default function SabanStudio() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('לוחות גבס');
+
+  useEffect(() => { fetchStudioData(); }, [activeTab]);
+
+  const fetchStudioData = async () => {
+    const { data } = await supabase.from('brain_inventory').select('*').eq('category', activeTab).order('created_at', { ascending: false });
+    if (data) setItems(data);
+  };
+
+  const autoInject = async (product: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/inventory-hunter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: product, category: activeTab }),
+      });
+      const data = await res.json();
+      
+      const { error } = await supabase.from('brain_inventory').upsert({
+        ...data,
+        stock_status: 'available'
+      }, { onConflict: 'sku' });
+
+      if (!error) fetchStudioData();
+    } catch (e) { alert("שגיאת הזרקה"); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] text-slate-100 font-sans dir-rtl" dir="rtl">
+      {/* Header סטודיו */}
+      <header className="p-6 bg-slate-900/50 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><Zap size={24}/></div>
+            <h1 className="text-2xl font-black tracking-tighter italic">SABAN <span className="text-blue-500">STUDIO</span></h1>
+          </div>
+          <div className="flex bg-slate-800 p-1 rounded-xl">
+            {['לוחות גבס', 'חומרי מחצבה'].map(tab => (
+              <button 
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="p-6 max-w-6xl mx-auto space-y-6">
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {activeTab === 'לוחות גבס' ? (
+            ['לוח גבס רגיל', 'לוח גבס חסין אש', 'לוח גבס ירוק', 'לוח צמנט בורד'].map(p => (
+              <button key={p} onClick={() => autoInject(p)} className="bg-slate-800/50 border border-slate-700 p-4 rounded-2xl text-xs font-bold hover:border-blue-500 transition-all active:scale-95">
+                + הזרק {p}
+              </button>
+            ))
+          ) : (
+            ['חול בלה', 'סומסום בלה', 'חצץ בלה', 'טיט מוכן'].map(p => (
+              <button key={p} onClick={() => autoInject(p)} className="bg-slate-800/50 border border-slate-700 p-4 rounded-2xl text-xs font-bold hover:border-blue-500 transition-all active:scale-95">
+                + הזרק {p}
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Real-time Inventory Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {items.map(item => (
+            <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-[2rem] overflow-hidden group hover:border-blue-500/50 transition-all">
+              <div className="relative h-48 overflow-hidden">
+                <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                <div className="absolute top-4 right-4 bg-blue-600 px-3 py-1 rounded-full text-[10px] font-black shadow-xl">
+                  {item.sku}
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <h3 className="text-lg font-black line-clamp-1">{item.product_name}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-800/50 p-3 rounded-xl">
+                    <p className="text-[9px] text-slate-500 uppercase font-black mb-1 flex items-center gap-1"><Droplets size={10}/> ייבוש</p>
+                    <p className="text-xs font-bold text-blue-400">{item.dry_time}</p>
+                  </div>
+                  <div className="bg-slate-800/50 p-3 rounded-xl">
+                    <p className="text-[9px] text-slate-500 uppercase font-black mb-1 flex items-center gap-1"><Package size={10}/> כיסוי</p>
+                    <p className="text-xs font-bold text-emerald-400">{item.coverage_rate}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 italic">"{item.description}"</p>
+                <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                  <span className="text-xl font-black italic">₪{item.price}</span>
+                  <a href={item.technical_doc_url} target="_blank" className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-blue-500 transition-colors">
+                    <ExternalLink size={18}/>
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {loading && (
+        <div className="fixed bottom-10 left-10 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
+          <Zap size={20} className="animate-pulse"/>
+          <span className="font-black text-sm">המוח מזריק נתונים...</span>
+        </div>
+      )}
+    </div>
+  );
+}
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
