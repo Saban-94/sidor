@@ -11,26 +11,27 @@ async function huntProductOnline(query: string) {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
   
-  if (!apiKey || !cx) return null;
-
   try {
-    const res = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מוצר טכני חומרי בניין")}`);
-    const data = await res.json();
+    // 1. חיפוש טקסט (מפרט)
+    const resText = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מפרט טכני")}`);
+    const dataText = await resText.json();
     
-    if (!data.items || data.items.length === 0) return null;
+    // 2. חיפוש תמונה (חדש!)
+    const resImage = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=1`);
+    const dataImage = await resImage.json();
+    
+    const imageUrl = dataImage.items?.[0]?.link || ''; // הלינק לתמונה הראשונה שנמצאה
 
-    // לוקחים את 2 התוצאות הראשונות ומאחדים לתיאור
-    const description = data.items.slice(0, 2).map((item: any) => item.snippet).join(" | ");
-    const firstTitle = data.items[0].title;
+    if (!dataText.items) return null;
 
     return {
-      product_name: firstTitle.split('|')[0].trim(),
-      description: description,
+      product_name: dataText.items[0].title.split('|')[0].trim(),
+      description: dataText.items[0].snippet,
+      image_url: imageUrl, // מזריקים את הלינק לתמונה
       sku: `AI-${Math.floor(1000 + Math.random() * 9000)}`,
       search_text: query.toLowerCase()
     };
   } catch (e) {
-    console.error("Google Search Error:", e);
     return null;
   }
 }
