@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// חיבור ל-Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -14,7 +13,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
 
-  // הגדרת מאגר מודלים (Fallback) - ללא שינוי שמות
   const modelPool = [
     "gemini-3.1-flash-lite-preview",
     "gemini-2.0-pro-exp-02-05", 
@@ -47,28 +45,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 3. חיפוש ידע מאומן (AI Training) + חיפוש מלאי (Inventory)
+    // 3. חיפוש מוצר ואימון - לוגיקה מדויקת
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let trainingAnswer = "";
     let inventoryData = "";
 
-// 3. חיפוש ידע במלאי עם עדיפות (Ranking)
-if (searchWords.length > 0) {
-  const { data: products } = await supabase
-    .from('inventory')
-    .select('product_name, sku, consumption_per_mm, packaging_size, price, search_text')
-    .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%,search_text.ilike.%${cleanMsg}%`)
-    // כאן הקסם: סדר עדיפויות קשיח
-    .order('sku', { ascending: true }) 
-    .limit(1) 
-    .maybeSingle();
+    if (searchWords.length > 0) {
+      // א. חיפוש מוצר מדויק במלאי (עדיפות עליונה)
+      const { data: exactProduct } = await supabase
+        .from('inventory')
+        .select('product_name, sku, consumption_per_mm, packaging_size, price, search_text')
+        .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`)
+        .limit(1)
+        .maybeSingle();
 
-  if (products) {
-    inventoryData = `מוצר מדויק נמצא: ${products.product_name}, מק"ט: ${products.sku}...`;
-  }
-}
-      
-      // חיפוש בטבלת אימון
+      if (exactProduct) {
+        inventoryData = `מוצר מדויק נמצא: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, צריכה: ${exactProduct.consumption_per_mm}, שק: ${exactProduct.packaging_size}. לינק: https://sidor.vercel.app/product/${exactProduct.sku}`;
+      } else {
+        // ב. חיפוש גמיש אם לא נמצא מוצר מדויק
+        const { data: relatedProducts } = await supabase
+          .from('inventory')
+          .select('product_name, sku, consumption_per_mm, packaging_size, price')
+          .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
+          .limit(2);
+
+        if (relatedProducts && relatedProducts.length > 0) {
+          inventoryData = relatedProducts.map(p => 
+            `מוצר רלוונטי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}, צריכה: ${p.consumption_per_mm}, שק: ${p.packaging_size}. לינק: https://sidor.vercel.app/product/${p.sku}`
+          ).join("\n");
+        }
+      }
+
+      // ג. חיפוש בטבלת אימון (תמיד רץ במקביל)
+      const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
       const { data: matches } = await supabase
         .from('ai_training')
         .select('answer')
@@ -77,25 +86,13 @@ if (searchWords.length > 0) {
       if (matches && matches.length > 0) {
         trainingAnswer = matches.map(m => m.answer).join("\n\n---\n\n");
       }
-
-      // חדש: חיפוש מוצר במלאי במידה ויש מילת מפתח רלוונטית
-      const { data: products } = await supabase
-        .from('inventory')
-        .select('product_name, sku, consumption_per_mm, packaging_size, price')
-        .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
-        .limit(2);
-
-      if (products && products.length > 0) {
-        inventoryData = products.map(p => 
-          `מוצר במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}, צריכה למ"מ: ${p.consumption_per_mm}, משקל שק: ${p.packaging_size}. לינק: https://sidor.vercel.app/product/${p.sku}`
-        ).join("\n");
-      }
     }
 
     // 4. בניית ה-Prompt
     const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין" (חומרי בניין ולוגיסטיקה).
       לקוח: ${currentUserName || 'אורח'}.
+      
       מידע פנימי (אימון): 
       ${trainingAnswer || "אין מידע ספציפי."}
       
@@ -105,7 +102,7 @@ if (searchWords.length > 0) {
       חוקים קשיחים:
       1. אם מצאת מוצר במלאי, ענה עליו במקצועיות והוסף בסוף התשובה את הקוד: SHOW_PRODUCT_CARD:[SKU] (החלף [SKU] במק"ט האמיתי).
       2. השתמש בלינק הקסם: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
-      3. אם שם הלקוח ידוע (${currentUserName}), פנה אליו בשמו.
+      3. פנה ללקוח בשמו אם הוא ידוע.
       4. אל תשתמש לעולם במילה "בוס".
       5. היה תמציתי ומקצועי. שמור על פורמט Markdown.
       
@@ -144,7 +141,6 @@ if (searchWords.length > 0) {
       accumulated_knowledge: newKnowledge 
     }, { onConflict: 'clientId' });
 
-    // 7. החזרת תשובה
     return res.status(200).json({ reply: replyText });
 
   } catch (error) {
