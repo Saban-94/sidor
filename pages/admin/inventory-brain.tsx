@@ -163,7 +163,10 @@ const getSafeImage = (url: string) => {
                       {products.map(p => (
                         <tr key={p.id} className="hover:bg-blue-50/20 transition-all group">
                           <td className="p-6 flex items-center gap-4">
-                            <img src={getSafeImage(p.image_url)} className="w-14 h-14 rounded-2xl object-cover shadow-sm" />
+                          <img 
+                              src={getSafeImage(p.image_url)} 
+                                        onError={(e: any) => { e.target.src = getSafeImage(''); }}
+                                              className="..."
                             <div>
                               <div className="font-black text-slate-800 text-sm">{p.product_name}</div>
                               <div className="text-[10px] text-slate-400">#{p.sku}</div>
