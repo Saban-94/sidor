@@ -2,55 +2,41 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
-
-  const { query, multi } = req.body;
+  const { query, category } = req.body;
   const GOOGLE_KEY = process.env.GOOGLE_SEARCH_API_KEY;
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  const GEMINI_KEY_2 = process.env.GEMINI_API_KEY_2;
   const CX = "3331a7d5c75e14f26";
-
-  const geminiKeys = [GEMINI_KEY, GEMINI_KEY_2].filter(Boolean) as string[];
-  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-flash-preview", "gemini-2.0-flash"];
+  
+  // רוטציית מפתחות לגיבוי מלא
+  const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2].filter(Boolean) as string[];
 
   try {
-    const googleUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_KEY}&cx=${CX}&q=${encodeURIComponent(query)}&num=5`;
-    const googleRes = await fetch(googleUrl);
-    const googleData = await googleRes.json();
+    // 1. חיפוש בגוגל - דגש על מפרט טכני
+    const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_KEY}&cx=${CX}&q=${encodeURIComponent(query + " מפרט טכני דף מוצר")}`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
 
-    if (!googleData.items) return res.status(404).json({ error: "לא נמצאו תוצאות בגוגל." });
+    if (!searchData.items) return res.status(404).json({ error: "לא נמצאו נתונים" });
 
-    let aiData: any = null;
-    const prompt = `Analyze "${query}" from snippets. Return ONLY JSON: {"dry_time": "...", "coverage_rate": "...", "application_method": "...", "description": "..."}`;
+    // 2. ניתוח AI עמוק (Gemini 3.1 Flash-Lite)
+    const genAI = new GoogleGenerativeAI(keys[0]);
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
+    
+    const context = searchData.items.slice(0, 3).map((it: any) => it.snippet).join("\n");
+    const prompt = `נתח מוצר בנייה: "${query}". קטגוריה: "${category}". 
+    החזר אך ורק JSON: 
+    {"dry_time": "...", "coverage_rate": "...", "application_method": "...", "description": "...", "sku": "SBN-XXXXX"}`;
 
-    // רוטציה כפולה
-    for (const key of geminiKeys) {
-      if (aiData) break;
-      const genAI = new GoogleGenerativeAI(key);
-      for (const modelName of modelPool) {
-        try {
-          const model = genAI.getGenerativeModel({ model: modelName });
-          const result = await model.generateContent(prompt);
-          const text = result.response.text().replace(/```json|```/g, "").trim();
-          aiData = JSON.parse(text);
-          if (aiData) break;
-        } catch (e) { continue; }
-      }
-    }
+    const result = await model.generateContent(prompt);
+    const aiResponse = JSON.parse(result.response.text().replace(/```json|```/g, "").trim());
 
-    if (!aiData) aiData = { dry_time: "לפי יצרן", coverage_rate: "משתנה", application_method: "מברשת/רולר", description: googleData.items[0].snippet };
-
-    const results = googleData.items.map((item: any) => ({
-      title: item.title,
-      image: item.pagemap?.cse_image?.[0]?.src || "",
-      dry_time: aiData.dry_time,
-      coverage_rate: aiData.coverage_rate,
-      application_method: aiData.application_method,
-      description: aiData.description
-    }));
-
-    return res.status(200).json({ results: multi ? results : [results[0]] });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(200).json({
+      ...aiResponse,
+      product_name: query,
+      category: category,
+      image_url: searchData.items[0].pagemap?.cse_image?.[0]?.src || "",
+      technical_doc_url: searchData.items[0].link
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
 }
