@@ -11,7 +11,7 @@ export async function getServerSideProps(context: any) {
   );
 
   const { data: product } = await supabase
-    .from('inventory')
+    .from('brain_inventory')
     .select('*')
     .eq('sku', id)
     .single();
