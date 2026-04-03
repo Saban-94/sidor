@@ -73,14 +73,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         currentUserName = extractedName;
       }
     }
-
-    // 3. חיפוש מוצר ואימון
+// 3. חיפוש מוצר ואימון
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let trainingAnswer = "";
     let inventoryData = "";
 
     if (searchWords.length > 0) {
-      // א. חיפוש מוצר מדויק במלאי
+      // א. חיפוש מוצר מדויק במלאי (Exact Match)
       const { data: exactProduct } = await supabase
         .from('inventory')
         .select('*')
@@ -89,9 +88,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
 
       if (exactProduct) {
+        console.log("Found exact product:", exactProduct.sku);
         inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, צריכה: ${exactProduct.consumption_per_mm}, שק: ${exactProduct.packaging_size}.`;
       } else {
-        // ב. חיפוש גמיש במלאי
+        // ב. חיפוש גמיש במלאי (Partial Match)
         const { data: relatedProducts } = await supabase
           .from('inventory')
           .select('product_name, sku, price, search_text')
@@ -99,28 +99,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .limit(2);
 
         if (relatedProducts && relatedProducts.length > 0) {
+          console.log("Found related products in inventory");
           inventoryData = relatedProducts.map(p => 
             `מוצר רלוונטי במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}.`
           ).join("\n");
         } else {
-          // ג. אם אין כלום במלאי - יוצאים לציד ברשת!
+          // ג. ציד מוצרים ברשת (Web Hunt) - רק אם לא נמצא כלום במלאי
+          console.log("Nothing in inventory, starting web hunt for:", cleanMsg);
           const hunted = await huntProductOnline(cleanMsg);
+          
           if (hunted) {
-            // שמירה לשימוש חוזר (Ingestion)
-            const { data: saved } = await supabase.from('inventory').insert([{
-              ...hunted,
-              is_ai_learned: true,
-              price: 0 // מחיר דמה עד שסבן יעדכן
-            }]).select().single();
+            // הזרקה למערכת עם טיפול בשגיאות (Ingestion)
+            const { data: saved, error: insertError } = await supabase
+              .from('inventory')
+              .upsert([{
+                sku: hunted.sku,
+                product_name: hunted.product_name,
+                description: hunted.description,
+                search_text: hunted.search_text,
+                is_ai_learned: true,
+                price: 0
+              }], { onConflict: 'sku' }) // מונע כפילויות מק"ט
+              .select()
+              .single();
 
-            if (saved) {
+            if (insertError) {
+              console.error("Database Ingestion Error:", insertError.message);
+              // גם אם נכשלה השמירה, עדיין נשתמש במידע שהמוח מצא כדי לענות
+              inventoryData = `מידע טכני שנמצא ברשת: ${hunted.product_name}. תיאור: ${hunted.description}`;
+            } else if (saved) {
+              console.log("Successfully saved hunted product:", saved.sku);
               inventoryData = `מוצר חדש אותר ברשת ונשמר למערכת: ${saved.product_name}, מק"ט זמני: ${saved.sku}. תיאור: ${saved.description}`;
             }
           }
         }
       }
 
-      // ד. חיפוש בטבלת אימון
+      // ד. חיפוש בטבלת אימון (AI Training Table)
       const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
       const { data: matches } = await supabase
         .from('ai_training')
