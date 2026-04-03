@@ -4,8 +4,8 @@ import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Send, Bot, User, Zap, Database, MessageSquare, 
-  Settings, Loader2, Sparkles, Terminal, ShieldCheck,
-  Box // <--- הוספתי את האייקון החסר כאן
+  Settings, Loader2, Sparkles, ShieldCheck,
+  Box, Edit3, Image as ImageIcon, Video, Save, X, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -18,15 +18,19 @@ export default function SabanAIStudio() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [userName, setUserName] = useState('ראמי');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ content: '', imageUrl: '', videoUrl: '' });
   const [dbStatus, setDbStatus] = useState({ orders: 0, containers: 0, memory: 0 });
   const scrollRef = useRef<any>(null);
 
   useEffect(() => {
     fetchStats();
-    setMessages([{ role: 'ai', content: `שלום בוס ${userName}, סטודיו האימון של SABAN AI מוכן. המוח מחובר לטבלאות בזמן אמת. מה נבדוק היום?` }]);
-    const sub = supabase.channel('system_sync').on('postgres_changes', { event: '*', schema: 'public' }, fetchStats).subscribe();
-    return () => { supabase.removeChannel(sub); };
+    setMessages([{ 
+      role: 'ai', 
+      content: `שלום בוס ראמי, סטודיו האימון של SABAN AI מוכן. המוח מחובר לטבלאות בזמן אמת.`,
+      imageUrl: '',
+      videoUrl: ''
+    }]);
   }, []);
 
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
@@ -36,12 +40,10 @@ export default function SabanAIStudio() {
     const [o, c, m] = await Promise.all([
       supabase.from('orders').select('id', { count: 'exact' }).eq('delivery_date', today),
       supabase.from('container_management').select('id', { count: 'exact' }).eq('is_active', true),
-      supabase.from('google_ai').select('id', { count: 'exact' })
+      supabase.from('inventory').select('id', { count: 'exact' })
     ]);
     setDbStatus({ orders: o.count || 0, containers: c.count || 0, memory: m.count || 0 });
   };
-
-  const playSound = () => { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {}); };
 
   const askAI = async (query: string) => {
     if (!query.trim() || isTyping) return;
@@ -52,155 +54,226 @@ export default function SabanAIStudio() {
       const res = await fetch('/api/google-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, userName, history: messages.slice(-3) })
+        body: JSON.stringify({ query, history: messages.slice(-3) })
       });
       const data = await res.json();
-      typeWriterEffect(data.answer);
-      playSound();
+      setMessages(prev => [...prev, { 
+        role: 'ai', 
+        content: data.answer,
+        imageUrl: data.image || '',
+        videoUrl: data.video || ''
+      }]);
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', content: '⚠️ שגיאה בחיבור ל-API.' }]);
+      setMessages(prev => [...prev, { role: 'ai', content: '⚠️ שגיאה בחיבור למוח.' }]);
+    } finally {
       setIsTyping(false);
     }
   };
 
-  const typeWriterEffect = (text: string) => {
-    let currentText = "";
-    const words = text.split(" ");
-    setMessages(prev => [...prev, { role: 'ai', content: '' }]);
-    
-    words.forEach((word, i) => {
-      setTimeout(() => {
-        currentText += word + " ";
-        setMessages(prev => {
-          const last = [...prev];
-          last[last.length - 1].content = currentText;
-          return last;
-        });
-        if (i === words.length - 1) setIsTyping(false);
-      }, i * 70);
+  const startEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditForm({ 
+      content: messages[index].content, 
+      imageUrl: messages[index].imageUrl || '', 
+      videoUrl: messages[index].videoUrl || '' 
     });
   };
 
-  return (
-    <div className="h-screen bg-[#F8FAFC] flex flex-col lg:flex-row font-sans overflow-hidden" dir="rtl">
-      <Head><title>SABAN | AI Studio</title></Head>
+  const saveEdit = () => {
+    if (editingIndex === null) return;
+    const newMessages = [...messages];
+    newMessages[editingIndex] = { ...newMessages[editingIndex], ...editForm };
+    setMessages(newMessages);
+    setEditingIndex(null);
+  };
 
-      <aside className="w-full lg:w-80 bg-white border-l border-slate-200 p-6 flex flex-col gap-8 shadow-xl z-20">
-        <div className="flex items-center gap-3">
-          <img src={SABAN_LOGO} className="w-12 h-12 rounded-2xl shadow-lg border-2 border-blue-500" />
+  return (
+    <div className="h-screen bg-[#F0F4F8] flex flex-col lg:flex-row font-sans overflow-hidden text-slate-800" dir="rtl">
+      <Head><title>SABAN | AI PRO Studio</title></Head>
+
+      {/* Sidebar - נקי ובהיר */}
+      <aside className="w-full lg:w-96 bg-white border-l border-slate-200 p-8 flex flex-col gap-8 shadow-2xl z-20">
+        <div className="flex items-center gap-4">
+          <img src={SABAN_LOGO} className="w-16 h-16 rounded-[2rem] shadow-xl border-4 border-blue-50" />
           <div>
-            <h1 className="font-black text-xl italic leading-none">AI STUDIO</h1>
-            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Saban OS Core</span>
+            <h1 className="font-black text-2xl italic tracking-tighter">STUDIO <span className="text-blue-600">PRO</span></h1>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">High Intelligence</span>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">מצב טבלאות (LIVE)</p>
+        <div className="grid grid-cols-1 gap-4">
           {[
-            { label: 'הזמנות היום', count: dbStatus.orders, icon: <Zap size={16}/>, color: 'text-blue-600' },
-            { label: 'מכולות בשטח', count: dbStatus.containers, icon: <Box size={16}/>, color: 'text-purple-600' },
-            { label: 'זיכרון לימוד', count: dbStatus.memory, icon: <Database size={16}/>, color: 'text-emerald-600' }
+            { label: 'הזמנות פעילות', count: dbStatus.orders, icon: <Zap size={20}/>, color: 'bg-blue-50 text-blue-600' },
+            { label: 'מכולות בשטח', count: dbStatus.containers, icon: <Box size={20}/>, color: 'bg-purple-50 text-purple-600' },
+            { label: 'מוצרים במלאי', count: dbStatus.memory, icon: <Database size={20}/>, color: 'bg-emerald-50 text-emerald-600' }
           ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="flex items-center gap-3">
-                <span className={item.color}>{item.icon}</span>
-                <span className="text-sm font-bold">{item.label}</span>
+            <div key={i} className="flex items-center justify-between p-5 bg-white rounded-[1.5rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl ${item.color}`}>{item.icon}</div>
+                <span className="text-base font-black">{item.label}</span>
               </div>
-              <span className="font-black text-lg">{item.count}</span>
+              <span className="font-black text-2xl text-slate-700">{item.count}</span>
             </div>
           ))}
         </div>
 
-        <div className="mt-auto p-4 bg-blue-50 rounded-2xl border border-blue-100">
-          <div className="flex items-center gap-2 mb-2 text-blue-700">
-            <ShieldCheck size={16} />
-            <span className="text-xs font-black uppercase">System Status</span>
+        <div className="mt-auto p-6 bg-slate-900 rounded-[2rem] text-white">
+          <div className="flex items-center gap-2 mb-3 text-blue-400">
+            <ShieldCheck size={18} />
+            <span className="text-xs font-black uppercase">Core Status</span>
           </div>
-          <p className="text-[10px] font-bold text-blue-600/70 leading-relaxed">
-            המוח מוגדר להאזנה בלבד לטבלאות. ה-API Key פעיל ומוגדר על Gemini 3.1.
+          <p className="text-sm font-bold text-slate-400 leading-relaxed">
+            המוח פועל על מודל <span className="text-white">Gemini 3.1 Flash</span>. המערכת מוכנה לעריכת תוכן והזרקת מדיה בזמן אמת.
           </p>
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col relative bg-[#F1F5F9]">
-        <header className="p-4 bg-white/80 backdrop-blur-md border-b flex justify-between items-center z-10">
+      {/* Main Chat Area */}
+      <section className="flex-1 flex flex-col relative overflow-hidden">
+        <header className="p-5 bg-white/90 backdrop-blur-md border-b flex justify-between items-center z-10 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="font-black text-sm uppercase tracking-tighter">Live Simulator</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold bg-slate-100 px-3 py-1 rounded-full text-slate-500">USER: {userName}</span>
+            <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+            <span className="font-black text-base uppercase">Live Interaction Node</span>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
           <AnimatePresence>
             {messages.map((m, i) => (
               <motion.div 
-                key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}
               >
-                <div className={`group relative max-w-[85%] lg:max-w-[70%] p-5 rounded-[2rem] shadow-sm transition-all ${
-                  m.role === 'user' ? 'bg-white rounded-tr-none text-slate-800' : 'bg-blue-600 text-white rounded-tl-none shadow-blue-200'
+                <div className={`group relative max-w-[90%] lg:max-w-[75%] p-6 rounded-[2.5rem] shadow-lg transition-all ${
+                  m.role === 'user' ? 'bg-white text-slate-800' : 'bg-blue-600 text-white shadow-blue-100'
                 }`}>
+                   {/* כפתור עריכה להודעות AI */}
                    {m.role === 'ai' && (
-                     <div className="absolute -top-6 right-2 flex items-center gap-1 opacity-40">
-                        <Bot size={12} /> <span className="text-[10px] font-bold uppercase">Saban AI</span>
-                     </div>
+                     <button 
+                      onClick={() => startEdit(i)}
+                      className="absolute -right-12 top-2 p-3 bg-white text-slate-400 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all hover:text-blue-600"
+                     >
+                       <Edit3 size={18} />
+                     </button>
                    )}
-                   <div className="prose prose-sm max-w-none text-inherit font-bold leading-relaxed">
+
+                   {/* הצגת מדיה */}
+                   {m.imageUrl && (
+                     <img src={m.imageUrl} className="w-full h-64 object-cover rounded-[1.5rem] mb-4 shadow-inner border-2 border-white/20" />
+                   )}
+                   {m.videoUrl && (
+                     <video src={m.videoUrl} controls className="w-full rounded-[1.5rem] mb-4 shadow-inner" />
+                   )}
+
+                   <div className="prose prose-lg max-w-none text-inherit font-black leading-relaxed">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                    </div>
                 </div>
               </motion.div>
             ))}
-            {isTyping && (
-              <div className="flex justify-end p-4">
-                <div className="flex gap-1 bg-blue-600/10 p-3 rounded-full">
-                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" />
-                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]" />
-                </div>
-              </div>
-            )}
           </AnimatePresence>
           <div ref={scrollRef} />
         </div>
 
-        <footer className="p-6 bg-white/80 backdrop-blur-md border-t">
-          <div className="max-w-4xl mx-auto flex flex-col gap-4">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {["כמה סופקו היום?", "סטטוס מכולות", "חכמת פנוי?"].map(q => (
-                <button 
-                  key={q} onClick={() => askAI(q)}
-                  className="whitespace-nowrap px-4 py-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded-full text-[11px] font-black transition-all border border-slate-200"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+        {/* Input & Form Area */}
+        <footer className="p-8 bg-white border-t shadow-[0_-10px_25px_rgba(0,0,0,0.02)]">
+          <div className="max-w-5xl mx-auto flex flex-col gap-6">
             <form 
               onSubmit={(e) => { e.preventDefault(); askAI(input); }}
-              className="relative flex items-center gap-3"
+              className="relative flex items-center gap-4"
             >
               <div className="flex-1 relative">
                 <input 
                   value={input} onChange={e => setInput(e.target.value)}
-                  placeholder="שלח פקודה למוח..."
-                  className="w-full p-4 pr-12 bg-slate-100 border border-slate-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold text-sm"
+                  placeholder="בוס, מה נבדוק היום?"
+                  className="w-full p-6 pr-14 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none focus:border-blue-500/50 focus:bg-white transition-all font-black text-lg shadow-inner"
                 />
-                <Sparkles size={18} className="absolute right-4 top-4 text-blue-500 opacity-50" />
+                <Sparkles size={24} className="absolute right-5 top-5 text-blue-500 opacity-50" />
               </div>
               <button 
                 type="submit" disabled={isTyping}
-                className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-all disabled:opacity-50"
+                className="w-20 h-20 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-200 active:scale-90 transition-all disabled:opacity-50"
               >
-                <Send size={24} className="rotate-180" />
+                <Send size={32} className="rotate-180" />
               </button>
             </form>
           </div>
         </footer>
+
+        {/* Modal עריכה להשלמת פרטים */}
+        {editingIndex !== null && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="bg-white w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center border-b pb-6">
+                <h2 className="text-2xl font-black italic">השלמת פרטים ידנית</h2>
+                <button onClick={() => setEditingIndex(null)} className="p-2 hover:bg-slate-100 rounded-full"><X/></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-black uppercase text-slate-400 mb-2 block">תוכן ההודעה</label>
+                  <textarea 
+                    value={editForm.content} 
+                    onChange={e => setEditForm({...editForm, content: e.target.value})}
+                    className="w-full p-4 bg-slate-50 border rounded-2xl h-32 font-bold outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-black uppercase text-slate-400 mb-2 block">לינק לתמונה</label>
+                    <div className="relative">
+                      <input 
+                        value={editForm.imageUrl} 
+                        onChange={e => setEditForm({...editForm, imageUrl: e.target.value})}
+                        className="w-full p-4 bg-slate-50 border rounded-2xl pl-10 font-bold outline-none focus:border-blue-500"
+                        placeholder="https://..."
+                      />
+                      <ImageIcon className="absolute left-3 top-4 text-slate-400" size={20}/>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-black uppercase text-slate-400 mb-2 block">לינק לוידאו</label>
+                    <div className="relative">
+                      <input 
+                        value={editForm.videoUrl} 
+                        onChange={e => setEditForm({...editForm, videoUrl: e.target.value})}
+                        className="w-full p-4 bg-slate-50 border rounded-2xl pl-10 font-bold outline-none focus:border-blue-500"
+                        placeholder="https://..."
+                      />
+                      <Video className="absolute left-3 top-4 text-slate-400" size={20}/>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-6">
+                <button 
+                  onClick={saveEdit}
+                  className="flex-1 bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-100 hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <Save size={20}/> שמור ועדכן צ'אט
+                </button>
+                <button 
+                  onClick={() => setEditingIndex(null)}
+                  className="px-10 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black text-lg hover:bg-slate-200"
+                >
+                  ביטול
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </section>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .prose font-black { font-weight: 900 !important; }
+      `}</style>
     </div>
   );
 }
