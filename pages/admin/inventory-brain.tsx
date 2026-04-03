@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Search, Save, Trash2, Edit2, Play, Globe, CheckCircle, Plus, X } from 'lucide-react';
+import { Search, Save, Trash2, Edit2, Play, Globe, X, Menu, LayoutGrid, Zap, CheckCircle } from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +13,7 @@ export default function InventoryBrain() {
   const [huntQuery, setHuntQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchInventory();
@@ -23,7 +24,11 @@ export default function InventoryBrain() {
     if (data) setProducts(data);
   };
 
-  // פונקציית הציד הדינאמית - שואבת נתונים מגוגל לתוך הטופס
+  const getSafeImage = (url: string) => {
+    if (url && url.startsWith('http')) return url;
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="%2394a3b8">אין תמונה זמינה</text></svg>`;
+  };
+
   const runHunt = async () => {
     if (!huntQuery) return;
     setLoading(true);
@@ -35,7 +40,7 @@ export default function InventoryBrain() {
       });
       const data = await res.json();
       
-      // הזרקה דינאמית לטופס העריכה
+      // הזרקה דינאמית ישירה לטופס
       setEditingProduct({
         product_name: data.product_name || huntQuery,
         description: data.description || '',
@@ -46,6 +51,7 @@ export default function InventoryBrain() {
         is_ai_learned: true
       });
       setIsModalOpen(true);
+      setIsMobileMenuOpen(false);
     } catch (e) {
       console.error("Hunt failed", e);
     } finally {
@@ -53,220 +59,227 @@ export default function InventoryBrain() {
     }
   };
 
-  const calculateScore = (p: any) => {
-    let score = 0;
-    if (p.product_name) score += 20;
-    if (p.description && p.description.length > 30) score += 20;
-    if (p.image_url) score += 20;
-    if (p.youtube_url) score += 20;
-    if (p.price > 0) score += 20;
-    return score;
-  };
-
   const saveToDB = async () => {
-    const { error } = await supabase.from('inventory').upsert(editingProduct, { onConflict: 'sku' });
+    const { error } = await supabase.from('inventory').upsert({
+      ...editingProduct,
+      search_text: editingProduct.product_name?.toLowerCase(),
+      price: parseFloat(editingProduct.price) || 0
+    }, { onConflict: 'sku' });
+
     if (!error) {
       setIsModalOpen(false);
       setEditingProduct(null);
       setHuntQuery('');
       fetchInventory();
+    } else {
+      alert("שגיאת שמירה: " + error.message);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dir-rtl pb-20" dir="rtl">
-      {/* Header קבוע ומרשים */}
-      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b p-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
-              <Globe size={24} />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-800">Saban OS <span className="text-blue-600">Brain</span></h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inventory AI Control</p>
-            </div>
-          </div>
-          
-          {/* שדה ציד משודרג */}
-          <div className="flex items-center bg-slate-100 rounded-2xl p-1 w-full md:w-[450px] border focus-within:border-blue-500 transition-all">
+    <div className="min-h-screen bg-[#fcfdfe] text-slate-900 font-sans" dir="rtl">
+      
+      {/* Mobile Top Bar */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="bg-blue-600 p-1.5 rounded-lg text-white"><Zap size={20}/></div>
+          <span className="font-black text-lg tracking-tighter">Saban<span className="text-blue-600">OS</span></span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-50 rounded-xl border">
+          {isMobileMenuOpen ? <X size={24}/> : <Menu size={24}/>}
+        </button>
+      </div>
+
+      {/* Mobile Hamburger Drawer */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 bg-white pt-20 p-6 animate-in fade-in duration-200">
+          <h2 className="text-2xl font-black mb-6">צייד המלאי</h2>
+          <div className="flex flex-col gap-4">
             <input 
-              className="bg-transparent flex-1 px-4 py-2 text-sm outline-none font-medium" 
-              placeholder="כתוב שם מוצר לציד והזרקה (למשל: סיקה גארד 703)..."
+              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold"
+              placeholder="חפש מוצר להזרקה..."
               value={huntQuery}
               onChange={(e) => setHuntQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && runHunt()}
             />
-            <button 
-              onClick={runHunt}
-              disabled={loading}
-              className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition"
-            >
-              {loading ? "צד..." : "צוד מוצר"}
+            <button onClick={runHunt} disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-100">
+              {loading ? "צד ברשת..." : "הפעל ציד חכם"}
             </button>
           </div>
         </div>
-      </nav>
+      )}
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="flex max-w-[1600px] mx-auto">
         
-        {/* טבלת ניהול מוצרים */}
-        <div className="lg:col-span-8 order-2 lg:order-1">
-          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
-              <h2 className="font-bold text-slate-700 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                מלאי המוח הקיים ({products.length})
-              </h2>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-right">
-                <thead className="bg-slate-50 text-slate-400 text-xs uppercase font-black">
-                  <tr>
-                    <th className="p-4">מוצר</th>
-                    <th className="p-4 text-center">בריאות (Health)</th>
-                    <th className="p-4">מחיר</th>
-                    <th className="p-4 text-center">פעולות</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {products.map(p => (
-                    <tr key={p.id} className="hover:bg-blue-50/30 transition-colors group">
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <img src={p.image_url || 'https://via.placeholder.com/100'} className="w-12 h-12 rounded-xl object-cover shadow-sm border border-white" />
-                          <div>
-                            <div className="font-bold text-slate-700 text-sm">{p.product_name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono tracking-tighter">#{p.sku}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-1000 ${calculateScore(p) > 70 ? 'bg-green-500' : 'bg-amber-400'}`} 
-                              style={{ width: `${calculateScore(p)}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-[9px] font-black mt-1 text-slate-400">{calculateScore(p)}%</span>
-                        </div>
-                      </td>
-                      <td className="p-4 font-black text-blue-600 text-sm">₪{p.price}</td>
-                      <td className="p-4">
-                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => { setEditingProduct(p); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><Edit2 size={16} /></button>
-                          <button onClick={() => deleteProduct(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Sidebar - Desktop */}
+        <aside className="hidden lg:flex flex-col w-72 h-screen sticky top-0 border-l bg-white p-6">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="bg-blue-600 p-2 rounded-xl text-white"><LayoutGrid size={24}/></div>
+            <h1 className="text-2xl font-black">Saban<span className="text-blue-600">OS</span></h1>
+          </div>
+          
+          <div className="space-y-6">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">חיפוש והזרקה</label>
+              <div className="relative">
+                <input 
+                  className="w-full p-3 bg-slate-50 border rounded-xl text-sm pr-10 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="שם מוצר..."
+                  value={huntQuery}
+                  onChange={(e) => setHuntQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && runHunt()}
+                />
+                <Search className="absolute right-3 top-3 text-slate-400" size={18}/>
+              </div>
+              <button onClick={runHunt} disabled={loading} className="w-full mt-2 bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-600 transition-all">
+                {loading ? "סורק..." : "צוד מוצר בגוגל"}
+              </button>
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* סימולטור מובייל - תמיד גלוי וחי */}
-        <div className="lg:col-span-4 order-1 lg:order-2">
-          <div className="sticky top-28 flex flex-col items-center">
-            <h3 className="text-xs font-black text-slate-400 mb-4 tracking-widest uppercase">Live Link Simulation</h3>
-            <div className="relative w-[280px] h-[580px] bg-slate-900 rounded-[3rem] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border-[6px] border-slate-800">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-5 bg-slate-800 rounded-b-2xl"></div>
-              
-              <div className="bg-white h-full w-full rounded-[2.2rem] overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50">
-                {/* תוכן ה-Preview החי */}
-                <div className="bg-white">
-                  <img src={editingProduct?.image_url || 'https://via.placeholder.com/400x300?text=Scan+Product'} className="w-full h-44 object-cover" />
-                  <div className="p-4">
-                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{editingProduct?.sku || 'SKU-NONE'}</span>
-                    <h4 className="text-lg font-black text-slate-800 mt-1">{editingProduct?.product_name || "ממתין לציד..."}</h4>
-                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed h-16 overflow-hidden">
-                      {editingProduct?.description || "כאן יופיע המפרט הטכני שהמוח יצליח לדוג מרחבי האינטרנט..."}
-                    </p>
-                    
-                    {editingProduct?.youtube_url && (
-                      <div className="flex items-center gap-2 mt-4 text-red-600 font-bold text-[10px]">
-                        <div className="bg-red-600 p-1 rounded-md text-white"><Play size={10} fill="white"/></div>
-                        סרטון הדרכה זמין
-                      </div>
-                    )}
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-10">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            
+            {/* Table Area */}
+            <div className="xl:col-span-8 order-2 xl:order-1">
+              <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-50 overflow-hidden">
+                <div className="p-8 border-b bg-slate-50/30 flex justify-between items-center">
+                  <h2 className="text-xl font-black flex items-center gap-3">
+                    ניהול מוח המלאי 
+                    <span className="text-sm font-medium text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{products.length} מוצרים</span>
+                  </h2>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right border-collapse">
+                    <thead className="bg-slate-50/50 text-[11px] font-black text-slate-400 uppercase">
+                      <tr>
+                        <th className="p-6">פרטי מוצר</th>
+                        <th className="p-6 text-center">ציון AI</th>
+                        <th className="p-6">מחיר סבן</th>
+                        <th className="p-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {products.map(p => (
+                        <tr key={p.id} className="hover:bg-blue-50/20 transition-all group">
+                          <td className="p-6">
+                            <div className="flex items-center gap-4">
+                              <img src={getSafeImage(p.image_url)} className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-white" />
+                              <div>
+                                <div className="font-black text-slate-800 text-base">{p.product_name}</div>
+                                <div className="text-xs text-slate-400 font-mono">#{p.sku}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-6">
+                            <div className="flex flex-col items-center">
+                              <div className="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: '85%' }}></div>
+                              </div>
+                              <span className="text-[10px] font-black mt-1 text-slate-400 italic">Optimized</span>
+                            </div>
+                          </td>
+                          <td className="p-6 font-black text-lg text-slate-900">₪{p.price}</td>
+                          <td className="p-6">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => { setEditingProduct(p); setIsModalOpen(true); }} className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition"><Edit2 size={18}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
 
-                    <div className="mt-8 pt-4 border-t border-slate-100 flex justify-between items-end">
-                      <div>
-                        <div className="text-[10px] text-slate-400 font-bold">מחיר סבן</div>
-                        <div className="text-xl font-black text-slate-900">₪{editingProduct?.price || '0'}</div>
+            {/* Simulation Area - iPhone Style */}
+            <div className="xl:col-span-4 order-1 xl:order-2">
+              <div className="sticky top-10 flex flex-col items-center">
+                <div className="relative w-[300px] h-[620px] bg-slate-900 rounded-[3.5rem] p-4 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.3)] border-[8px] border-slate-800">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-2xl z-10"></div>
+                  <div className="bg-white h-full w-full rounded-[2.8rem] overflow-hidden flex flex-col">
+                    <img src={getSafeImage(editingProduct?.image_url)} className="w-full h-52 object-cover" />
+                    <div className="p-6 flex-1 flex flex-col">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{editingProduct?.sku || 'SBN-TEMP'}</span>
                       </div>
-                      <button className="bg-green-500 text-white px-6 py-2 rounded-xl font-black text-xs shadow-lg shadow-green-100">
-                        הוספה לסל
-                      </button>
+                      <h3 className="text-xl font-black text-slate-900 leading-tight h-14 overflow-hidden">{editingProduct?.product_name || "ממתין להזרקה..."}</h3>
+                      <p className="text-[12px] text-slate-500 mt-4 leading-relaxed line-clamp-4 italic">
+                        {editingProduct?.description || "כאן יוצג המפרט הטכני המלא מהרשת לאחר הציד..."}
+                      </p>
+                      
+                      <div className="mt-auto space-y-4">
+                        <div className="flex justify-between items-end">
+                          <div className="text-2xl font-black">₪{editingProduct?.price || '0'}</div>
+                          <div className="text-[10px] text-green-600 font-bold flex items-center gap-1"><CheckCircle size={10}/> במלאי סבן</div>
+                        </div>
+                        <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-sm shadow-xl">הוספה לסל מהירה</button>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <p className="mt-6 text-[10px] font-black text-slate-300 uppercase tracking-widest">Live Sidor App Preview</p>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
 
-      {/* מודל עריכה והזרקה - משופר למובייל */}
+      {/* Modern Ingestion Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-2xl rounded-t-[2rem] md:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-              <h2 className="text-xl font-black text-slate-800">עריכת נתוני המוח</h2>
-              <button onClick={() => setIsModalOpen(false)} className="bg-white p-2 rounded-full shadow-sm text-slate-400"><X size={20}/></button>
+        <div className="fixed inset-0 z-[60] flex items-end lg:items-center justify-center p-0 lg:p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-2xl rounded-t-[2.5rem] lg:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 duration-500">
+            <div className="p-8 border-b flex justify-between items-center bg-slate-50/50">
+              <h2 className="text-2xl font-black text-slate-800">עריכה והזרקה למלאי</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white rounded-full shadow-sm hover:scale-110 transition"><X size={24}/></button>
             </div>
             
-            <div className="p-6 max-h-[70vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <Input label="שם מוצר" value={editingProduct?.product_name} onChange={v => setEditingProduct({...editingProduct, product_name: v})} />
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">תיאור מוצר (מפרט)</label>
-                  <textarea 
-                    className="w-full p-3 bg-slate-50 border rounded-xl text-sm h-32 outline-none focus:border-blue-500 transition-all"
-                    value={editingProduct?.description}
-                    onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
-                  />
+            <div className="p-8 max-h-[70vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8 custom-scrollbar">
+              <div className="space-y-6">
+                <Field label="שם המוצר" value={editingProduct?.product_name} onChange={v => setEditingProduct({...editingProduct, product_name: v})} />
+                <div>
+                  <label className="text-[11px] font-black text-slate-400 uppercase mb-2 block">תיאור טכני (מפרט)</label>
+                  <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm h-40 outline-none focus:border-blue-500 font-medium" value={editingProduct?.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
                 </div>
               </div>
-              <div className="space-y-4">
-                <Input label="לינק לתמונה" value={editingProduct?.image_url} onChange={v => setEditingProduct({...editingProduct, image_url: v})} />
-                <Input label="לינק ליוטיוב" value={editingProduct?.youtube_url} onChange={v => setEditingProduct({...editingProduct, youtube_url: v})} />
+              <div className="space-y-6">
+                <Field label="לינק לתמונה" value={editingProduct?.image_url} onChange={v => setEditingProduct({...editingProduct, image_url: v})} />
+                <Field label="לינק יוטיוב" value={editingProduct?.youtube_url} onChange={v => setEditingProduct({...editingProduct, youtube_url: v})} />
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="מחיר (₪)" type="number" value={editingProduct?.price} onChange={v => setEditingProduct({...editingProduct, price: v})} />
-                  <Input label="מק״ט" value={editingProduct?.sku} onChange={v => setEditingProduct({...editingProduct, sku: v})} />
+                  <Field label="מחיר (₪)" type="number" value={editingProduct?.price} onChange={v => setEditingProduct({...editingProduct, price: v})} />
+                  <Field label="מק״ט" value={editingProduct?.sku} onChange={v => setEditingProduct({...editingProduct, sku: v})} />
                 </div>
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 flex gap-3">
-              <button onClick={saveToDB} className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition">שמור והזרק למלאי</button>
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-white text-slate-500 py-4 rounded-2xl font-black border border-slate-200">ביטול</button>
+            <div className="p-8 bg-slate-50/80 flex gap-4">
+              <button onClick={saveToDB} className="flex-[2] bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">שמור והזרק ל-DB</button>
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-white text-slate-500 py-5 rounded-2xl font-black border-2 border-slate-100 hover:bg-slate-50 transition">ביטול</button>
             </div>
           </div>
         </div>
       )}
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .dir-rtl { direction: rtl; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );
 }
 
-// רכיב עזר לשדות קלט
-function Input({ label, value, onChange, type = "text" }: any) {
+function Field({ label, value, onChange, type = "text" }: any) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{label}</label>
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase mb-2 block tracking-wider">{label}</label>
       <input 
         type={type}
-        className="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-none focus:border-blue-500 transition-all font-bold text-slate-700"
+        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm outline-none focus:border-blue-500 font-bold transition-all"
         value={value || ''}
         onChange={e => onChange(e.target.value)}
       />
