@@ -1,12 +1,1 @@
-[00:00:01.384] Server  LOG     
-[00:00:01.384] Server  LOG        We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
-[00:00:01.384] Server  LOG        The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
-
-[00:00:01.384] Server  LOG        	- allowJs was set to true
-[00:00:01.384] Server  LOG        	- incremental was set to true
-[00:00:01.384] Server  LOG        	- include was updated to add '.next/types/**/*.ts'
-[00:00:01.384] Server  LOG        	- include was updated to add '.next/dev/types/**/*.ts'
-[00:00:01.384] Server  LOG        	- plugins was updated to add { name: 'next' }
-[00:00:01.384] Server  LOG     
-[00:00:01.485] Server  LOG      ✓ Ready in 1198ms
-[00:00:26.532] Server  LOG        Reload env: .env.development.local
+[00:00:01.394] Server  LOG      ✓ Ready in 1116ms
