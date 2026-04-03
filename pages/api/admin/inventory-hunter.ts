@@ -2,71 +2,69 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // רק בקשות POST מתקבלות
+  if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
+
   const { query, multi } = req.body;
-  const GOOGLE_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  
+  // משיכת מפתחות מ-Vercel
+  const GOOGLE_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+  const GEMINI_KEY = process.env.GEMINI_API_KEY;
   const CX = "635bc3eeee0194b16";
-  console.log("Checking API Key existence:", !!process.env.GOOGLE_SEARCH_API_KEY);
-  if (!process.env.GOOGLE_SEARCH_API_KEY) {
-  return res.status(500).json({ error: "בוס, השרת לא רואה את המפתח! בדוק הגדרות ב-Vercel" });
-}
-  if (!query) return res.status(400).json({ error: "בוס, מה לחפש?" });
-  if (!GEMINI_API_KEY) return res.status(500).json({ error: "⚠️ חסר מפתח GEMINI_API_KEY" });
+
+  // מלשינון מפתחות - בודק אם השרת בכלל רואה אותם
+  if (!GOOGLE_KEY) return res.status(500).json({ error: "חסר מפתח GOOGLE_SEARCH_API_KEY ב-Vercel" });
+  if (!GEMINI_KEY) return res.status(500).json({ error: "חסר מפתח GEMINI_API_KEY ב-Vercel" });
 
   try {
-    // 1. שלב גוגל: שליפת לינקים ותמונות
-    const googleUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${CX}&q=${encodeURIComponent(query)}&num=5`;
+    // שלב 1: חיפוש בגוגל (תמונות ולינקים)
+    const googleUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_KEY}&cx=${CX}&q=${encodeURIComponent(query)}&num=5`;
     const googleRes = await fetch(googleUrl);
     const googleData = await googleRes.json();
 
-    if (!googleData.items) return res.status(404).json({ error: "גוגל לא מצא כלום על המוצר הזה." });
+    if (googleData.error) {
+      return res.status(400).json({ error: `שגיאת גוגל: ${googleData.error.message}` });
+    }
 
-    // 2. הכנת החומר ל-Gemini (לוקחים את הסניפטים של 3 התוצאות הראשונות)
-    const context = googleData.items.slice(0, 3).map((it: any) => it.snippet).join("\n");
-    
-    // 3. שלב Gemini: ניתוח והפקת נתונים טכניים
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    if (!googleData.items || googleData.items.length === 0) {
+      return res.status(404).json({ error: "לא נמצאו תוצאות בגוגל למוצר זה." });
+    }
+
+    // שלב 2: הפעלת Gemini לניתוח טכני
+    const genAI = new GoogleGenerativeAI(GEMINI_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const prompt = `
-      נתח את המידע הבא על המוצר "${query}":
-      ${context}
-      
-      החזר תשובה בפורמט JSON בלבד (ללא טקסט נוסף) עם השדות הבאים בעברית:
-      {
-        "dry_time": "זמן ייבוש משוער",
-        "coverage_rate": "כמות כיסוי למ"ר",
-        "application_method": "איך מיישמים (רולר/מברשת וכו')",
-        "description": "תיאור שיווקי קצר ומזמין ללקוח",
-        "price_estimate": "הערכת מחיר שוק אם יש"
-      }
-    `;
+    const context = googleData.items.slice(0, 3).map((it: any) => it.snippet).join("\n");
+    const prompt = `נתח את המידע הבא על "${query}":
+    ${context}
+    החזר אך ורק JSON תקין (בלי מילים מסביב) בפורמט הבא:
+    {"dry_time": "זמן ייבוש", "coverage_rate": "כיסוי למ"ר", "application_method": "שיטת יישום", "description": "תיאור קצר ללקוח"}`;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
+    const responseText = result.response.text().replace(/```json|```/g, "").trim();
     
-    // ניקוי JSON (למקרה ש-Gemini הוסיף ```json)
-    const cleanJson = text.replace(/```json|```/g, "").trim();
-    const aiData = JSON.parse(cleanJson);
+    let aiData;
+    try {
+      aiData = JSON.parse(responseText);
+    } catch (e) {
+      aiData = { dry_time: "לא נמצא", coverage_rate: "לא נמצא", application_method: "לא נמצא", description: googleData.items[0].snippet };
+    }
 
-    // 4. איחוד נתונים: גוגל נותן מדיה, Gemini נותן מוח
-    const finalResults = googleData.items.map((item: any, index: number) => ({
+    // שלב 3: איחוד נתונים ושליחה חזרה
+    const finalResults = googleData.items.map((item: any) => ({
       title: item.title,
       image: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.metatags?.[0]?.['og:image'] || "",
       link: item.link,
-      snippet: item.snippet,
-      // הזרקת הנתונים של Gemini לכל תוצאה
       dry_time: aiData.dry_time,
       coverage_rate: aiData.coverage_rate,
       application_method: aiData.application_method,
-      ai_description: aiData.description
+      description: aiData.description
     }));
 
     return res.status(200).json({ results: multi ? finalResults : [finalResults[0]] });
 
   } catch (error: any) {
-    console.error("Hunter Error:", error);
-    return res.status(500).json({ error: "קריסה במוח: " + error.message });
+    console.error("Critical Crash:", error);
+    return res.status(500).json({ error: "קריסה בשרת: " + error.message });
   }
 }
