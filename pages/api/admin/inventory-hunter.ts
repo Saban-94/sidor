@@ -6,7 +6,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const GOOGLE_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   const CX = "635bc3eeee0194b16";
-
+  console.log("Checking API Key existence:", !!process.env.GOOGLE_SEARCH_API_KEY);
+  if (!process.env.GOOGLE_SEARCH_API_KEY) {
+  return res.status(500).json({ error: "בוס, השרת לא רואה את המפתח! בדוק הגדרות ב-Vercel" });
+}
   if (!query) return res.status(400).json({ error: "בוס, מה לחפש?" });
   if (!GEMINI_API_KEY) return res.status(500).json({ error: "⚠️ חסר מפתח GEMINI_API_KEY" });
 
