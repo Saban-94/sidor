@@ -2,175 +2,197 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  Menu, X, Send, Bot, Calendar, RefreshCcw, User, MapPin, Clock, MessageSquare, Timer 
-} from 'lucide-react';
+import { Menu, Send, X, Calculator, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// הלוגו החדש של סבן
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
 
-// צבעי WhatsApp Dark Mode
-const WA_BG = "bg-[#111b21]"; // רקע ראשי
-const WA_PANEL = "bg-[#202c33]"; // פאנל/כרטיסים
-const WA_GREEN = "bg-[#00a884]"; // כפתורים וסטטוס מאושר
-const WA_TEXT = "text-[#e9edef]"; // טקסט בהיר
-const WA_SUB = "text-[#8696a0]"; // טקסט משני/אפור
-
-const STATUS_MAP: any = {
-  'approved': { label: 'מאושר', color: 'bg-[#00a884]' },
-  'pending': { label: 'ממתין להעמסה', color: 'bg-[#f1c40f] text-[#111b21]' },
-  'rejected': { label: 'נדחתה', color: 'bg-[#ea0038]' }
-};
-
 const QUICK_QUERIES = [
-  "כמה הזמנות יש היום?", "מצב מכולות", "העברות היום", "כמה סופקו?", 
-  "סטטוס שארק 30", "חיפוש לקוח", "דוח יומי", "מכולות לפינוי"
+  { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
+  { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
+  { label: 'מכולת פסולת בנין', icon: '♻️', color: 'text-blue-500' },
+  { label: 'תכין להצעת מחיר', icon: '📄', color: 'text-emerald-400' },
+  { label: 'יעוץ טכני', icon: '🎓️', color: 'text-orange-500' }
 ];
 
-const getCountdown = (orderTime: string) => {
-  if (!orderTime) return null;
-  const [h, m] = orderTime.split(':').map(Number);
-  const now = new Date();
-  const target = new Date();
-  target.setHours(h, m, 0);
-  const diff = target.getTime() - now.getTime();
-  if (diff <= 0) return "בביצוע";
-  const mins = Math.floor((diff / (1000 * 60)) % 60);
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  return `${hours > 0 ? hours + 'ש ' : ''}${mins} דק'`;
-};
-
 export default function SabanAIAssistant() {
-  const [activeView, setActiveView] = useState<'chat' | 'live'>('chat');
-  const [isOpen, setIsOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const [selectedProductSku, setSelectedProductSku] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 800);
-    fetchLiveOrders();
-    const interval = setInterval(fetchLiveOrders, 60000);
-    return () => { clearTimeout(timer); clearInterval(interval); };
+    setTimeout(() => setShowSplash(false), 800);
   }, []);
 
-  const fetchLiveOrders = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: o } = await supabase.from('orders').select('*').eq('delivery_date', today).neq('status', 'deleted');
-    const { data: c } = await supabase.from('container_management').select('*').eq('start_date', today).neq('status', 'deleted');
-    setOrders([...(o || []), ...(c || [])].sort((a,b) => (a.order_time || '').localeCompare(b.order_time || '')));
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, loading, streamingText]);
+
+  // פונקציה לזיהוי פקודות נסתרות מה-AI (כמו הקפצת כרטיס מוצר)
+  const handleInternalCommands = (text: string) => {
+    if (text.includes("SHOW_PRODUCT_CARD:")) {
+      const sku = text.split("SHOW_PRODUCT_CARD:")[1].split(/\s/)[0].trim();
+      setTimeout(() => setSelectedProductSku(sku), 1000); // השהייה קלה למראה טבעי
+    }
+  };
+
+  const typeEffect = (fullText: string) => {
+    setIsTyping(true);
+    setStreamingText("");
+    // ניקוי הפקודות הפנימיות מהטקסט שמוצג ללקוח
+    const cleanText = fullText.replace(/SHOW_PRODUCT_CARD:[\w-]+\s?/, "");
+    const words = cleanText.split(" ");
+    let i = 0;
+
+    const interval = setInterval(() => {
+      if (i < words.length) {
+        setStreamingText((prev) => prev + (i === 0 ? "" : " ") + words[i]);
+        i++;
+      } else {
+        clearInterval(interval);
+        setMessages(prev => [...prev, { role: 'ai', content: cleanText }]);
+        setStreamingText("");
+        setIsTyping(false);
+        handleInternalCommands(fullText); // הפעלת הפקודה רק בסיום ההקלדה
+      }
+    }, 45);
   };
 
   const askAI = async (query: string) => {
-    if (!query.trim() || loading) return;
+    if (!query.trim() || loading || isTyping) return;
     setMessages(prev => [...prev, { role: 'user', content: query }]);
     setLoading(true); setInput('');
+    
     try {
       const res = await fetch('/api/customer-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ message: query, senderPhone: 'admin' })
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', content: data.answer }]);
-    } catch (e) { setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למערכת." }]); }
-    finally { setLoading(false); }
+      setLoading(false);
+      typeEffect(data.reply);
+      new Audio('/order-notification1.mp3').play().catch(() => {});
+    } catch (e) { 
+      setLoading(false);
+      setMessages(prev => [...prev, { role: 'ai', content: "תקלה בתקשורת עם המוח." }]); 
+    }
   };
 
   return (
-    <div className={`h-screen ${WA_BG} ${WA_TEXT} flex flex-col font-sans overflow-hidden`} dir="rtl">
-      <Head><title>SABAN | AI Companion</title></Head>
+    <div className="h-screen w-full flex flex-col font-sans relative overflow-hidden bg-[#0b141a] text-[#e9edef]" dir="rtl">
+      <Head><title>ח.סבן | עוזר AI חכם</title></Head>
 
+      {/* שכבת כרטיס מוצר צפה (Overlay) */}
       <AnimatePresence>
-        {showSplash && (
-          <motion.div exit={{ opacity: 0 }} className={`fixed inset-0 ${WA_BG} z-[100] flex items-center justify-center`}>
-            <motion.img 
-              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              src={SABAN_LOGO} className="w-48 h-48 rounded-3xl object-cover shadow-2xl"
-            />
+        {selectedProductSku && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={() => setSelectedProductSku(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }}
+              className="bg-[#202c33] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-white/5 flex justify-between items-center bg-[#2a3942]">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                  <Calculator size={18} /> <span>מחשבון מוצר חכם</span>
+                </div>
+                <button onClick={() => setSelectedProductSku(null)} className="p-2 hover:bg-white/5 rounded-full transition"><X size={20}/></button>
+              </div>
+              <div className="h-[500px] w-full bg-white">
+                <iframe src={`/product/${selectedProductSku}`} className="w-full h-full border-none" />
+              </div>
+              <div className="p-4 bg-[#2a3942]">
+                <button onClick={() => setSelectedProductSku(null)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition shadow-lg">חזרה לשיחה</button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <header className={`h-16 flex items-center justify-between px-6 ${WA_PANEL} border-b border-white/5 z-50 shadow-md`}>
-        <button onClick={() => setIsOpen(!isOpen)} className="p-2"><Menu size={28} /></button>
-        <div className="flex items-center gap-3">
-            <img src={SABAN_LOGO} className="w-9 h-9 rounded-full object-cover border border-[#00a884]/30 shadow-md" />
-            <span className="font-black text-lg tracking-tighter uppercase text-[#00a884]">SABAN {activeView === 'chat' ? 'AI' : 'LIVE'}</span>
-        </div>
-        <div className="w-9 h-9 rounded-full bg-[#00a884]/10 flex items-center justify-center text-[#00a884] font-black border border-[#00a884]/20">
-          {orders.length}
-        </div>
-      </header>
-      
-<AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/70 z-[60] backdrop-blur-sm" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed top-0 right-0 h-full w-[85%] bg-[#111b21] z-[70] p-8 shadow-2xl border-l border-white/5">
-              <div className="flex justify-between items-center mb-16">
-                  <span className="font-black text-xl italic text-[#00a884]">SABAN 1994</span>
-                  <button onClick={() => setIsOpen(false)} className="p-2 bg-white/5 rounded-full"><X size={24}/></button>
-              </div>
-              <nav className="space-y-4">
-                <button onClick={() => { setActiveView('chat'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'chat' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><MessageSquare size={24}/> AI ANALYST</button>
-                <button onClick={() => { setActiveView('live'); setIsOpen(false); }} className={`w-full p-6 rounded-2xl flex items-center gap-4 font-black transition-all ${activeView === 'live' ? 'bg-[#00a884] text-[#111b21]' : 'bg-white/5'}`}><Calendar size={24}/> לוח משימות LIVE</button>
-              </nav>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Splash Screen */}
+      <AnimatePresence>{showSplash && <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#111b21] z-[100] flex items-center justify-center"><img src={SABAN_LOGO} className="w-32 h-32 rounded-3xl shadow-2xl animate-pulse"/></motion.div>}</AnimatePresence>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scrollbar-hide">
-        {activeView === 'chat' ? (
-          messages.map((m, i) => (
-            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[85%] p-4 rounded-2xl font-bold shadow-md ${m.role === 'user' ? 'bg-[#202c33] border border-white/5' : 'bg-[#005c4b] text-[#e9edef]'}`}>{m.content}</div>
-            </motion.div>
-          ))
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {orders.map((order) => {
-              const countdown = getCountdown(order.order_time);
-              return (
-                <div key={order.id} className={`p-6 rounded-2xl ${WA_PANEL} border-r-4 border-[#00a884] shadow-lg`}>
-                  <div className="flex justify-between mb-2">
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${STATUS_MAP[order.status]?.color || 'bg-slate-700'}`}>{STATUS_MAP[order.status]?.label || order.status}</span>
-                    <span className={`${WA_SUB} font-mono text-[10px]`}>#{order.order_number || 'N/A'}</span>
-                  </div>
-                  <h3 className="text-xl font-black">{order.client_name || order.client_info}</h3>
-                  <div className={`${WA_SUB} text-xs flex items-center gap-1 mb-4`}><MapPin size={12}/> {order.delivery_address || order.location}</div>
-                  <div className="flex justify-between items-center bg-[#111b21]/50 p-4 rounded-xl">
-                    <div className="flex flex-col"><div className="flex items-center gap-2 text-[#00a884] font-black text-xl italic"><Clock size={18}/> {order.order_time}</div>
-                    {countdown && <div className="text-[10px] font-black text-amber-500">בעוד {countdown}</div>}</div>
-                    <span className="text-xs font-bold opacity-70">{order.contractor_name || order.driver_name}</span>
-                  </div>
-                </div>
-              );
-            })}
+      {/* Header */}
+      <header className="h-16 flex items-center justify-between px-6 bg-[#202c33]/90 backdrop-blur-md border-b border-white/5 shrink-0 z-10">
+        <Menu size={24} className="text-slate-400" />
+        <div className="flex items-center gap-3">
+          <img src={SABAN_LOGO} className="w-9 h-9 rounded-full border border-emerald-500/30"/>
+          <div className="flex flex-col leading-tight">
+            <span className="font-black text-emerald-500">ח. סבן AI</span>
+            <span className="text-[10px] text-emerald-400/70">מחובר | מענה טכני פעיל</span>
+          </div>
+        </div>
+        <div className="w-8 h-8" />
+      </header>
+
+      {/* Chat Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-fixed bg-center">
+        <div className="absolute inset-0 bg-[#0b141a]/85 -z-10" />
+        
+        {messages.map((m, i) => (
+          <motion.div initial={{ opacity: 0, x: m.role === 'user' ? 20 : -20 }} animate={{ opacity: 1, x: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tr-none' : 'bg-[#005c4b] text-white rounded-tl-none border border-emerald-400/10'}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert max-w-none text-sm leading-relaxed">
+                {m.content}
+              </ReactMarkdown>
+            </div>
+          </motion.div>
+        ))}
+
+        {/* Streaming Effect */}
+        {(isTyping || streamingText) && (
+          <div className="flex justify-end">
+            <div className="max-w-[85%] p-4 rounded-2xl bg-[#005c4b] rounded-tl-none border border-emerald-400/10 shadow-lg">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert text-sm">{streamingText || "..."}</ReactMarkdown>
+              <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 0.8 }} className="inline-block w-1 h-4 bg-emerald-300 ml-1" />
+            </div>
           </div>
         )}
-        {loading && <RefreshCcw className="animate-spin text-[#00a884] mx-auto" />}
+        
+        {loading && <div className="flex justify-end"><div className="bg-[#202c33] px-4 py-2 rounded-full text-xs text-emerald-400 animate-pulse border border-emerald-500/20">המוח מעבד נתונים...</div></div>}
+        <div ref={scrollRef} className="h-10" />
       </main>
 
-      {activeView === 'chat' && (
-        <footer className={`fixed bottom-0 left-0 right-0 p-4 ${WA_BG} z-40`}>
-          <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-            {QUICK_QUERIES.map((q, i) => (
-              <button key={i} onClick={() => askAI(q)} className={`whitespace-nowrap px-5 py-2 ${WA_PANEL} rounded-full text-[11px] font-bold border border-white/5 active:scale-95`}>{q}</button>
-            ))}
-          </div>
-          <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="relative">
-            <input value={input} onChange={e => setInput(e.target.value)} placeholder="כתוב הודעה למוח..." className={`w-full p-4 pr-12 rounded-full ${WA_PANEL} border-none outline-none focus:ring-1 focus:ring-[#00a884]`} />
-            <button type="submit" className="absolute left-2 top-2 w-10 h-10 bg-[#00a884] text-[#111b21] rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all"><Send size={18} className="rotate-180" /></button>
-          </form>
-        </footer>
-      )}
+      {/* Footer */}
+      <footer className="p-4 bg-[#111b21] border-t border-white/5 z-10">
+        <div className="max-w-4xl mx-auto mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {QUICK_QUERIES.map((q, i) => (
+            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] hover:bg-[#2a3942] rounded-full text-[11px] font-bold flex items-center gap-2 border border-white/5 transition-all active:scale-95">
+              <span className={q.color}>{q.icon}</span>{q.label}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="max-w-4xl mx-auto flex gap-2">
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="שאל אותי על חומרים, הובלות או מחירים..." className="flex-1 p-4 rounded-2xl bg-[#2a3942] border-none outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm font-medium transition-all"/>
+          <button type="submit" disabled={loading || isTyping} className="w-14 h-14 bg-emerald-500 hover:bg-emerald-400 text-[#0b141a] rounded-2xl flex items-center justify-center shadow-lg transition-all active:scale-90 disabled:opacity-50">
+            <Send size={22} className="rotate-180"/>
+          </button>
+        </form>
+      </footer>
+
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .prose strong { color: #34d399; font-weight: 800; }
+        .prose hr { border-top-color: rgba(255,255,255,0.1); margin: 10px 0; }
+      `}</style>
     </div>
   );
 }
