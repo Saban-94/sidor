@@ -1,90 +1,123 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { Search, Edit2, Zap, X, Trash2, Database } from 'lucide-react';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-  const { query, multi } = req.body;
-  const GOOGLE_KEY = process.env.GOOGLE_SEARCH_API_KEY;
-  const CX = "3331a7d5c75e14f26";
+export default function InventoryBrain() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [huntQuery, setHuntQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const geminiKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2
-  ].filter(Boolean) as string[];
+  useEffect(() => { fetchInventory(); }, []);
 
-  const modelPool = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-flash-preview",
-    "gemini-2.0-flash",
-    "gemma-4-31b-it"
-  ];
+  const fetchInventory = async () => {
+    const { data } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
+    if (data) setProducts(data);
+  };
 
-  if (!GOOGLE_KEY || geminiKeys.length === 0) {
-    return res.status(500).json({ error: "חסרים מפתחות בשרת Vercel" });
-  }
+  const runHunt = async () => {
+    if (!huntQuery) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/inventory-hunter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: huntQuery, multi: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSearchResults(data.results || []);
+    } catch (e: any) { alert("⚠️ " + e.message); }
+    finally { setLoading(false); }
+  };
 
-  try {
-    // 1. ציד בגוגל
-    const googleUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_KEY}&cx=${CX}&q=${encodeURIComponent(query)}&num=5`;
-    const googleRes = await fetch(googleUrl);
-    const googleData = await googleRes.json();
+  const saveToDB = async () => {
+    const { error } = await supabase.from('inventory').upsert({
+      ...editingProduct,
+      price: parseFloat(editingProduct.price) || 0,
+      search_text: editingProduct.product_name.toLowerCase()
+    }, { onConflict: 'sku' });
 
-    if (googleData.error) throw new Error(googleData.error.message);
-    if (!googleData.items) return res.status(404).json({ error: "לא נמצאו תוצאות בגוגל." });
+    if (!error) {
+      setIsModalOpen(false);
+      setEditingProduct(null);
+      fetchInventory();
+    } else { alert(error.message); }
+  };
 
-    const context = googleData.items.slice(0, 3).map((it: any) => it.snippet).join("\n");
-    const prompt = `Analyze product "${query}" based on: ${context}. Return ONLY JSON: {"dry_time": "...", "coverage_rate": "...", "application_method": "...", "description": "..."}`;
+  return (
+    <div className="h-screen flex flex-col bg-[#f8fafc] overflow-hidden" dir="rtl">
+      <header className="bg-white border-b px-6 py-4 flex justify-between items-center z-50">
+        <div className="flex items-center gap-3">
+          <Zap className="text-blue-600" />
+          <h1 className="text-xl font-black italic">Saban OS Intelligence</h1>
+        </div>
+        <div className="flex gap-2">
+          <input 
+            className="p-2 border rounded-xl font-bold text-sm w-64" 
+            placeholder="חפש מוצר להזרקה..." 
+            value={huntQuery} 
+            onChange={e => setHuntQuery(e.target.value)}
+          />
+          <button onClick={runHunt} className="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm">
+            {loading ? "סורק..." : "צוד"}
+          </button>
+        </div>
+      </header>
 
-    // 2. רוטציה כפולה עם טיפוס נתונים מוגדר למניעת שגיאות Build
-    let aiData: any = null;
-    let usedKeyIndex = -1;
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+          <table className="w-full text-right border-collapse">
+            <thead className="bg-slate-50 border-b">
+              <tr className="text-[10px] font-black text-slate-400 uppercase">
+                <th className="p-4">מוצר</th>
+                <th className="p-4">מחיר</th>
+                <th className="p-4">ייבוש</th>
+                <th className="p-4">כיסוי</th>
+                <th className="p-4">פעולות</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {products.map(p => (
+                <tr key={p.id} className="hover:bg-blue-50/20">
+                  <td className="p-4 flex items-center gap-3">
+                    <img src={p.image_url} className="w-10 h-10 rounded-lg object-cover" />
+                    <span className="font-bold text-xs">{p.product_name}</span>
+                  </td>
+                  <td className="p-4 font-black">₪{p.price}</td>
+                  <td className="p-4 text-blue-600 text-xs">{p.dry_time}</td>
+                  <td className="p-4 text-emerald-600 text-xs">{p.coverage_rate}</td>
+                  <td className="p-4">
+                    <button onClick={() => {setEditingProduct(p); setIsModalOpen(true);}} className="text-slate-400 hover:text-blue-600">
+                      <Edit2 size={14}/>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </main>
 
-    for (let k = 0; k < geminiKeys.length; k++) {
-      if (aiData) break;
-      const genAI = new GoogleGenerativeAI(geminiKeys[k]);
-
-      for (const modelName of modelPool) {
-        try {
-          const model = genAI.getGenerativeModel({ model: modelName });
-          const result = await model.generateContent(prompt);
-          const text = result.response.text().replace(/```json|```/g, "").trim();
-          const parsed = JSON.parse(text);
-          if (parsed) {
-            aiData = parsed;
-            usedKeyIndex = k + 1;
-            break;
-          }
-        } catch (err) {
-          continue;
-        }
-      }
-    }
-
-    // 3. Fallback בטוח אם ה-AI נכשל
-    if (!aiData) {
-      aiData = { 
-        dry_time: "לפי יצרן", 
-        coverage_rate: "משתנה", 
-        application_method: "סטנדרטי", 
-        description: googleData.items[0].snippet 
-      };
-    }
-
-    const results = googleData.items.map((item: any) => ({
-      title: item.title,
-      image: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.metatags?.[0]?.['og:image'] || "",
-      link: item.link,
-      dry_time: aiData.dry_time,
-      coverage_rate: aiData.coverage_rate,
-      application_method: aiData.application_method,
-      description: aiData.description,
-      debug_info: usedKeyIndex !== -1 ? `Key #${usedKeyIndex} active` : "Fallback mode"
-    }));
-
-    return res.status(200).json({ results: multi ? results : [results[0]] });
-
-  } catch (error: any) {
-    return res.status(500).json({ error: "קריסה: " + error.message });
-  }
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60">
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] p-8">
+            <h2 className="text-xl font-black mb-6 italic">עריכת מוצר</h2>
+            <div className="grid grid-cols-2 gap-4">
+               <input className="p-3 border rounded-xl" value={editingProduct.product_name} onChange={e => setEditingProduct({...editingProduct, product_name: e.target.value})} placeholder="שם מוצר" />
+               <input className="p-3 border rounded-xl" type="number" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} placeholder="מחיר" />
+            </div>
+            <div className="mt-6 flex gap-2">
+              <button onClick={saveToDB} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold">שמור</button>
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 py-3 rounded-xl font-bold">ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
