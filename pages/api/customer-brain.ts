@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (searchWords.length > 0) {
       // א. חיפוש מוצר מדויק במלאי (Exact Match)
       const { data: exactProduct } = await supabase
-        .from('inventory')
+        .from('brain_inventory')
         .select('*')
         .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`)
         .limit(1)
