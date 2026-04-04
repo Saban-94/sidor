@@ -33,18 +33,42 @@ export default function OrdersHub() {
     if (data) setOrders(data);
   };
 
-  const handleUpdateStatus = async (id: string, current: string) => {
-    const next = current === 'pending' ? 'completed' : 'pending';
-    await supabase.from('orders').update({ status: next }).eq('id', id);
-    fetchOrders();
-  };
+// בתוך הקומפוננטה OrdersHub:
 
-  const handleSaveComax = async (id: string) => {
-    if (!editingComax) return;
-    await supabase.from('orders').update({ comax_id: editingComax.value }).eq('id', id);
+const handleUpdateStatus = async (order: any) => {
+  const nextStatus = order.status === 'pending' ? 'completed' : 'pending';
+  
+  try {
+    const res = await fetch('/api/update-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: order.id, updates: { status: nextStatus } })
+    });
+    
+    if (!res.ok) throw new Error(await res.text());
+    fetchOrders(); // רענון הרשימה
+  } catch (err) {
+    alert("שגיאת שרת: " + err);
+  }
+};
+
+const handleSaveComax = async (id: string) => {
+  if (!editingComax) return;
+  
+  try {
+    const res = await fetch('/api/update-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, updates: { comax_id: editingComax.value } })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
     setEditingComax(null);
     fetchOrders();
-  };
+  } catch (err) {
+    alert("שגיאה בעדכון קומקס: " + err);
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 overflow-y-auto touch-pan-y" dir="rtl">
