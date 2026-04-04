@@ -6,22 +6,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// פונקציית צייד מוצרים ברשת
+// פונקציית צייד מוצרים ברשת - לוגיקה מקורית
 async function huntProductOnline(query: string) {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-  
   try {
     const resText = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מפרט טכני")}`);
     const dataText = await resText.json();
-    
     const resImage = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=1`);
     const dataImage = await resImage.json();
-    
     const imageUrl = dataImage.items?.[0]?.link || '';
-
     if (!dataText.items) return null;
-
     return {
       product_name: dataText.items[0].title.split('|')[0].trim(),
       description: dataText.items[0].snippet,
@@ -29,9 +24,7 @@ async function huntProductOnline(query: string) {
       sku: `AI-${Math.floor(1000 + Math.random() * 9000)}`,
       search_text: query.toLowerCase()
     };
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -40,101 +33,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
-
-  const modelPool = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-2.0-pro-exp-02-05", 
-    "gemini-2.0-flash"
-  ];
+  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-pro-exp-02-05", "gemini-2.0-flash"];
 
   if (!cleanMsg) return res.status(200).json({ reply: "שלום, במה אוכל לעזור?" });
 
   try {
     const phone = senderPhone?.replace('@c.us', '') || 'unknown';
 
-    // 1. שליפת זיכרון לקוח
-    let { data: memory } = await supabase
-      .from('customer_memory')
-      .select('accumulated_knowledge, user_name')
-      .eq('clientId', phone)
-      .maybeSingle();
-    
+    // 1. זיכרון לקוח
+    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge, user_name').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name;
 
-    // 2. זיהוי שם אוטומטי (רק אם זה לא חלק מהזמנה)
-    if (!currentUserName && cleanMsg.length < 12 && !cleanMsg.includes("?") && !cleanMsg.includes("הזמנה")) {
-      const extractedName = cleanMsg.replace(/אני|שמי|זה|קוראים לי|נעים מאוד/g, "").trim();
-      if (extractedName.length >= 2) {
-        await supabase.from('customer_memory').upsert({ 
-          clientId: phone, 
-          user_name: extractedName 
-        }, { onConflict: 'clientId' });
-        currentUserName = extractedName;
-      }
-    }
-
-    // 3. חיפוש מלאי ואימון
+    // 2. חיפוש מלאי ואימון
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
-    let trainingAnswer = "";
     let inventoryData = "";
+    let trainingAnswer = "";
 
     if (searchWords.length > 0) {
-      const { data: exactProduct } = await supabase
-        .from('brain_inventory')
-        .select('*')
-        .or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`)
-        .limit(1)
-        .maybeSingle();
-
-      if (exactProduct) {
-        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}.`;
+      const { data: exact } = await supabase.from('brain_inventory').select('*').or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`).limit(1).maybeSingle();
+      if (exact) {
+        inventoryData = `מוצר במלאי: ${exact.product_name}, מק"ט: ${exact.sku}, מחיר: ${exact.price}.`;
       } else {
-        const { data: relatedProducts } = await supabase
-          .from('brain_inventory')
-          .select('product_name, sku, price, search_text')
-          .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
-          .limit(2);
-
-        if (relatedProducts && relatedProducts.length > 0) {
-          inventoryData = relatedProducts.map(p => 
-            `מוצר רלוונטי במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}.`
-          ).join("\n");
-        } else {
-          const hunted = await huntProductOnline(cleanMsg);
-          if (hunted) {
-            inventoryData = `מוצר חדש אותר ברשת (בדיקת מלאי ידנית נדרשת): ${hunted.product_name}, מק"ט זמני: ${hunted.sku}.`;
-          }
-        }
+        const { data: related } = await supabase.from('brain_inventory').select('product_name, sku').or(searchWords.map(word => `search_text.ilike.%${word}%`).join(',')).limit(2);
+        if (related && related.length > 0) inventoryData = related.map(p => `${p.product_name} (מק"ט: ${p.sku})`).join(", ");
       }
-
-      const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
-      const { data: matches } = await supabase.from('ai_training').select('answer').or(orCondition);
-      if (matches && matches.length > 0) {
-        trainingAnswer = matches.map(m => m.answer).join("\n");
-      }
+      
+      const { data: matches } = await supabase.from('ai_training').select('answer').or(searchWords.map(word => `question.ilike.%${word}%`).join(','));
+      if (matches) trainingAnswer = matches.map(m => m.answer).join("\n");
     }
 
-    // 4. ה-PROMPT המעודכן - דרישת פרטים מאורח
+    // 3. ה-PROMPT המנצח - ללא סירובים
     const prompt = `
-      זהות: אתה איש מכירות חכם ב"ח.סבן חומרי בנין".
-      לקוח נוכחי: ${currentUserName || 'אורח (לא מזוהה)'}.
+      זהות: אתה איש מכירות בכיר ב"ח.סבן חומרי בנין". הלקוח הוא: ${currentUserName || 'אורח'}.
       
-      נתוני מלאי: ${inventoryData || "לא נמצאו מוצרים תואמים."}
-      מידע פנימי: ${trainingAnswer || "אין."}
-
-      חוקי הזמנה קריטיים:
-      1. ביצוע הזמנה: כשהלקוח מבקש להזמין, אשר את רשימת המוצרים והמק"טים. 
-      2. פקודת שמירה: לכל מוצר שהוזמן, חובה להוסיף בסוף: SAVE_ORDER_DB:[SKU]:[כמות].
-      3. חוק האורח (חשוב): אם הלקוח מזוהה כ"אורח", אחרי אישור רשימת המוצרים, עליך לכתוב משפט דרישה: 
-         "כדי להשלים את ההזמנה במערכת, אנא ציין את שמך המלא, מספר טלפון נייד וכתובת מדויקת לאספקה."
-      4. SHOW_PRODUCT_CARD: הצג רק אם הלקוח שואל על מוצר ולא מזמין. אם הוא מזמין - אל תציג כרטיס.
-      5. אל תשתמש במילה "בוס". היה מקצועי ותמציתי.
-
+      חוקים קריטיים:
+      1. איסור סירוב: לעולם אל תגיד "אין במלאי" כסיבה לביטול הזמנה. אם מוצר לא נמצא בנתונים, אשר אותו כ"הזמנה בבדיקת מלאי ידנית".
+      2. אישור הזמנה: כשהלקוח מבקש להזמין, אשר את כל הרשימה בבולטים (•). לכל פריט הוסף בסוף: SAVE_ORDER_DB:[SKU]:[כמות]. אם אין מק"ט, השתמש ב-SAVE_ORDER_DB:MANUAL:1.
+      3. חוק האורח: אם הלקוח הוא "אורח", עליך לבקש בסוף האישור: "כדי שנשלים את ההזמנה, אנא ציין שם מלא, טלפון וכתובת למשלוח."
+      4. SHOW_PRODUCT_CARD: הוסף רק אם הלקוח שואל "יש לכם X?". אם הוא כבר מזמין - אל תציג כרטיס.
+      5. סגנון: תמציתי, מקצועי, ללא המילה "בוס".
+      
+      נתוני עזר: ${inventoryData} | ${trainingAnswer}
       הודעה: ${cleanMsg}
-      היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
-    
-    // 5. הרצה מול Gemini
+
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -149,39 +91,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {}
     }
 
-    // 6. טיפול בהזרקת ההזמנה לטבלה
+    // 4. הזרקת הזמנה לטבלה
     if (replyText.includes("SAVE_ORDER_DB:")) {
-      const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-      
-      // חילוץ נקי של רשימת הפריטים
-      const productLines = replyText.split('\n')
-        .filter(line => line.includes('•') || line.includes('-') || line.includes('מק"ט') || line.includes('יחידות'))
-        .map(line => line.replace(/[-•]/g, '').trim())
+      const cleanLines = replyText.split('\n')
+        .filter(l => l.includes('•') || l.includes('-') || l.includes('שקים') || l.includes('לוח'))
+        .map(l => l.replace(/[-•]/g, '').trim())
         .join('\n');
 
       await supabase.from('orders').insert([{
         client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-        product_name: productLines.includes('\n') ? "📦 הזמנה מרובת פריטים" : (productLines.split('(')[0] || "הזמנה חדשה"),
-        warehouse: productLines || cleanMsg,
+        product_name: cleanLines.includes('\n') ? "📦 סל מוצרים חדש" : "הזמנה חדשה",
+        warehouse: cleanLines || cleanMsg,
         status: 'pending',
         order_time: new Date().toLocaleTimeString('he-IL')
       }]);
       
-      // הסרת הפקודות מהטקסט ללקוח
       replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").replace(/SHOW_PRODUCT_CARD:[\w:-]+/g, "").trim();
     }
 
-    // 7. עדכון זיכרון
-    const newKnowledge = ((memory?.accumulated_knowledge || "") + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-1500);
-    await supabase.from('customer_memory').upsert({ 
-      clientId: phone, 
-      accumulated_knowledge: newKnowledge 
-    }, { onConflict: 'clientId' });
-
     return res.status(200).json({ reply: replyText });
-
   } catch (error) {
-    console.error("Brain Error:", error);
-    return res.status(200).json({ reply: "מצטער, חלה שגיאה במערכת. נסה שוב." });
+    return res.status(200).json({ reply: "מצטער, חלה שגיאה. נסה שוב." });
   }
 }
