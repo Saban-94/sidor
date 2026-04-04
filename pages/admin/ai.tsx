@@ -33,36 +33,58 @@ export default function SabanAIAssistant() {
   const [selectedProductSku, setSelectedProductSku] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+// 1. כיבוי ה-Splash Screen
   useEffect(() => {
     setTimeout(() => setShowSplash(false), 800);
   }, []);
 
-  // קליטת הודעות מה-Iframe (הזמנה מהמחשבון)
+  // 2. קליטת הודעות מה-Iframe (הזמנה מהמחשבון) - מתוקן!
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // בדיקה שההודעה היא מסוג הוספה להזמנה
       if (event.data.type === 'ADD_TO_ORDER') {
         const { productName, quantity, sku } = event.data;
-        setSelectedProductSku(null); // סגירת המודאל
-        setInput(`אני רוצה להזמין ${quantity} שקים של ${productName} (מק"ט ${sku})`);
+        
+        // א. סגירת ה-Popup של המוצר
+        setSelectedProductSku(null); 
+        
+        // ב. בניית פקודת ההזמנה
+        const orderText = `אני רוצה להזמין ${quantity} יחידות של ${productName} (מק"ט ${sku})`;
+        
+        // ג. הפעלה אוטומטית של ה-AI (כדי שלא ייתקע בלופ)
+        askAI(orderText);
       }
     };
+
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+    // הוספת messages ל-deps מבטיחה שהפונקציה askAI תמיד תהיה מעודכנת
+  }, [messages]); 
 
+  // 3. גלילה אוטומטית למטה
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, loading, streamingText]);
 
+  // 4. ניהול פקודות פנימיות
   const handleInternalCommands = (text: string) => {
+    // הצגת כרטיס מוצר
     if (text.includes("SHOW_PRODUCT_CARD:")) {
-      const sku = text.split("SHOW_PRODUCT_CARD:")[1].split(/\s/)[0].trim();
-      setTimeout(() => setSelectedProductSku(sku), 600);
+      const parts = text.split("SHOW_PRODUCT_CARD:");
+      if (parts[1]) {
+        const sku = parts[1].split(/\s/)[0].trim();
+        setTimeout(() => setSelectedProductSku(sku), 600);
+      }
+    }
+
+    // שמירת הזמנה ב-DB
+    if (text.includes("SAVE_ORDER_DB:")) {
+      console.log("🚀 Order detected, saving to database...");
+      // כאן המקום להוסיף קריאה ל-fetch('/api/save-order', ...) אם תרצה רישום אוטומטי
     }
   };
-
   const typeEffect = (fullText: string) => {
     setIsTyping(true);
     setStreamingText("");
