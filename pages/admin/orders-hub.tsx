@@ -23,8 +23,7 @@ export default function OrdersHub() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload: any) => {
         fetchOrders();
         // שימוש ב-any כדי למנוע את שגיאת Property 'has_new_note' does not exist
-        const newData = payload.new as any;
-        if (newData && newData.has_new_note) {
+        if (payload?.new && (payload.new as any)?.has_new_note) {
           audioRef.current?.play().catch(() => {});
         }
       })
