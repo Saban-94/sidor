@@ -98,24 +98,51 @@ const toggleStatus = async (order: any) => {
                       <span className="text-[8px] font-black text-slate-300">ID</span>
                       <span className="text-2xl font-black italic">#{order.order_number}</span>
                     </div>
+{/* תוכן ההזמנה - גרסה מעוצבת לרשימות */}
+<div className="flex-1 text-right w-full">
+  <div className="flex items-center gap-3 mb-3">
+    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-sm ${isNew ? 'bg-orange-500 text-white animate-pulse' : 'bg-emerald-500 text-white'}`}>
+      {isNew ? 'ממתין לטיפול' : 'הזמנה טופלה'}
+    </span>
+    <span className="text-[11px] font-black text-slate-400 flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+      <Clock size={14} className="text-blue-500"/> {order.order_time}
+    </span>
+  </div>
 
-                    {/* תוכן ההזמנה */}
-                    <div className="flex-1 text-right w-full">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-widest ${isNew ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                          {isNew ? 'ממתין לטיפול' : 'הזמנה טופלה'}
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12}/> {order.order_time}</span>
-                      </div>
-                      <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter leading-tight">
-                        {displayName}
-                      </h2>
-                      <div className="flex flex-wrap gap-3 mt-3 text-[13px] font-bold text-slate-500">
-                        <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100"><Package size={14} className="text-blue-500"/> {order.warehouse}</span>
-                        <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100"><Phone size={14} className="text-slate-400"/> {order.client_info}</span>
-                      </div>
-                    </div>
+  <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none mb-4 italic">
+    {displayName}
+  </h2>
 
+  {/* רשימת הפריטים המעוצבת */}
+  <div className="grid grid-cols-1 gap-2 mb-4">
+    {order.warehouse?.split('\n').map((item: string, idx: number) => (
+      <motion.div 
+        initial={{ x: 20, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: idx * 0.1 }}
+        key={idx} 
+        className="flex items-center gap-3 bg-white border border-slate-100 p-3 rounded-2xl shadow-sm hover:border-blue-200 transition-colors group"
+      >
+        <div className="bg-blue-50 p-2 rounded-xl group-hover:bg-blue-600 transition-colors">
+          <Package size={16} className="text-blue-600 group-hover:text-white" />
+        </div>
+        <span className="text-[15px] font-black text-slate-700">
+          {item.trim()}
+        </span>
+      </motion.div>
+    ))}
+  </div>
+
+  {/* פרטי קשר בתחתית הכרטיס */}
+  <div className="flex flex-wrap gap-3 mt-4 border-t border-slate-50 pt-4">
+    <span className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl text-[12px] font-black shadow-lg shadow-slate-200 italic">
+      <Phone size={14} className="text-emerald-400"/> {order.client_info}
+    </span>
+    <span className="flex items-center gap-2 bg-slate-50 text-slate-400 px-4 py-2 rounded-2xl text-[12px] font-black border border-slate-100 uppercase tracking-tighter">
+      <Database size={14} /> {order.location || 'צאט AI'}
+    </span>
+  </div>
+</div>
                     {/* כפתורי פעולה */}
                     <div className="flex items-center gap-2 shrink-0">
                       <button 
