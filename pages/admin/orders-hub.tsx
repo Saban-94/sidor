@@ -4,7 +4,7 @@ import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShoppingBag, Clock, CheckCircle, Package, Eye, Save, 
-  Printer, Share2, Truck, MessageSquare, BellRing 
+  Printer, Share2, Truck, MessageSquare, BellRing, Phone 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,7 +22,7 @@ export default function OrdersHub() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload: any) => {
         fetchOrders();
         // בדיקת הערה חדשה עם הגנה ל-Build
-        if (payload.new && (payload.new as any).has_new_note) {
+        if (payload.new && typeof payload.new === 'object' && (payload.new as Record<string, any>).has_new_note) {
           audioRef.current?.play().catch(() => {});
         }
       })
