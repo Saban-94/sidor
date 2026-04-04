@@ -1,31 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
-// פונקציית צייד מוצרים ברשת - לוגיקה מקורית ללא שינוי
-async function huntProductOnline(query: string) {
-  const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
-  const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-  try {
-    const resText = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מפרט טכני")}`);
-    const dataText = await resText.json();
-    const resImage = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=1`);
-    const dataImage = await resImage.json();
-    const imageUrl = dataImage.items?.[0]?.link || '';
-    if (!dataText.items) return null;
-    return {
-      product_name: dataText.items[0].title.split('|')[0].trim(),
-      description: dataText.items[0].snippet,
-      image_url: imageUrl,
-      sku: `AI-${Math.floor(1000 + Math.random() * 9000)}`,
-      search_text: query.toLowerCase()
-    };
-  } catch (e) { return null; }
-}
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -33,58 +9,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
+  const phone = senderPhone?.replace('@c.us', '') || 'unknown';
   const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-pro-exp-02-05", "gemini-2.0-flash"];
 
-  if (!cleanMsg) return res.status(200).json({ reply: "שלום, במה אוכל לעזור?" });
-
   try {
-    const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-
-    // 1. זיכרון לקוח
-    let { data: memory } = await supabase.from('customer_memory').select('accumulated_knowledge, user_name').eq('clientId', phone).maybeSingle();
+    // 1. שליפת זיכרון לקוח
+    let { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name;
+    let chatHistory = memory?.accumulated_knowledge || "";
 
-    // 2. חיפוש מלאי ואימון
+    // 2. שליפת נתוני מלאי ואימון (לוגיקה קיימת ללא דריסה)
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let inventoryData = "";
     let trainingAnswer = "";
-
     if (searchWords.length > 0) {
-      // חיפוש ב-brain_inventory
       const { data: exact } = await supabase.from('brain_inventory').select('*').or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`).limit(1).maybeSingle();
-      if (exact) {
-        inventoryData = `מוצר במלאי: ${exact.product_name}, מק"ט: ${exact.sku}, מחיר: ${exact.price}.`;
-      } else {
-        const { data: related } = await supabase.from('brain_inventory').select('product_name, sku').or(searchWords.map(word => `search_text.ilike.%${word}%`).join(',')).limit(2);
-        if (related && related.length > 0) inventoryData = related.map(p => `${p.product_name} (מק"ט: ${p.sku})`).join(", ");
-      }
-      
-      // חיפוש ב-ai_training
+      if (exact) inventoryData = `מוצר במלאי: ${exact.product_name}, מק"ט: ${exact.sku}, מחיר: ${exact.price}.`;
       const { data: matches } = await supabase.from('ai_training').select('answer').or(searchWords.map(word => `question.ilike.%${word}%`).join(','));
       if (matches) trainingAnswer = matches.map(m => m.answer).join("\n");
     }
 
-    // 3. ה-PROMPT המנצח - הצלבה של כל הלוגיקות
+    // 3. ה-PROMPT המנצח (פינג-פונג, זיכרון, פקודות UI)
     const prompt = `
-      זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין". הלקוח הוא: ${currentUserName || 'אורח'}.
-      מידע פנימי (אימון): ${trainingAnswer || "אין."}
-      נתוני מלאי: ${inventoryData || "לא נמצאו מוצרים תואמים."}
+      זהות: אתה איש המכירות והשירות המקצועי של "ח.סבן חומרי בנין". 
+      לקוח: ${currentUserName || 'אורח (חדש)'}. 
+      
+      חוקי פינג-פונג (חובה):
+      1. פתיחה לאורח: אם הלקוח אורח, ברך אותו בחום, הסבר שיוכל לבדוק מוצרים (כתוב שם מוצר) או להזמין (לחץ על כפתור), ובקש רק פרט אחד: "איך קוראים לך?".
+      2. המשכיות: אם הלקוח מסר שם, ברך אותו בשמו והמשך לפרט הבא (טלפון/כתובת) רק אם הוא מבצע הזמנה.
+      3. איסוף הזמנה: כשהלקוח מזמין, אשר את הפריטים בבולטים (•) והוסף: SAVE_ORDER_DB:[SKU]:[כמות]. אם אין מק"ט, השתמש ב-MANUAL.
+      4. כרטיס מוצר: אם רק שאל על מוצר, הוסף: SHOW_PRODUCT_CARD:[SKU].
+      5. סגנון: תמציתי מאוד, מקצועי, ללא המילה "בוס".
 
-      חוקים קריטיים:
-      1. זיהוי פריטים: אם הלקוח שואל על מוצר, הוסף בסוף: SHOW_PRODUCT_CARD:[SKU]. לריבוי פריטים, הוסף פקודה לכל מק"ט.
-      2. ביצוע הזמנה (סל קניות): כשהלקוח מבקש להזמין ("אני רוצה להזמין", "תזמין לי"), אשר את כל הרשימה בבולטים (•).
-         חובה להוסיף לכל פריט בסוף: SAVE_ORDER_DB:[SKU]:[כמות]. אם אין מק"ט, השתמש ב-SAVE_ORDER_DB:MANUAL:[כמות].
-      3. חוק האורח (פינג-פונג): אם הלקוח הוא "אורח" ומזמין, אשר את הליקוט ומיד בקש פרט אחד: "כדי להשלים את ההזמנה, מה שמך המלא?". בשלבים הבאים תבקש נייד וכתובת.
-      4. מניעת כפילות: אם ביצעת הזמנה (SAVE_ORDER_DB), אל תציג את ה-SHOW_PRODUCT_CARD לאותו מוצר.
-      5. לינק ישיר: לכל מוצר במלאי הוסף: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
-      6. איסור סירוב: לעולם אל תגיד "אין במלאי". אם מוצר לא נמצא, אשר כ"הזמנה בבדיקה ידנית".
-      7. שפה: תמציתי ומקצועי. אל תשתמש במילה "בוס".
-
-      הודעה: ${cleanMsg}
-      היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
+      מלאי/אימון: ${inventoryData} | ${trainingAnswer}
+      היסטוריית שיחה: ${chatHistory.slice(-1000)}
+      הודעת לקוח: ${cleanMsg}
     `;
 
-    // 4. הרצה מול Gemini
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -99,29 +60,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {}
     }
 
-    // 5. הזרקת הזמנה לטבלה (ניקוי וליקוט)
-    if (replyText.includes("SAVE_ORDER_DB:")) {
-      const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-      const cleanLines = replyText.split('\n')
-        .filter(l => l.includes('•') || l.includes('-') || l.includes('שקים') || l.includes('לוח') || l.includes('מק"ט'))
-        .map(l => l.replace(/[-•]/g, '').trim())
-        .join('\n');
+    // 4. עדכון זיכרון ושם (מאחורי הקלעים)
+    if (!currentUserName && cleanMsg.length < 15 && !cleanMsg.includes("?") && !chatHistory.includes("שמי")) {
+      currentUserName = cleanMsg.replace(/אני|שמי|קוראים לי/g, "").trim();
+    }
+    const updatedHistory = (chatHistory + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-2000);
+    await supabase.from('customer_memory').upsert({
+      clientId: phone, user_name: currentUserName, accumulated_knowledge: updatedHistory, last_interaction: new Date().toISOString()
+    }, { onConflict: 'clientId' });
 
+    // 5. הזרקת הזמנה ל-DB (בלי דריסה)
+    if (replyText.includes("SAVE_ORDER_DB:")) {
+      const cleanItems = replyText.split('\n').filter(l => l.includes('•') || l.includes('-')).join('\n');
       await supabase.from('orders').insert([{
         client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-        product_name: cleanLines.includes('\n') ? "📦 הזמנה מרובת פריטים" : "הזמנה חדשה",
-        warehouse: cleanLines || cleanMsg,
-        status: 'pending',
-        order_time: new Date().toLocaleTimeString('he-IL')
+        product_name: "📦 הזמנה חדשה", warehouse: cleanItems || cleanMsg, status: 'pending', order_time: new Date().toLocaleTimeString('he-IL')
       }]);
-      
-      // ניקוי פקודות מהטקסט ללקוח
-      replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").replace(/SHOW_PRODUCT_CARD:[\w:-]+/g, "").trim();
     }
 
-    return res.status(200).json({ reply: replyText });
+    const finalReply = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").replace(/SHOW_PRODUCT_CARD:[\w:-]+/g, "").trim();
+    return res.status(200).json({ reply: finalReply });
 
   } catch (error) {
-    return res.status(200).json({ reply: "מצטער, חלה שגיאה קטנה. נסה שוב." });
+    return res.status(200).json({ reply: "מצטער, נסה שוב." });
   }
 }
