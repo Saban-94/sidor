@@ -184,6 +184,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await supabase.from('orders').insert([{
           client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
           location: "הזמנה מצאט AI",
+          product_name: itemName,
           warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
           order_time: new Date().toLocaleTimeString('he-IL'),
           status: 'pending'
