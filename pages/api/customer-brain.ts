@@ -161,44 +161,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let replyText = "";
     for (const modelName of modelPool) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-  const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) { replyText = text; break; }
+        const data = await response.json();
+        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+        if (replyText) break;
       } catch (e) {}
     }
- if (!replyText) throw new Error("No AI response");
 
-if (replyText.includes("SAVE_ORDER_DB:")) {
-  const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-  
-  // חילוץ נקי של רשימת המוצרים בלבד (מסננים ברכות ופקודות)
-  const lines = replyText.split('\n');
-  const cleanItems = lines
-    .filter(line => line.trim().startsWith('-') || line.includes('מק"ט') || line.includes('שקים'))
-    .map(line => line.replace(/- /g, '• ').trim())
-    .join('\n');
+    if (replyText.includes("SAVE_ORDER_DB:")) {
+      const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
+      const sku = match ? match[1] : "GENERIC";
+      const qty = match ? match[2] : "1";
+      const itemName = replyText.split('של')[1]?.split('(')[0]?.trim() || "הזמנה כללית";
 
-  await supabase.from('orders').insert([{
-    client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-    location: "צ'אט AI",
-    product_name: "📦 סל מוצרים חדש",
-    warehouse: cleanItems || "פירוט בהודעה", // כאן נכנסת רק הרשימה הנקייה
-    order_time: new Date().toLocaleTimeString('he-IL'),
-    status: 'pending'
-  }]);
-
-  // ניקוי סופי של פקודות ה-DB מהודעת הוואטסאפ ללקוח
-  replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
- }
-}
+      await supabase.from('orders').insert([{
+        client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+        product_name: itemName,
+        warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
+        status: 'pending',
+        order_time: new Date().toLocaleTimeString('he-IL')
+      }]);
+      replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
+    }
 
     return res.status(200).json({ reply: replyText });
-
   } catch (error) {
     return res.status(200).json({ reply: "מצטער, נסה שוב." });
   }
