@@ -6,28 +6,26 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// פונקציית צייד מוצרים ברשת
+// פונקציית צייד מוצרים ברשת - לוגיקה מקורית ללא שינוי
 async function huntProductOnline(query: string) {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
   
   try {
-    // 1. חיפוש טקסט (מפרט)
     const resText = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query + " מפרט טכני")}`);
     const dataText = await resText.json();
     
-    // 2. חיפוש תמונה (חדש!)
     const resImage = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=1`);
     const dataImage = await resImage.json();
     
-    const imageUrl = dataImage.items?.[0]?.link || ''; // הלינק לתמונה הראשונה שנמצאה
+    const imageUrl = dataImage.items?.[0]?.link || '';
 
     if (!dataText.items) return null;
 
     return {
       product_name: dataText.items[0].title.split('|')[0].trim(),
       description: dataText.items[0].snippet,
-      image_url: imageUrl, // מזריקים את הלינק לתמונה
+      image_url: imageUrl,
       sku: `AI-${Math.floor(1000 + Math.random() * 9000)}`,
       search_text: query.toLowerCase()
     };
@@ -74,13 +72,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         currentUserName = extractedName;
       }
     }
-// 3. חיפוש מוצר ואימון
+
+    // 3. חיפוש מוצר ואימון - מותאם ל-brain_inventory
     const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
     let trainingAnswer = "";
     let inventoryData = "";
 
     if (searchWords.length > 0) {
-      // א. חיפוש מוצר מדויק במלאי (Exact Match)
+      // א. חיפוש מוצר מדויק בטבלה החדשה
       const { data: exactProduct } = await supabase
         .from('brain_inventory')
         .select('*')
@@ -89,9 +88,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
 
       if (exactProduct) {
-        console.log("Found exact product:", exactProduct.sku);
-        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, ייבוש: ${exactProduct.dry_time}, כיסוי: ${exactProduct.coverage_rate}.`;      } else {
-        // ב. חיפוש גמיש במלאי (Partial Match)
+        console.log("Found exact product in brain_inventory:", exactProduct.sku);
+        // שימוש בשמות העמודות החדשים: dry_time, coverage_rate
+        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, זמן ייבוש: ${exactProduct.dry_time || 'לפי יצרן'}, כיסוי: ${exactProduct.coverage_rate || 'משתנה'}.`;
+      } else {
+        // ב. חיפוש גמיש בטבלה החדשה
         const { data: relatedProducts } = await supabase
           .from('brain_inventory')
           .select('product_name, sku, price, search_text')
@@ -99,17 +100,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .limit(2);
 
         if (relatedProducts && relatedProducts.length > 0) {
-          console.log("Found related products in inventory");
           inventoryData = relatedProducts.map(p => 
             `מוצר רלוונטי במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}.`
           ).join("\n");
         } else {
-          // ג. ציד מוצרים ברשת (Web Hunt) - רק אם לא נמצא כלום במלאי
-          console.log("Nothing in inventory, starting web hunt for:", cleanMsg);
+          // ג. ציד מוצרים ברשת (Web Hunt) - הזרקה ל-brain_inventory
           const hunted = await huntProductOnline(cleanMsg);
           
           if (hunted) {
-            // הזרקה למערכת עם טיפול בשגיאות (Ingestion)
             const { data: saved, error: insertError } = await supabase
               .from('brain_inventory')
               .upsert([{
@@ -118,25 +116,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 description: hunted.description,
                 image_url: hunted.image_url,
                 search_text: hunted.search_text,
-                is_ai_learned: true,
                 price: 0
-              }], { onConflict: 'sku' }) // מונע כפילויות מק"ט
+              }], { onConflict: 'sku' })
               .select()
               .single();
 
-            if (insertError) {
-              console.error("Database Ingestion Error:", insertError.message);
-              // גם אם נכשלה השמירה, עדיין נשתמש במידע שהמוח מצא כדי לענות
-              inventoryData = `מידע טכני שנמצא ברשת: ${hunted.product_name}. תיאור: ${hunted.description}`;
-            } else if (saved) {
-              console.log("Successfully saved hunted product:", saved.sku);
+            if (!insertError && saved) {
               inventoryData = `מוצר חדש אותר ברשת ונשמר למערכת: ${saved.product_name}, מק"ט זמני: ${saved.sku}. תיאור: ${saved.description}`;
+            } else {
+              inventoryData = `מידע טכני שנמצא ברשת: ${hunted.product_name}. תיאור: ${hunted.description}`;
             }
           }
         }
       }
 
-      // ד. חיפוש בטבלת אימון (AI Training Table)
+      // ד. חיפוש בטבלת אימון
       const orCondition = searchWords.map(word => `question.ilike.%${word}%`).join(',');
       const { data: matches } = await supabase
         .from('ai_training')
@@ -148,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 4. בניית ה-Prompt
+    // 4. בניית ה-Prompt (שמירה על החוקים המקוריים)
     const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין".
       לקוח: ${currentUserName || 'אורח'}.
@@ -166,7 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
 
-    // 5. הרצה מול ה-AI (עם Fallback)
+    // 5. הרצה מול ה-AI (רוטציית מודלים מקורית)
     let replyText = "";
     for (const modelName of modelPool) {
       try {
