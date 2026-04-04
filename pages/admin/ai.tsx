@@ -135,7 +135,7 @@ export default function SabanAIAssistant() {
               <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
                 <iframe 
                   src={`/product/${selectedProductSku}?embed=true`} 
-                  className="w-full h-[750px] border-none block" 
+                  className="w-full min-h-[800px] border-none block" 
                   style={{ minHeight: '100%' }}
                 />
               </div>
