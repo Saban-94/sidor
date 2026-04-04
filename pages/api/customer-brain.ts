@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// פונקציית צייד מוצרים ברשת - לוגיקה מקורית
+// פונקציית צייד מוצרים ברשת - לוגיקה מקורית ללא שינוי
 async function huntProductOnline(query: string) {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
@@ -50,6 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let trainingAnswer = "";
 
     if (searchWords.length > 0) {
+      // חיפוש ב-brain_inventory
       const { data: exact } = await supabase.from('brain_inventory').select('*').or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`).limit(1).maybeSingle();
       if (exact) {
         inventoryData = `מוצר במלאי: ${exact.product_name}, מק"ט: ${exact.sku}, מחיר: ${exact.price}.`;
@@ -58,25 +59,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (related && related.length > 0) inventoryData = related.map(p => `${p.product_name} (מק"ט: ${p.sku})`).join(", ");
       }
       
+      // חיפוש ב-ai_training
       const { data: matches } = await supabase.from('ai_training').select('answer').or(searchWords.map(word => `question.ilike.%${word}%`).join(','));
       if (matches) trainingAnswer = matches.map(m => m.answer).join("\n");
     }
 
-    // 3. ה-PROMPT המנצח - ללא סירובים
+    // 3. ה-PROMPT המנצח - הצלבה של כל הלוגיקות
     const prompt = `
-      זהות: אתה איש מכירות בכיר ב"ח.סבן חומרי בנין". הלקוח הוא: ${currentUserName || 'אורח'}.
-      
+      זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין". הלקוח הוא: ${currentUserName || 'אורח'}.
+      מידע פנימי (אימון): ${trainingAnswer || "אין."}
+      נתוני מלאי: ${inventoryData || "לא נמצאו מוצרים תואמים."}
+
       חוקים קריטיים:
-      1. איסור סירוב: לעולם אל תגיד "אין במלאי" כסיבה לביטול הזמנה. אם מוצר לא נמצא בנתונים, אשר אותו כ"הזמנה בבדיקת מלאי ידנית".
-      2. אישור הזמנה: כשהלקוח מבקש להזמין, אשר את כל הרשימה בבולטים (•). לכל פריט הוסף בסוף: SAVE_ORDER_DB:[SKU]:[כמות]. אם אין מק"ט, השתמש ב-SAVE_ORDER_DB:MANUAL:1.
-      3. חוק האורח: אם הלקוח הוא "אורח", עליך לבקש בסוף האישור: "כדי שנשלים את ההזמנה, אנא ציין שם מלא, טלפון וכתובת למשלוח."
-      4. SHOW_PRODUCT_CARD: הוסף רק אם הלקוח שואל "יש לכם X?". אם הוא כבר מזמין - אל תציג כרטיס.
-      5. סגנון: תמציתי, מקצועי, ללא המילה "בוס".
-      
-      נתוני עזר: ${inventoryData} | ${trainingAnswer}
+      1. זיהוי פריטים: אם הלקוח שואל על מוצר, הוסף בסוף: SHOW_PRODUCT_CARD:[SKU]. לריבוי פריטים, הוסף פקודה לכל מק"ט.
+      2. ביצוע הזמנה (סל קניות): כשהלקוח מבקש להזמין ("אני רוצה להזמין", "תזמין לי"), אשר את כל הרשימה בבולטים (•).
+         חובה להוסיף לכל פריט בסוף: SAVE_ORDER_DB:[SKU]:[כמות]. אם אין מק"ט, השתמש ב-SAVE_ORDER_DB:MANUAL:[כמות].
+      3. חוק האורח (פינג-פונג): אם הלקוח הוא "אורח" ומזמין, אשר את הליקוט ומיד בקש פרט אחד: "כדי להשלים את ההזמנה, מה שמך המלא?". בשלבים הבאים תבקש נייד וכתובת.
+      4. מניעת כפילות: אם ביצעת הזמנה (SAVE_ORDER_DB), אל תציג את ה-SHOW_PRODUCT_CARD לאותו מוצר.
+      5. לינק ישיר: לכל מוצר במלאי הוסף: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
+      6. איסור סירוב: לעולם אל תגיד "אין במלאי". אם מוצר לא נמצא, אשר כ"הזמנה בבדיקה ידנית".
+      7. שפה: תמציתי ומקצועי. אל תשתמש במילה "בוס".
+
       הודעה: ${cleanMsg}
+      היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
 
+    // 4. הרצה מול Gemini
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -91,26 +99,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {}
     }
 
-    // 4. הזרקת הזמנה לטבלה
+    // 5. הזרקת הזמנה לטבלה (ניקוי וליקוט)
     if (replyText.includes("SAVE_ORDER_DB:")) {
+      const phone = senderPhone?.replace('@c.us', '') || 'unknown';
       const cleanLines = replyText.split('\n')
-        .filter(l => l.includes('•') || l.includes('-') || l.includes('שקים') || l.includes('לוח'))
+        .filter(l => l.includes('•') || l.includes('-') || l.includes('שקים') || l.includes('לוח') || l.includes('מק"ט'))
         .map(l => l.replace(/[-•]/g, '').trim())
         .join('\n');
 
       await supabase.from('orders').insert([{
         client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-        product_name: cleanLines.includes('\n') ? "📦 סל מוצרים חדש" : "הזמנה חדשה",
+        product_name: cleanLines.includes('\n') ? "📦 הזמנה מרובת פריטים" : "הזמנה חדשה",
         warehouse: cleanLines || cleanMsg,
         status: 'pending',
         order_time: new Date().toLocaleTimeString('he-IL')
       }]);
       
+      // ניקוי פקודות מהטקסט ללקוח
       replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").replace(/SHOW_PRODUCT_CARD:[\w:-]+/g, "").trim();
     }
 
     return res.status(200).json({ reply: replyText });
+
   } catch (error) {
-    return res.status(200).json({ reply: "מצטער, חלה שגיאה. נסה שוב." });
+    return res.status(200).json({ reply: "מצטער, חלה שגיאה קטנה. נסה שוב." });
   }
 }
