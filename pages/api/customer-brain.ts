@@ -90,8 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (exactProduct) {
         console.log("Found exact product:", exactProduct.sku);
-        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, צריכה: ${exactProduct.consumption_per_mm}, שק: ${exactProduct.packaging_size}.`;
-      } else {
+        inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, ייבוש: ${exactProduct.dry_time}, כיסוי: ${exactProduct.coverage_rate}.`;      } else {
         // ב. חיפוש גמיש במלאי (Partial Match)
         const { data: relatedProducts } = await supabase
           .from('brain_inventory')
@@ -117,6 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 sku: hunted.sku,
                 product_name: hunted.product_name,
                 description: hunted.description,
+                image_url: hunted.image_url,
                 search_text: hunted.search_text,
                 is_ai_learned: true,
                 price: 0
