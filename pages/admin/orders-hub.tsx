@@ -2,21 +2,22 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  ShoppingBag, Clock, CheckCircle, Package, Eye, Database, Save, Printer, Share2, Phone 
-} from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, Package, Eye, Database, Save, Printer, Share2, Phone, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function OrdersHub() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingComax, setEditingComax] = useState<{id: string, value: string} | null>(null);
 
   useEffect(() => {
     fetchOrders();
-    const channel = supabase.channel('orders-live').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders()).subscribe();
+    const channel = supabase.channel('orders-live').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      fetchOrders();
+      new Audio('/order-notification.mp3').play().catch(() => {});
+    }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -25,106 +26,100 @@ export default function OrdersHub() {
     if (data) setOrders(data);
   };
 
-  const saveComaxId = async (id: string) => {
+  const handleUpdateStatus = async (id: string, current: string) => {
+    const next = current === 'pending' ? 'completed' : 'pending';
+    await supabase.from('orders').update({ status: next }).eq('id', id);
+    fetchOrders();
+  };
+
+  const handleSaveComax = async (id: string) => {
     if (!editingComax) return;
     await supabase.from('orders').update({ comax_id: editingComax.value }).eq('id', id);
     setEditingComax(null);
     fetchOrders();
   };
 
-  const toggleStatus = async (order: any) => {
-    const next = order.status === 'pending' ? 'completed' : 'pending';
-    await supabase.from('orders').update({ status: next }).eq('id', order.id);
-    fetchOrders();
-  };
-
   return (
-    <div className="min-h-screen bg-[#F4F7F9] overflow-y-auto touch-pan-y pb-20" dir="rtl">
-      <Head><title>ח. סבן | ORDERS HUB</title></Head>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 overflow-y-auto touch-pan-y" dir="rtl">
+      <Head><title>ח. סבן | CONTROL CENTER</title></Head>
 
-      <header className="bg-white/95 sticky top-0 z-[100] border-b p-4 flex justify-between items-center shadow-sm backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="bg-slate-900 p-2 rounded-xl"><ShoppingBag size={20} className="text-white" /></div>
-          <h1 className="font-black text-xl tracking-tighter">ח. סבן <span className="text-blue-600">SYSTEM</span></h1>
+      <header className="bg-slate-900 text-white sticky top-0 z-[100] p-4 md:p-6 flex justify-between items-center shadow-2xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-600 p-2 rounded-xl shadow-lg animate-pulse"><ShoppingBag size={24} /></div>
+          <h1 className="text-2xl font-black italic tracking-tighter">SABAN <span className="text-blue-400 font-normal">OS</span></h1>
         </div>
-        <div className="bg-blue-50 px-3 py-1 rounded-full text-blue-700 font-black text-sm">
-          {orders.filter(o => o.status === 'pending').length} חדשות
+        <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-2xl border border-slate-700">
+          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+          <span className="text-sm font-black">{orders.filter(o => o.status === 'pending').length} הזמנות חדשות</span>
         </div>
       </header>
 
-      <main className="p-4 max-w-4xl mx-auto space-y-6">
+      <main className="p-4 md:p-10 max-w-[1600px] mx-auto space-y-6">
         <AnimatePresence>
           {orders.map((order) => {
             const isNew = order.status === 'pending';
-            const isExpanded = selectedOrderId === order.id;
+            const isExpanded = expandedId === order.id;
 
             return (
-              <motion.div layout key={order.id} className="relative rounded-[2.5rem] overflow-hidden shadow-lg bg-white border border-slate-100">
-                {isNew && <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse opacity-5" />}
+              <motion.div layout key={order.id} className={`relative rounded-[2rem] md:rounded-[3rem] overflow-hidden border transition-all duration-500 ${isNew ? 'bg-white border-blue-500 shadow-blue-100 shadow-2xl' : 'bg-white/50 border-slate-100 opacity-80 shadow-sm'}`}>
+                {/* אפקט הזיקית */}
+                {isNew && <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500 animate-gradient-x" />}
                 
-                <div className="relative p-6 flex flex-col md:flex-row items-center gap-6">
-                  <div className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black italic shadow-lg shrink-0">#{order.order_number}</div>
+                <div className="p-6 md:p-10 flex flex-col md:flex-row items-center gap-8">
+                  <div className="bg-slate-900 text-white w-16 h-16 md:w-20 md:h-20 rounded-[1.5rem] md:rounded-[2rem] flex flex-col items-center justify-center font-black italic shrink-0 shadow-xl">
+                    <span className="text-[10px] opacity-50 uppercase">ID</span>
+                    <span className="text-2xl md:text-3xl">#{order.order_number}</span>
+                  </div>
                   
-                  <div className="flex-1 text-right w-full">
-                    <div className="flex items-center gap-2 mb-1">
-                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${isNew ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                         {isNew ? 'ממתין' : 'טופל'}
-                       </span>
-                       <span className="text-[10px] text-slate-400 font-bold"><Clock size={10} className="inline ml-1"/>{order.order_time}</span>
+                  <div className="flex-1 text-center md:text-right w-full space-y-2">
+                    <div className="flex items-center justify-center md:justify-start gap-3">
+                       <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${isNew ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>{isNew ? 'חדש' : 'טופל'}</span>
+                       <span className="text-xs font-bold text-slate-400 flex items-center gap-1"><Clock size={14}/> {order.order_time}</span>
                     </div>
-                    <h2 className="text-2xl font-black text-slate-800 leading-none">{order.product_name || "סל מוצרים"}</h2>
+                    <h2 className="text-2xl md:text-5xl font-black text-slate-900 tracking-tighter drop-shadow-sm">{order.product_name}</h2>
                   </div>
 
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => setSelectedOrderId(isExpanded ? null : order.id)} className={`p-4 rounded-2xl transition-all ${isExpanded ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400'}`}><Eye size={22}/></button>
-                    <button onClick={() => toggleStatus(order)} className={`p-4 rounded-2xl text-white shadow-lg active:scale-95 ${isNew ? 'bg-orange-500' : 'bg-emerald-500'}`}><CheckCircle size={22}/></button>
+                  <div className="flex gap-3 shrink-0 z-50">
+                    <button onClick={() => setExpandedId(isExpanded ? null : order.id)} className={`p-5 md:p-7 rounded-[2rem] transition-all shadow-lg ${isExpanded ? 'bg-blue-600 text-white scale-110' : 'bg-slate-100 text-slate-400 hover:bg-white'}`}><Eye size={32}/></button>
+                    <button onClick={() => handleUpdateStatus(order.id, order.status)} className={`p-5 md:p-7 rounded-[2rem] text-white shadow-2xl transition-all active:scale-90 ${isNew ? 'bg-orange-500' : 'bg-emerald-500'}`}><CheckCircle size={32}/></button>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 bg-slate-50 border-t space-y-6">
-                    {/* רשימת מוצרים נקייה */}
-                    <div className="grid grid-cols-1 gap-2">
-                      {order.warehouse?.split('\n').filter((l: string) => l.trim()).map((line: string, i: number) => (
-                        <div key={i} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3 text-sm font-black text-slate-700">
-                          <Package size={14} className="text-blue-500"/> {line.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim()}
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="p-6 md:p-12 bg-slate-50 border-t border-slate-100 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* רשימת מוצרים נקייה */}
+                      <div className="space-y-3">
+                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest block px-2">רשימת פריטים למחסן</span>
+                        <div className="bg-white p-6 rounded-[2rem] shadow-inner border border-slate-200">
+                           {order.warehouse?.split('\n').filter((l:any)=>l).map((line:string, i:number)=>(
+                             <div key={i} className="flex items-center gap-4 py-3 border-b border-slate-50 last:border-0 font-black text-slate-700">
+                               <Package className="text-blue-500" size={18}/> {line.trim()}
+                             </div>
+                           ))}
                         </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* שדה קומקס דינמי להקלדה */}
-                      <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-slate-200 flex justify-between items-center group hover:border-blue-400 transition-all">
-                        <div className="flex-1">
-                          <span className="text-[9px] block text-slate-400 font-black uppercase tracking-widest">מספר הזמנה קומקס</span>
-                          {editingComax?.id === order.id ? (
-                            <input 
-                              autoFocus
-                              className="text-xl font-black text-blue-600 outline-none w-full bg-transparent"
-                              value={editingComax?.value || ''}
-                              onChange={(e) => setEditingComax({id: order.id, value: e.target.value})}
-                              onBlur={() => saveComaxId(order.id)}
-                              onKeyDown={(e) => e.key === 'Enter' && saveComaxId(order.id)}
-                            />
-                          ) : (
-                            <div 
-                              onClick={() => setEditingComax({id: order.id, value: order.comax_id || ''})}
-                              className="text-2xl font-black text-emerald-500 italic cursor-pointer hover:text-blue-600 transition-colors"
-                            >
-                              {order.comax_id || 'הקש מספר...'}
-                            </div>
-                          )}
-                        </div>
-                        {editingComax?.id === order.id ? <Save className="text-blue-600 animate-pulse" size={20}/> : <Database className="text-slate-200 group-hover:text-blue-400" size={20}/>}
                       </div>
 
-                      <div className="flex gap-2">
-                        <button className="flex-1 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 text-xs"><Printer size={16}/> הדפסה</button>
-                        <button className="flex-1 bg-emerald-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 text-xs"><Share2 size={16}/> WhatsApp</button>
+                      {/* קומקס דינמי ופעולות */}
+                      <div className="space-y-6">
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-4 opacity-10"><Database size={80}/></div>
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">COMAX SYSTEM ID</span>
+                           {editingComax?.id === order.id ? (
+                             <input autoFocus className="bg-transparent text-4xl font-black text-emerald-400 outline-none w-full italic" value={editingComax.value} onChange={(e)=>setEditingComax({id:order.id, value:e.target.value})} onBlur={()=>handleSaveComax(order.id)} onKeyDown={(e)=>e.key==='Enter'&&handleSaveComax(order.id)}/>
+                           ) : (
+                             <div onClick={()=>setEditingComax({id:order.id, value:order.comax_id||''})} className="text-5xl font-black text-emerald-400 italic cursor-pointer hover:text-white transition-colors">{order.comax_id || '---'}</div>
+                           )}
+                           <div className="mt-4 text-[10px] text-slate-500 font-bold italic">לחץ על המספר לעדכון</div>
+                        </div>
+                        
+                        <div className="flex gap-4">
+                          <button className="flex-1 py-5 bg-white border border-slate-200 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Printer size={20}/> הדפסה</button>
+                          <button className="flex-1 py-5 bg-emerald-500 text-white rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-lg"><Share2 size={20}/> WhatsApp</button>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="text-[10px] font-bold text-slate-400 flex items-center gap-2"><Phone size={12}/> {order.client_info}</div>
+                    <div className="text-xs font-bold text-slate-400 border-t pt-4 flex items-center gap-2"><Phone size={14}/> {order.client_info}</div>
                   </motion.div>
                 )}
               </motion.div>
@@ -134,7 +129,9 @@ export default function OrdersHub() {
       </main>
 
       <style jsx global>{`
-        body { background: #F4F7F9; font-family: 'Assistant', sans-serif; -webkit-overflow-scrolling: touch; }
+        @keyframes gradient-x { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .animate-gradient-x { background-size: 200% 200%; animation: gradient-x 3s ease infinite; }
+        body { background: #F8FAFC; font-family: 'Assistant', sans-serif; -webkit-overflow-scrolling: touch; }
       `}</style>
     </div>
   );
