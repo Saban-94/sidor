@@ -13,7 +13,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
   const phone = senderPhone?.replace('@c.us', '') || 'unknown';
   const geminiKey = process.env.GEMINI_API_KEY;
-  const modelPool = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-2.0-pro-exp-02-05"];
+  const modelPool = [
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.0-pro-exp-02-05", 
+    "gemini-2.0-flash"
+  ];
 
   try {
     // 1. שליפת זיכרון והזמנה קיימת
