@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         // ב. חיפוש גמיש במלאי (Partial Match)
         const { data: relatedProducts } = await supabase
-          .from('inventory')
+          .from('brain_inventory')
           .select('product_name, sku, price, search_text')
           .or(searchWords.map(word => `search_text.ilike.%${word}%`).join(','))
           .limit(2);
@@ -112,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (hunted) {
             // הזרקה למערכת עם טיפול בשגיאות (Ingestion)
             const { data: saved, error: insertError } = await supabase
-              .from('inventory')
+              .from('brain_inventory')
               .upsert([{
                 sku: hunted.sku,
                 product_name: hunted.product_name,
