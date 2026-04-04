@@ -142,8 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 4. בניית ה-Prompt (שמירה על החוקים המקוריים)
-    const prompt = `
+ const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין".
       לקוח: ${currentUserName || 'אורח'}.
       
@@ -155,11 +154,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       2. לינק להזמנה: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
       3. אם המוצר "חדש מהרשת", ציין שזה מידע טכני כללי ומומלץ לוודא זמינות סופית מול הנציג.
       4. היה תמציתי ומקצועי. אל תשתמש במילה "בוס".
-      
+      5. כאשר מתקבלת הודעה בפורמט 'אני רוצה להזמין X יחידות של Y (מק"ט Z)', אשר את ההזמנה בנימוס ואל תציג שוב את ה-PRODUCT_CARD.
       הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
-
+    
     // 5. הרצה מול ה-AI (רוטציית מודלים מקורית)
     let replyText = "";
     for (const modelName of modelPool) {
