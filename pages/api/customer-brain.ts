@@ -139,19 +139,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const prompt = `
+      const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין".
       לקוח: ${currentUserName || 'אורח'}.
       
       מידע פנימי (אימון): ${trainingAnswer || "אין."}
       נתוני מלאי: ${inventoryData || "לא נמצאו מוצרים תואמים."}
 
-      חוקים:
-      1. אם מצאת מוצר (גם כזה שנלמד עכשיו), הוסף בסוף: SHOW_PRODUCT_CARD:[SKU].
-      2. לינק להזמנה: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
-      3. אם המוצר "חדש מהרשת", ציין שזה מידע טכני כללי ומומלץ לוודא זמינות סופית מול הנציג.
-      4. היה תמציתי ומקצועי. אל תשתמש במילה "בוס".
-      5. כאשר מתקבלת הודעה בפורמט 'אני רוצה להזמין X יחידות של Y (מק"ט Z)', אשר את ההזמנה בנימוס ואל תציג שוב את ה-PRODUCT_CARD. הוסף בסוף התשובה שלך את הפקודה: SAVE_ORDER_DB:[SKU]:[X].
+      חוקים קריטיים:
+      1. זיהוי פריטים: אם הלקוח שואל על מוצר ספציפי, הוסף בסוף: SHOW_PRODUCT_CARD:[SKU].
+      2. ריבוי מוצרים: אם הלקוח שואל על כמה מוצרים, הוסף את פקודת SHOW_PRODUCT_CARD עבור כל מק"ט שמצאת (למשל: SHOW_PRODUCT_CARD:11305 SHOW_PRODUCT_CARD:2020).
+      3. ביצוע הזמנה (סל קניות): כאשר הלקוח אומר "אני רוצה להזמין" או "תזמין לי", אשר את כל הרשימה בנימוס. 
+         במקרה כזה, חובה להוסיף עבור כל פריט את הפקודה: SAVE_ORDER_DB:[SKU]:[כמות].
+      4. מניעת כפילות: אם ביצעת הזמנה (SAVE_ORDER_DB), אל תציג את ה-SHOW_PRODUCT_CARD עבור אותם מוצרים כדי לא להעמיס על המסך.
+      5. לינק ישיר: עבור כל מוצר שהוזכר, צרף לינק: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
+      6. שפה: היה תמציתי ומקצועי. אל תשתמש במילה "בוס".
+      
+      פורמט אישור הזמנה רב-פריטים:
+      "אני מאשר את קבלת הזמנתך:
+      - כמות X של מוצר Y (מק"ט Z)
+      - כמות A של מוצר B (מק"ט C)
+      נציג יצור קשר בהקדם."
 
       הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
@@ -172,21 +180,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {}
     }
 
-    if (replyText.includes("SAVE_ORDER_DB:")) {
-      const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
-      const sku = match ? match[1] : "GENERIC";
-      const qty = match ? match[2] : "1";
-      const itemName = replyText.split('של')[1]?.split('(')[0]?.trim() || "הזמנה כללית";
+if (replyText.includes("SAVE_ORDER_DB:")) {
+  const phone = senderPhone?.replace('@c.us', '') || 'unknown';
+  
+  // חילוץ רק של שורות המוצרים (מסננים ברכות וטקסט חופשי)
+  const productLines = replyText.split('\n')
+    .filter(line => line.includes('•') || line.includes('-') || line.includes('מק"ט'))
+    .map(line => line.replace(/[-•]/g, '').trim())
+    .join('\n');
 
-      await supabase.from('orders').insert([{
-        client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-        product_name: itemName,
-        warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
-        status: 'pending',
-        order_time: new Date().toLocaleTimeString('he-IL')
-      }]);
-      replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
-    }
+  await supabase.from('orders').insert([{
+    client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+    product_name: productLines.includes('\n') ? "📦 הזמנה מרובת פריטים" : productLines.split('(')[0].trim(),
+    warehouse: productLines, // רק רשימת הפריטים נקייה
+    status: 'pending',
+    order_time: new Date().toLocaleTimeString('he-IL')
+  }]);
+  
+  replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
+}
 
     return res.status(200).json({ reply: replyText });
   } catch (error) {
