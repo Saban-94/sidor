@@ -132,13 +132,14 @@ export default function SabanAIAssistant() {
               </div>
               
               {/* Container גמיש עם גלילה ל-Iframe */}
-              <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
-                <iframe 
-                  src={`/product/${selectedProductSku}?embed=true`} 
-                  className="w-full min-h-[800px] border-none block" 
-                  style={{ minHeight: '100%' }}
-                />
-              </div>
+             <div className="flex-1 overflow-y-auto bg-white custom-scrollbar rounded-b-[2rem]">
+               <iframe 
+                   src={`/product/${selectedProductSku}?embed=true`} 
+                 className="w-full h-[850px] border-none"
+                  style={{ minHeight: '100%', display: 'block' }}
+                  scrolling="no" 
+                     />
+                    </div>
 
               <div className="p-4 bg-[#202c33] border-t border-white/5 shrink-0">
                 <button onClick={() => setSelectedProductSku(null)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-black text-white transition-all active:scale-95 shadow-lg">חזרה לצ'אט</button>
