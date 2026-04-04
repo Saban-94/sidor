@@ -166,27 +166,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        const data = await response.json();
+const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) { replyText = text; break; }
-      } catch (e) { console.error(`Fallback error: ${modelName}`); }
+      } catch (e) {}
     }
-if (!replyText) throw new Error("No AI response");
 
-    // תיקון השגיאה: הגדרת itemName לפני השימוש בה
+    if (!replyText) throw new Error("No AI response");
+
+    // מנגנון הזרקת הזמנה מתוקן
     if (replyText.includes("SAVE_ORDER_DB:")) {
       const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
       const sku = match ? match[1] : null;
       const qty = match ? match[2] : "1";
 
       if (sku) {
-        // חילוץ שם המוצר מהטקסט של התשובה
+        // חילוץ שם הפריט
         const itemName = replyText.split('עבור')[1]?.split('(מק"ט')[0]?.trim() || "מוצר מצאט AI";
 
         await supabase.from('orders').insert([{
           client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
           location: "הזמנה מצאט AI",
-          product_name: itemName, // עכשיו המשתנה מוגדר ותקין
+          product_name: itemName,
           warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
           order_time: new Date().toLocaleTimeString('he-IL'),
           status: 'pending'
@@ -196,17 +197,9 @@ if (!replyText) throw new Error("No AI response");
       }
     }
 
-    // 6. עדכון זיכרון
-    const newKnowledge = ((memory?.accumulated_knowledge || "") + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-1200);
-    await supabase.from('customer_memory').upsert({ 
-      clientId: phone, 
-      accumulated_knowledge: newKnowledge 
-    }, { onConflict: 'clientId' });
-
     return res.status(200).json({ reply: replyText });
 
   } catch (error) {
-    console.error("Brain Error:", error);
-    return res.status(200).json({ reply: "מצטער, אני חווה עומס קל. נסה שוב בעוד רגע." });
+    return res.status(200).json({ reply: "מצטער, נסה שוב." });
   }
 }
