@@ -13,46 +13,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = (message || "").trim();
   const phone = senderPhone?.replace('@c.us', '') || 'unknown';
   const geminiKey = process.env.GEMINI_API_KEY;
-  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-2.0-pro-exp-02-05", "gemini-2.0-flash"];
+  const modelPool = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-2.0-pro-exp-02-05"];
 
   try {
     // 1. שליפת זיכרון והזמנה קיימת
     let { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
     let { data: lastOrder } = await supabase.from('orders').select('*').ilike('client_info', `%${phone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
     
-    let currentUserName = memory?.user_name;
+    let currentUserName = memory?.user_name || "";
     let chatHistory = memory?.accumulated_knowledge || "";
     
     let orderStatusInfo = lastOrder ? 
-      `סטטוס הזמנה #${lastOrder.order_number}: ${lastOrder.status}. שעה: ${lastOrder.delivery_time || 'טרם נקבעה'}. נהג: ${lastOrder.driver_info || 'טרם שויך'}.` 
-      : "אין הזמנה פעילה.";
+      `הזמנה #${lastOrder.order_number}: ${lastOrder.status}. שעה: ${lastOrder.delivery_time || 'בטיפול'}. נהג: ${lastOrder.driver_info || 'טרם שויך'}.` 
+      : "אין הזמנה קודמת.";
 
-    // 2. חיפוש מלאי מהיר
-    const searchWords = cleanMsg.split(/\s+/).filter(word => word.length >= 3);
-    let inventoryData = "";
-    if (searchWords.length > 0) {
-      const { data: exact } = await supabase.from('brain_inventory').select('*').or(`sku.eq.${cleanMsg},product_name.ilike.%${cleanMsg}%`).limit(1).maybeSingle();
-      if (exact) inventoryData = `מוצר במלאי: ${exact.product_name}, מק"ט: ${exact.sku}.`;
-    }
-
-    // 3. ה-PROMPT (הכל בתוך מחרוזת אחת סגורה)
+    // 2. בניית ה-PROMPT עם דגש על סגירת פרטים (שם משפחה)
     const prompt = `
-      זהות: אתה סדרן ההזמנות החכם של "ח.סבן". לקוח: ${currentUserName || 'אורח'}.
-      מידע על הזמנה קיימת: ${orderStatusInfo}
-      נתוני מלאי: ${inventoryData}
+      זהות: אתה המוח של "ח.סבן חומרי בניין".
+      לקוח: ${currentUserName || 'חדש'}. טלפון: ${phone}.
+      היסטוריה קצרה: ${chatHistory.slice(-500)}
+      מידע הזמנה: ${orderStatusInfo}
 
-      חוקים:
-      1. בירור סטטוס: אם הלקוח שואל מתי יגיע או איפה ההזמנה, ענה לפי המידע לעיל (שעה ונהג).
-      2. ביצוע הזמנה: אשר מוצרים בבולטים (•) והוסף SAVE_ORDER_DB:[SKU]:[QTY]. 
-      3. איסוף פרטים: בקש שם (אם אורח), כתובת ושעת אספקה רצויה (ציין שהשעה תיקבע ע"י המשרד).
-      4. הערות לקוח: אם יש הערה מיוחדת, הוסף פקודה: CLIENT_NOTE:[הטקסט].
-      5. סגנון: קצר, מקצועי, ללא "בוס".
+      משימה:
+      - אם הלקוח נתן שם/שם משפחה (כמו "לוי"), עדכן את המערכת והודה לו.
+      - אם חסר שם משפחה, בקש אותו בנימוס.
+      - אם זו הזמנה חדשה, אשר מוצרים בבולטים (•) והוסף SAVE_ORDER_DB:[SKU]:[QTY].
+      - אם יש הערה ("דחוף", "קומה 2"), הוסף פקודה: CLIENT_NOTE:[הטקסט].
 
-      הודעה: ${cleanMsg}
-      היסטוריה: ${chatHistory}
+      חשוב: אל תציג ללקוח פקודות כמו SAVE_ORDER_DB או CLIENT_NOTE. 
+      הודעת הלקוח עכשיו: "${cleanMsg}"
     `;
 
-    // הרצה מול Gemini
+    // 3. הרצה מול Gemini
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -67,48 +59,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { continue; }
     }
 
-    // 4. טיפול ב-DB
-    if (replyText.includes("SAVE_ORDER_DB:") || replyText.includes("CLIENT_NOTE:")) {
+    // 4. זיהוי שם משפחה ועדכון ידני אם ה-AI מתמהמה
+    if (cleanMsg.length < 15 && !cleanMsg.includes(" ") && !currentUserName.includes(cleanMsg)) {
+        currentUserName = currentUserName ? `${currentUserName} ${cleanMsg}` : cleanMsg;
+    }
+
+    // 5. עדכון DB - סגירת ההזמנה עם הפרטים החדשים
+    const hasOrderTrigger = replyText.includes("SAVE_ORDER_DB:") || replyText.includes("CLIENT_NOTE:") || (lastOrder && lastOrder.status === 'pending');
+    
+    if (hasOrderTrigger) {
       const clientNote = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || null;
       
       if (lastOrder && lastOrder.status === 'pending') {
+        // עדכון הזמנה קיימת (הוספת שם המשפחה ל-client_info או עדכון הערה)
         await supabase.from('orders').update({
-          warehouse: lastOrder.warehouse + (replyText.includes("SAVE_ORDER_DB:") ? "\n• פריט נוסף עודכן" : ""),
+          client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
           customer_note: clientNote || lastOrder.customer_note,
           has_new_note: !!clientNote
         }).eq('id', lastOrder.id);
       } else {
+        // יצירת הזמנה חדשה
         await supabase.from('orders').insert([{
-          client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+          client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
           warehouse: cleanMsg,
           customer_note: clientNote,
           has_new_note: !!clientNote,
           status: 'pending',
-          order_time: new Date().toLocaleTimeString('he-IL')
+          order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
         }]);
       }
     }
 
-    // עדכון זיכרון ושם
-    if (!currentUserName && cleanMsg.length < 15 && !cleanMsg.includes("?")) {
-      currentUserName = cleanMsg.replace(/שמי|קוראים לי|אני/g, "").trim();
-    }
-
+    // 6. עדכון זיכרון לקוח
     await supabase.from('customer_memory').upsert({
       clientId: phone, 
       user_name: currentUserName, 
-      accumulated_knowledge: (chatHistory + "\nלקוח: " + cleanMsg + "\nבוט: " + replyText).slice(-1500)
+      accumulated_knowledge: (chatHistory + "\nלקוח: " + cleanMsg + "\nבוט: " + replyText).slice(-1000)
     }, { onConflict: 'clientId' });
 
-    // ניקוי פקודות לפני שליחה ללקוח
+    // 7. ניקוי סופי של התשובה ללקוח (מניעת נזילת קוד)
     const finalReply = replyText
-      .replace(/CLIENT_NOTE:\[.*?\]/g, "")
-      .replace(/SAVE_ORDER_DB:[\w:-]+/g, "")
-      .trim();
+      .replace(/SAVE_ORDER_DB:\[?.*?\]?/g, "")
+      .replace(/CLIENT_NOTE:\[?.*?\]?/g, "")
+      .replace(/\[.*?\]/g, "")
+      .trim() || "תודה, הפרטים עודכנו. נציג יחזור אליך במידת הצורך.";
 
     return res.status(200).json({ reply: finalReply });
 
   } catch (error) {
-    return res.status(200).json({ reply: "מצטער, נסה שוב." });
+    console.error("Brain Error:", error);
+    return res.status(200).json({ reply: "קיבלתי, מטפל בזה עכשיו." });
   }
 }
