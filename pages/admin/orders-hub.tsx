@@ -1,8 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { ShoppingBag, Clock, CheckCircle, Phone, Package, Bell, Printer, Share2, Eye, Database } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, Package, Eye, Database, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
@@ -10,12 +9,11 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 export default function OrdersHub() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [editingComax, setEditingComax] = useState<{id: string, value: string} | null>(null);
 
   useEffect(() => {
     fetchOrders();
-    const channel = supabase.channel('orders-live').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-      fetchOrders();
-    }).subscribe();
+    const channel = supabase.channel('orders-live').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders()).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -24,109 +22,83 @@ export default function OrdersHub() {
     if (data) setOrders(data);
   };
 
-  const toggleStatus = async (order: any) => {
-    const newStatus = order.status === 'pending' ? 'completed' : 'pending';
-    await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+  const saveComaxId = async (id: string) => {
+    if (!editingComax) return;
+    await supabase.from('orders').update({ comax_id: editingComax.value }).eq('id', id);
+    setEditingComax(null);
     fetchOrders();
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7F9] text-slate-900 font-sans overflow-y-auto" dir="rtl">
-      <Head><title>ח. סבן | Orders Hub</title></Head>
-
-      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-4 sticky top-0 z-[100] flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-900 p-2 rounded-xl shadow-lg"><ShoppingBag size={24} className="text-white" /></div>
-          <h1 className="text-xl font-black tracking-tighter">ח. סבן <span className="text-blue-600 italic">SYSTEM</span></h1>
-        </div>
-        <div className="bg-blue-50 px-4 py-2 rounded-full border border-blue-100 flex items-center gap-2 font-black text-blue-700">
-          <Bell className="animate-bounce" size={16} /> {orders.filter(o => o.status === 'pending').length}
+    <div className="min-h-screen bg-[#F4F7F9] overflow-y-auto touch-pan-y pb-20" dir="rtl">
+      <header className="bg-white/90 sticky top-0 z-[100] border-b p-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="text-blue-600" />
+          <h1 className="font-black text-xl">ח. סבן | ORDERS</h1>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 py-8 space-y-8">
+      <main className="p-4 max-w-4xl mx-auto space-y-6 overflow-visible">
         <AnimatePresence>
           {orders.map((order) => {
             const isNew = order.status === 'pending';
             const isExpanded = selectedOrderId === order.id;
 
             return (
-              <motion.div layout key={order.id} className="relative p-[2px] rounded-[2.5rem] overflow-hidden shadow-xl">
-                {isNew && <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-indigo-500 to-emerald-400 animate-spin-slow opacity-70" />}
-                
-                <div className="relative bg-white rounded-[2.45rem] overflow-hidden p-6 md:p-8">
-                  <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                    
-                    {/* סטטוס וזמן */}
-                    <div className="flex-1 text-right w-full">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className={`text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-widest ${isNew ? 'bg-orange-500 text-white animate-pulse' : 'bg-emerald-500 text-white'}`}>
-                          {isNew ? 'ממתין לטיפול' : 'הזמנה טופלה'}
-                        </span>
-                        <span className="text-[11px] font-black text-slate-400 flex items-center gap-1"><Clock size={14}/> {order.order_time}</span>
-                      </div>
-
-                      <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4 italic leading-none">
-                        {order.product_name}
-                      </h2>
-
-                      {/* רשימת מוצרים נקייה */}
-                      <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto custom-scrollbar">
-                        {order.warehouse?.split('\n').map((item: string, idx: number) => (
-                          <div key={idx} className="flex items-start gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                            <Package size={16} className="text-blue-500 mt-1 shrink-0" />
-                            <span className="text-[15px] font-black text-slate-700 leading-tight">{item}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* פרטי לקוח */}
-                      <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-50">
-                        <span className="bg-slate-900 text-white px-4 py-2 rounded-2xl text-[12px] font-black flex items-center gap-2 italic">
-                          <Phone size={14} className="text-emerald-400"/> {order.client_info}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* כפתורי פעולה - מוגדרים עם Z-INDEX גבוה */}
-                    <div className="flex md:flex-col items-center gap-3 shrink-0 z-50">
-                      <button 
-                        onClick={() => setSelectedOrderId(isExpanded ? null : order.id)}
-                        className={`p-5 rounded-2xl transition-all shadow-md ${isExpanded ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                      >
-                        <Eye size={28} />
-                      </button>
-                      <button 
-                        onClick={() => toggleStatus(order)}
-                        className={`p-5 rounded-2xl shadow-xl transition-all active:scale-90 ${isNew ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'}`}
-                      >
-                        <CheckCircle size={28} />
-                      </button>
-                    </div>
+              <motion.div layout key={order.id} className="relative p-[2px] rounded-[2rem] overflow-hidden shadow-lg bg-white">
+                {isNew && <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse opacity-20" />}
+                <div className="relative p-6 flex flex-col md:flex-row items-center gap-6">
+                  <div className="bg-slate-900 text-white w-16 h-16 rounded-2xl flex items-center justify-center font-black italic">#{order.order_number}</div>
+                  
+                  <div className="flex-1 text-right">
+                    <h2 className="text-2xl font-black text-slate-800">{order.product_name}</h2>
+                    <div className="text-sm text-slate-400 flex items-center gap-2 mt-1"><Clock size={14}/> {order.order_time}</div>
                   </div>
 
-                  {/* בורגר נפתח - הדפסה ושיתוף */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-slate-50 border-t border-slate-100 p-6 flex gap-4">
-                        <button className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg"><Printer size={18}/> הדפסה</button>
-                        <button className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg"><Share2 size={18}/> WhatsApp</button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSelectedOrderId(isExpanded ? null : order.id)} className="p-4 bg-slate-100 rounded-2xl"><Eye /></button>
+                    <button onClick={async () => {
+                      const next = order.status === 'pending' ? 'completed' : 'pending';
+                      await supabase.from('orders').update({ status: next }).eq('id', order.id);
+                      fetchOrders();
+                    }} className={`p-4 rounded-2xl text-white ${isNew ? 'bg-orange-500' : 'bg-emerald-500'}`}><CheckCircle /></button>
+                  </div>
                 </div>
+
+                {isExpanded && (
+                  <div className="p-6 bg-slate-50 border-t flex flex-col md:flex-row gap-4">
+                    <div className="flex-1 bg-white p-4 rounded-2xl border flex justify-between items-center">
+                      <div>
+                        <span className="text-[10px] block text-slate-400 font-bold uppercase">מספר הזמנה קומקס</span>
+                        {editingComax?.id === order.id ? (
+                          <input 
+                            autoFocus
+                            className="text-xl font-black text-blue-600 outline-none w-full"
+                            value={editingComax.value}
+                            onChange={(e) => setEditingComax({id: order.id, value: e.target.value})}
+                            onBlur={() => saveComaxId(order.id)}
+                          />
+                        ) : (
+                          <div 
+                            onClick={() => setEditingComax({id: order.id, value: order.comax_id || ''})}
+                            className="text-2xl font-black text-emerald-500 italic cursor-pointer hover:text-blue-500"
+                          >
+                            {order.comax_id || 'לחץ להקלדה...'}
+                          </div>
+                        )}
+                      </div>
+                      {editingComax?.id === order.id && <button onClick={() => saveComaxId(order.id)} className="bg-blue-600 text-white p-2 rounded-lg"><Save size={16}/></button>}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                       <div className="p-4 bg-white border rounded-2xl text-sm font-bold"><Package className="inline ml-2 text-blue-500"/> {order.warehouse}</div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             );
           })}
         </AnimatePresence>
       </main>
-
-      <style jsx global>{`
-        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-spin-slow { animation: spin-slow 8s linear infinite; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
-      `}</style>
     </div>
   );
 }
