@@ -171,26 +171,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (text) { replyText = text; break; }
       } catch (e) { console.error(`Fallback error: ${modelName}`); }
     }
+if (!replyText) throw new Error("No AI response");
 
-    if (!replyText) throw new Error("No AI response");
-
-    // חדש: הזרקת הזמנה לטבלת orders ב-Supabase
+    // תיקון השגיאה: הגדרת itemName לפני השימוש בה
     if (replyText.includes("SAVE_ORDER_DB:")) {
       const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
       const sku = match ? match[1] : null;
       const qty = match ? match[2] : "1";
 
       if (sku) {
+        // חילוץ שם המוצר מהטקסט של התשובה
+        const itemName = replyText.split('עבור')[1]?.split('(מק"ט')[0]?.trim() || "מוצר מצאט AI";
+
         await supabase.from('orders').insert([{
           client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
           location: "הזמנה מצאט AI",
-          product_name: itemName,
+          product_name: itemName, // עכשיו המשתנה מוגדר ותקין
           warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
           order_time: new Date().toLocaleTimeString('he-IL'),
           status: 'pending'
         }]);
         
-        // ניקוי פקודת המערכת מהתשובה שהלקוח רואה
         replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
       }
     }
