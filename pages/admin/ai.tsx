@@ -13,14 +13,12 @@ const WA_BG = "bg-[#111b21]";
 const WA_TEXT = "text-[#e9edef]";
 
 const QUICK_QUERIES = [
-  { label: 'מוצרי איטום', icon: '⛈️ ', color: 'text-emerald-500' },
-  { label: 'הובלות מנוף', icon: '🏗️', color: 'text-amber-500' },
-  { label: 'מכולת פסולת בנין', icon: '♻️', color: 'text-blue-500' },
-  { label: 'בצע הזמנה', icon: '🎯', color: 'text-red-500' },
-  { label: 'שעות פעילות סניפים', icon: '🏢', color: 'text-slate-400' },
-  { label: 'יצירת לקוח', icon: '👤', color: 'text-purple-500' },
-  { label: 'תכין להצעת מחיר', icon: '📄', color: 'text-emerald-400' },
-  { label: 'יעוץ טכני', icon: '🎓️', color: 'text-orange-600' }
+  { label: 'אני רוצה להזמין', icon: '🎯', color: 'text-red-600' }, // מפעיל ישר את ה-SAVE_ORDER_DB
+  { label: 'הזמנת מכולה/מנוף', icon: '🏗️', color: 'text-blue-500' }, // שירות לוגיסטי מהיר
+  { label: 'ייעוץ טכני/מפרט', icon: '🎓', color: 'text-orange-600' }, // שואב מידע מ-ai_training
+  { label: 'מוצרי איטום וגבס', icon: '⛈️', color: 'text-emerald-500' }, // ניווט למחלקות חזקות
+  { label: 'שעות פעילות וסניפים', icon: '🏢', color: 'text-slate-500' }, // מידע כללי
+  { label: 'צריך עזרה מנציג', icon: '👤', color: 'text-purple-600' } // סגירת מעגל אנושי
 ];
 
 export default function SabanAIAssistant() {
