@@ -180,18 +180,20 @@ const data = await response.json();
       const sku = match ? match[1] : null;
       const qty = match ? match[2] : "1";
 
-      if (sku) {
-        // חילוץ שם הפריט
-        const itemName = replyText.split('עבור')[1]?.split('(מק"ט')[0]?.trim() || "מוצר מצאט AI";
+if (sku) {
+  // חילוץ שם המוצר מהתשובה של ה-AI
+  const itemName = replyText.split('עבור')[1]?.split('(מק"ט')[0]?.trim() || "מוצר מצאט AI";
 
-        await supabase.from('orders').insert([{
-          client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-          location: "הזמנה מצאט AI",
-          product_name: itemName,
-          warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
-          order_time: new Date().toLocaleTimeString('he-IL'),
-          status: 'pending'
-        }]);
+  await supabase.from('orders').insert([{
+    client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+    location: "צ'אט AI סבן",
+    product_name: itemName, // <--- כאן נכנס שם המוצר (למשל: לוח גבס ירוק)
+    sku: sku,               // <--- כאן נכנס רק המק"ט (11305)
+    warehouse: `כמות: ${qty}`, // <--- כאן נשארת רק הכמות
+    order_time: new Date().toLocaleTimeString('he-IL'),
+    status: 'pending'
+  }]);
+}
         
         replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
       }
