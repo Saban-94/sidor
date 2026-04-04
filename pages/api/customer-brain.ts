@@ -88,8 +88,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
 
       if (exactProduct) {
-        console.log("Found exact product in brain_inventory:", exactProduct.sku);
-        // שימוש בשמות העמודות החדשים: dry_time, coverage_rate
         inventoryData = `מוצר נמצא במלאי: ${exactProduct.product_name}, מק"ט: ${exactProduct.sku}, מחיר: ${exactProduct.price}, זמן ייבוש: ${exactProduct.dry_time || 'לפי יצרן'}, כיסוי: ${exactProduct.coverage_rate || 'משתנה'}.`;
       } else {
         // ב. חיפוש גמיש בטבלה החדשה
@@ -104,9 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             `מוצר רלוונטי במלאי: ${p.product_name}, מק"ט: ${p.sku}, מחיר: ${p.price}.`
           ).join("\n");
         } else {
-          // ג. ציד מוצרים ברשת (Web Hunt) - הזרקה ל-brain_inventory
+          // ג. ציד מוצרים ברשת (Web Hunt)
           const hunted = await huntProductOnline(cleanMsg);
-          
           if (hunted) {
             const { data: saved, error: insertError } = await supabase
               .from('brain_inventory')
@@ -142,7 +139,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
- const prompt = `
+    const prompt = `
       זהות: אתה שירות הלקוחות החכם של "ח.סבן חומרי בנין".
       לקוח: ${currentUserName || 'אורח'}.
       
@@ -154,12 +151,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       2. לינק להזמנה: [🛒 לצפייה והזמנה](https://sidor.vercel.app/product/[SKU]).
       3. אם המוצר "חדש מהרשת", ציין שזה מידע טכני כללי ומומלץ לוודא זמינות סופית מול הנציג.
       4. היה תמציתי ומקצועי. אל תשתמש במילה "בוס".
-      5. כאשר מתקבלת הודעה בפורמט 'אני רוצה להזמין X יחידות של Y (מק"ט Z)', אשר את ההזמנה בנימוס ואל תציג שוב את ה-PRODUCT_CARD.
+      5. כאשר מתקבלת הודעה בפורמט 'אני רוצה להזמין X יחידות של Y (מק"ט Z)', אשר את ההזמנה בנימוס ואל תציג שוב את ה-PRODUCT_CARD. הוסף בסוף התשובה שלך את הפקודה: SAVE_ORDER_DB:[SKU]:[X].
+
       הודעה: ${cleanMsg}
       היסטוריה: ${memory?.accumulated_knowledge || "שיחה חדשה"}
     `;
     
-    // 5. הרצה מול ה-AI (רוטציית מודלים מקורית)
+    // 5. הרצה מול ה-AI
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -175,6 +173,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!replyText) throw new Error("No AI response");
+
+    // חדש: הזרקת הזמנה לטבלת orders ב-Supabase
+    if (replyText.includes("SAVE_ORDER_DB:")) {
+      const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
+      const sku = match ? match[1] : null;
+      const qty = match ? match[2] : "1";
+
+      if (sku) {
+        await supabase.from('orders').insert([{
+          client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+          location: "הזמנה מצאט AI",
+          warehouse: `מק"ט: ${sku} | כמות: ${qty}`,
+          order_time: new Date().toLocaleTimeString('he-IL'),
+          status: 'pending'
+        }]);
+        
+        // ניקוי פקודת המערכת מהתשובה שהלקוח רואה
+        replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
+      }
+    }
 
     // 6. עדכון זיכרון
     const newKnowledge = ((memory?.accumulated_knowledge || "") + `\nלקוח: ${cleanMsg}\nבוט: ${replyText}`).slice(-1200);
