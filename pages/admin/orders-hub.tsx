@@ -3,8 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  ShoppingBag, Clock, CheckCircle, Package, Eye, Save, 
-  Printer, Share2, Truck, MessageSquare, BellRing 
+  ShoppingBag, Clock, CheckCircle, Package, Eye, 
+  Printer, Share2, Truck, MessageSquare, BellRing, User, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,17 +17,14 @@ export default function OrdersHub() {
 
   useEffect(() => {
     fetchOrders();
-    
-    const channel = supabase.channel('realtime-orders')
+    const channel = supabase.channel('mobile-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload: any) => {
         fetchOrders();
-        // עקיפת שגיאת ה-Property 'has_new_note' 
         if (payload.new && (payload.new as any).has_new_note) {
           audioRef.current?.play().catch(() => {});
         }
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -37,100 +34,98 @@ export default function OrdersHub() {
   };
 
   const updateOrder = async (id: string, updates: any) => {
-    try {
-      const res = await fetch('/api/update-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, updates: { ...updates, has_new_note: false } })
-      });
-      if (res.ok) fetchOrders();
-    } catch (err) {
-      console.error("Update error", err);
-    }
+    const res = await fetch('/api/update-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { ...updates, has_new_note: false } })
+    });
+    if (res.ok) fetchOrders();
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-slate-900 pb-20" dir="rtl">
-      <Head><title>SABAN OS | CONTROL CENTER</title></Head>
+    <div className="fixed inset-0 bg-[#F8FAFC] flex flex-col overflow-hidden italic" dir="rtl">
+      <Head>
+        <title>SABAN OS | MOBILE</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+      </Head>
       <audio ref={audioRef} src="/order-notification.mp3" preload="auto" />
 
-      {/* Header משרדי יוקרתי */}
-      <header className="bg-slate-900 text-white sticky top-0 z-[100] p-6 md:p-10 flex justify-between items-center shadow-2xl border-b-8 border-blue-600">
-        <div className="flex items-center gap-6">
-          <div className="bg-blue-600 p-4 rounded-[2rem] shadow-lg animate-pulse"><ShoppingBag size={35} /></div>
-          <div>
-            <h1 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase leading-none">SABAN <span className="text-blue-400">LOGISTICS</span></h1>
-            <p className="text-[12px] text-slate-400 font-bold tracking-[0.5em] uppercase mt-2">Professional Control Tower</p>
-          </div>
+      {/* Header קומפקטי למובייל */}
+      <header className="bg-slate-900 text-white p-4 md:p-6 flex justify-between items-center shadow-xl z-50 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl shadow-lg"><ShoppingBag size={20} /></div>
+          <h1 className="text-xl md:text-3xl font-black tracking-tighter uppercase italic">SABAN <span className="text-blue-400">OS</span></h1>
         </div>
-        <div className="bg-slate-800 border-2 border-slate-700 px-8 py-3 rounded-[2rem] flex items-center gap-5 shadow-inner">
-          <BellRing className="text-emerald-400 animate-bounce" size={28} />
-          <span className="text-3xl font-black italic">{orders.filter(o => o.status === 'pending').length}</span>
+        <div className="bg-slate-800 px-4 py-1.5 rounded-full flex items-center gap-3 border border-slate-700">
+          <BellRing className="text-emerald-400 animate-pulse" size={16} />
+          <span className="text-lg font-black">{orders.filter(o => o.status === 'pending').length}</span>
         </div>
       </header>
 
-      <main className="p-4 md:p-12 max-w-[1900px] mx-auto space-y-12">
-        <AnimatePresence>
+      {/* רשימה גוללת - כאן התיקון המרכזי */}
+      <main className="flex-1 overflow-y-auto px-4 py-6 space-y-4 touch-pan-y custom-scroll">
+        <AnimatePresence mode="popLayout">
           {orders.map((order) => {
             const isChameleon = order.has_new_note === true;
+            const isExpanded = expandedId === order.id;
 
             return (
               <motion.div 
                 layout 
                 key={order.id} 
-                className={`relative rounded-[4rem] overflow-hidden border-4 transition-all duration-1000 ${isChameleon ? 'border-emerald-500 bg-emerald-50 shadow-[0_0_80px_rgba(16,185,129,0.2)]' : 'border-white bg-white shadow-2xl'}`}
+                className={`rounded-[2.5rem] border-2 transition-all duration-500 overflow-hidden ${isChameleon ? 'border-emerald-500 bg-emerald-50 shadow-lg' : 'border-white bg-white shadow-md'}`}
               >
-                <div className="p-8 md:p-16 flex flex-col md:flex-row items-center gap-12">
-                  <div className={`w-28 h-28 md:w-44 md:h-44 rounded-[3.5rem] flex flex-col items-center justify-center font-black italic shadow-2xl shrink-0 ${isChameleon ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-900 text-white'}`}>
-                    <span className="text-xs opacity-40 uppercase tracking-widest">ID</span>
-                    <span className="text-4xl md:text-8xl">#{order.order_number}</span>
+                <div className="p-5 flex items-center gap-4">
+                  {/* מזהה הזמנה קטן למובייל */}
+                  <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black italic shrink-0 shadow-lg ${isChameleon ? 'bg-emerald-500 text-white animate-pulse' : 'bg-slate-900 text-white'}`}>
+                    <span className="text-[14px]">#{order.order_number}</span>
                   </div>
                   
-                  <div className="flex-1 text-center md:text-right w-full">
-                    <div className="flex items-center justify-center md:justify-start gap-5 mb-5">
-                       {isChameleon && <span className="bg-emerald-600 text-white text-sm px-6 py-2 rounded-full font-black animate-bounce shadow-xl italic">🦎 הערה דחופה מהצאט</span>}
-                       <span className="text-base font-bold text-slate-400 flex items-center gap-2 bg-slate-50 px-5 py-2 rounded-2xl border"><Clock size={20}/> {order.order_time}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                       {isChameleon && <span className="bg-emerald-600 text-white text-[8px] px-2 py-0.5 rounded-full font-black animate-bounce uppercase">🦎 הערה</span>}
+                       <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12}/> {order.order_time}</span>
                     </div>
-                    <h2 className="text-4xl md:text-[9rem] font-black text-slate-900 tracking-tighter leading-none italic uppercase truncate">{order.product_name || "סל מוצרים"}</h2>
-                    <div className="mt-8 flex flex-wrap justify-center md:justify-start gap-4">
-                       <span className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] text-xl font-black italic shadow-xl"><Truck size={24} className="text-blue-400 inline ml-3"/> {order.client_info}</span>
-                    </div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tighter truncate leading-tight uppercase">
+                      {order.product_name || "סל מוצרים"}
+                    </h2>
                   </div>
 
-                  <div className="flex md:flex-col gap-6 shrink-0 z-50">
-                    <button onClick={() => setExpandedId(expandedId === order.id ? null : order.id)} className={`p-10 md:p-14 rounded-[3.5rem] md:rounded-[4.5rem] transition-all shadow-xl ${expandedId === order.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}><Eye size={55}/></button>
-                    <button onClick={() => updateOrder(order.id, { status: 'completed' })} className={`p-10 md:p-14 rounded-[3.5rem] md:rounded-[4.5rem] text-white shadow-xl ${order.status === 'completed' ? 'bg-emerald-500' : 'bg-orange-500 shadow-orange-100'}`}><CheckCircle size={55}/></button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setExpandedId(isExpanded ? null : order.id)} className={`p-3 rounded-xl transition-all ${isExpanded ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}><Eye size={20}/></button>
+                    <button onClick={() => updateOrder(order.id, { status: 'completed' })} className={`p-3 rounded-xl text-white ${order.status === 'completed' ? 'bg-emerald-500' : 'bg-orange-500'}`}><CheckCircle size={20}/></button>
                   </div>
                 </div>
 
-                {expandedId === order.id && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="p-10 md:p-24 bg-slate-50 border-t-8 border-slate-100 space-y-16 italic font-black">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                      <div className="bg-white p-12 rounded-[4.5rem] border-4 border-slate-100 shadow-2xl group hover:border-blue-500 transition-all">
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] block mb-6">שעת אספקה למערכת</span>
-                        <input className="text-5xl md:text-9xl font-black text-blue-600 bg-transparent outline-none w-full italic" defaultValue={order.delivery_time} onBlur={(e) => updateOrder(order.id, { delivery_time: e.target.value })} placeholder="-- : --" />
+                {isExpanded && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 bg-slate-50 border-t-2 border-slate-100 space-y-6">
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* שדות מובייל */}
+                      <div className="bg-white p-4 rounded-2xl border shadow-sm">
+                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">שעת אספקה</span>
+                        <input className="text-xl font-black text-blue-600 bg-transparent outline-none w-full" defaultValue={order.delivery_time} onBlur={(e) => updateOrder(order.id, { delivery_time: e.target.value })} placeholder="--:--" />
                       </div>
-
-                      <div className="bg-white p-12 rounded-[4.5rem] border-4 border-slate-100 shadow-2xl group hover:border-slate-900 transition-all">
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] block mb-6">נהג משויך / מנוף</span>
-                        <input className="text-5xl md:text-9xl font-black text-slate-900 bg-transparent outline-none w-full italic" defaultValue={order.driver_info} onBlur={(e) => updateOrder(order.id, { driver_info: e.target.value })} placeholder="שם הנהג..." />
+                      <div className="bg-white p-4 rounded-2xl border shadow-sm">
+                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">נהג משויך</span>
+                        <input className="text-xl font-black text-slate-900 bg-transparent outline-none w-full" defaultValue={order.driver_info} onBlur={(e) => updateOrder(order.id, { driver_info: e.target.value })} placeholder="שם הנהג..." />
                       </div>
-
-                      <div className={`p-12 rounded-[4.5rem] border-8 shadow-3xl flex flex-col justify-center transition-all duration-1000 ${isChameleon ? 'bg-emerald-600 border-emerald-400 text-white animate-pulse' : 'bg-slate-900 border-slate-800 text-white'}`}>
-                        <div className="flex items-center gap-4 mb-6 text-sm font-black uppercase tracking-[0.5em] opacity-60"><MessageSquare size={35}/> הודעה מהלקוח</div>
-                        <p className="text-3xl md:text-6xl font-black italic leading-none tracking-tighter">{order.customer_note || "ממתין להערות"}</p>
-                      </div>
+                      {order.customer_note && (
+                        <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-lg">
+                          <span className="text-[9px] font-black opacity-60 uppercase block mb-1">הערת לקוח</span>
+                          <p className="font-bold text-sm italic">{order.customer_note}</p>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="bg-white p-16 md:p-24 rounded-[6rem] border-8 border-slate-200 shadow-inner">
-                      <div className="text-5xl md:text-[10rem] font-black text-slate-800 leading-[0.8] tracking-tighter whitespace-pre-line italic uppercase">
+                    <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-inner">
+                      <div className="text-2xl font-black text-slate-800 leading-tight whitespace-pre-line italic uppercase tracking-tighter">
                         {order.warehouse}
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-10 pt-10">
-                      <button onClick={() => window.print()} className="flex-1 py-14 bg-slate-900 text-white rounded-[4rem] font-black text-5xl flex items-center justify-center gap-8 hover:bg-blue-600 transition-all shadow-3xl group"><Printer size={60} className="group-hover:animate-bounce"/> הדפסה</button>
-                      <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(order.warehouse)}`)} className="flex-1 py-14 bg-emerald-500 text-white rounded-[4rem] font-black text-5xl flex items-center justify-center gap-8 shadow-3xl"><Share2 size={60}/> WhatsApp</button>
+                    <div className="flex gap-3">
+                      <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(order.warehouse)}`)} className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95"><Share2 size={20}/> WhatsApp</button>
+                      <button onClick={() => window.print()} className="p-4 bg-slate-900 text-white rounded-2xl shadow-lg"><Printer size={20}/></button>
                     </div>
                   </motion.div>
                 )}
@@ -141,9 +136,9 @@ export default function OrdersHub() {
       </main>
 
       <style jsx global>{`
-        body { background: #F1F5F9; font-family: 'Assistant', sans-serif; -webkit-overflow-scrolling: touch; }
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 20px; }
+        body { margin: 0; padding: 0; overflow: hidden; height: 100vh; font-family: 'Assistant', sans-serif; }
+        .custom-scroll::-webkit-scrollbar { width: 0px; background: transparent; }
+        input, button { -webkit-tap-highlight-color: transparent; }
       `}</style>
     </div>
   );
