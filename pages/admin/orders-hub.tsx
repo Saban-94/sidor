@@ -30,10 +30,26 @@ export default function OrdersHub() {
     if (data) setOrders(data);
   };
 
-  const toggleStatus = async (order: any) => {
+const toggleStatus = async (order: any) => {
+    // 1. קביעת הסטטוס הבא
     const newStatus = order.status === 'pending' ? 'completed' : 'pending';
-    await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
-    fetchOrders();
+    
+    // 2. ביצוע העדכון עם בדיקת שגיאות
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', order.id);
+
+    if (error) {
+      // אם יש שגיאה (כמו RLS חסום), נראה אותה ב-Console
+      console.error("❌ שגיאה בעדכון סטטוס:", error.message);
+      // אופציונלי: להוסיף כאן Alert קטן כדי שתדע במובייל אם זה נכשל
+      return;
+    }
+
+    // 3. רק אם הצליח - נרענן את הרשימה
+    console.log(`✅ סטטוס הזמנה ${order.order_number} עודכן ל-${newStatus}`);
+    await fetchOrders();
   };
 
   return (
@@ -109,11 +125,11 @@ export default function OrdersHub() {
                         <Eye size={24} />
                       </button>
                       <button 
-                        onClick={() => toggleStatus(order)}
-                        className={`p-4 rounded-2xl shadow-xl transition-all active:scale-90 ${isNew ? 'bg-orange-500 text-white shadow-orange-100' : 'bg-emerald-500 text-white shadow-emerald-100'}`}
-                      >
-                        <CheckCircle size={24} />
-                      </button>
+                            onClick={() => toggleStatus(order)} 
+                               className={`p-5 rounded-2xl shadow-xl transition-all active:scale-90 ${isNew ? 'bg-orange-500' : 'bg-emerald-500'}`}
+                                  >
+                             <CheckCircle size={28} className="text-white" />
+                     </button>
                     </div>
                   </div>
 
