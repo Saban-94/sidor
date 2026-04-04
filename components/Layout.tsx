@@ -1,21 +1,43 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // הוספנו useEffect
 import Head from 'next/head';
 import Link from 'next/link';
+import Script from 'next/script'; // הוספנו Script של Next
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Truck, Box, MessageSquare, Settings, ChevronLeft } from 'lucide-react';
+
+// הגדרת Typescript כדי שהקוד לא יצעק על OneSignal
+declare global {
+  interface Window {
+    OneSignalDeferred: any;
+  }
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // אתחול OneSignal - ירוץ פעם אחת בכל המאגר
+  useEffect(() => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal: any) {
+      await OneSignal.init({
+        appId: "546472ac-f9ab-4c6c-beb2-e41c72af9849",
+        safari_web_id: "web.onesignal.auto.195e7e66-9dea-4e11-b56c-b4a654da5ab7",
+        notifyButton: {
+          enable: true,
+        },
+        allowLocalhostAsSecureOrigin: true,
+      });
+    });
+  }, []);
+
   const menuItems = [
+    { name: 'ניהול הזמנות AI', href: '/admin/orders-hub', icon: MessageSquare }, // הוספנו את הקישור החדש
     { name: 'לוח בקרה LIVE', href: '/control-center', icon: Truck },
     { name: 'ניהול מכולות', href: '/admin/containers-hub', icon: Box },
-    { name: 'צ\'אט סבן AI', href: '/admin/ai-assistant', icon: MessageSquare },
     { name: 'הגדרות מערכת', href: '/settings', icon: Settings },
   ];
 
-  // רשימת צוות מעודכנת עם IDs וקישורים
   const teamMembers = [
     { id: '22b540ab', name: 'הראל', role: 'מנכ"ל', avatar: 'https://ui-avatars.com/api/?name=Harel&background=059669&color=fff' },
     { id: '33c651bc', name: 'נתנאל ח. סבן', role: 'קניין', avatar: 'https://ui-avatars.com/api/?name=Netanel&background=0284c7&color=fff' },
@@ -26,6 +48,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#111B21] font-sans" dir="rtl">
+      {/* טעינת ה-SDK של OneSignal */}
+      <Script 
+        src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" 
+        strategy="afterInteractive" 
+      />
+
       <Head>
         <title> סידור | ח.סבן חומרי בנין </title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
@@ -45,6 +73,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
+      {/* תפריט צד (כפי שהיה) */}
       <AnimatePresence>
         {isMenuOpen && (
           <>
@@ -53,14 +82,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => setIsMenuOpen(false)}
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110]"
             />
-            
             <motion.div 
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed top-0 right-0 bottom-0 w-72 bg-white z-[120] p-6 shadow-2xl flex flex-col border-l border-slate-100"
             >
               <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
-                <span className="font-black italic text-lg text-emerald-600 font-bold">SABAN OS</span>
+                <span className="font-black italic text-lg text-emerald-600">SABAN OS</span>
                 <button onClick={() => setIsMenuOpen(false)} className="p-2 text-slate-400 hover:text-black">
                   <X size={22} />
                 </button>
@@ -75,29 +103,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                   </Link>
                 ))}
-                
-                <div className="pt-6 mt-4 border-t border-slate-100">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">צוות וקבוצות</p>
-                  {teamMembers.map(member => (
-                    <Link 
-                      href={`/chat?userId=${member.id}&name=${encodeURIComponent(member.name)}`} 
-                      key={member.id}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <div className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-2xl transition-all group cursor-pointer border border-transparent hover:border-slate-100 active:scale-95 mb-1">
-                        <div className="relative flex-shrink-0">
-                          <img src={member.avatar} alt={member.name} className="w-9 h-9 rounded-full border-2 border-white shadow-sm object-cover" />
-                          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-black text-slate-900 group-hover:text-emerald-600 transition-colors truncate">{member.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold leading-none truncate">{member.role}</p>
-                        </div>
-                        <ChevronLeft size={14} className="text-slate-200 group-hover:text-emerald-600 transition-all" />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
               </nav>
             </motion.div>
           </>
