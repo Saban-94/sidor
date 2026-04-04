@@ -193,8 +193,6 @@ if (sku) {
     order_time: new Date().toLocaleTimeString('he-IL'),
     status: 'pending'
   }]);
-}
-        
         replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
       }
     }
