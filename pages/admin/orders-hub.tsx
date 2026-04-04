@@ -34,7 +34,7 @@ export default function OrdersHub() {
       <header className="bg-white/90 sticky top-0 z-[100] border-b p-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-2">
           <ShoppingBag className="text-blue-600" />
-          <h1 className="font-black text-xl">ח. סבן | ORDERS</h1>
+          <h1 className="font-black text-xl">לוח | הזמנות</h1>
         </div>
       </header>
 
