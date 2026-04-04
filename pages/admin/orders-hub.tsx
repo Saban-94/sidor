@@ -39,7 +39,7 @@ export default function OrdersHub() {
   return (
     // min-h-screen ו-overflow-y-auto מאפשרים גלילה חלקה במובייל
     <div className="min-h-screen bg-[#F4F7F9] text-slate-900 font-sans overflow-y-auto touch-pan-y" dir="rtl">
-      <Head><title>ח. סבן | מוקד הזמנות AI</title></Head>
+      <Head><title>לוח|הזמנות</title></Head>
 
       {/* Header - sticky ולא fixed כדי לא לחסום גלילה */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-4 sticky top-0 z-[100] flex justify-between items-center shadow-sm">
