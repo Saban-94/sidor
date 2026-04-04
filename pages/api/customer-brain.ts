@@ -83,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // עדכון זיכרון
     await supabase.from('customer_memory').upsert({
-      clientId: phone, user_name: currentUserName, accumulated_knowledge: (chatHistory + "\n" + replyText).slice(-1000)
+      clientId: phone, user_name: currentUserName, accumulated_knowledge: ((memory?.accumulated_knowledge || "") + "\n" + replyText).slice(-1000)
     }, { onConflict: 'clientId' });
 
     return res.status(200).json({ reply: replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").trim() });
