@@ -174,32 +174,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
  if (!replyText) throw new Error("No AI response");
 
 if (replyText.includes("SAVE_ORDER_DB:")) {
-  // חילוץ כל המק"טים והכמויות המופיעים בהודעה (תומך בכמה SAVE_ORDER_DB)
-  const matches = [...replyText.matchAll(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/g)];
+  const phone = senderPhone?.replace('@c.us', '') || 'unknown';
   
-  if (matches.length > 0) {
-    const phone = senderPhone?.replace('@c.us', '') || 'unknown';
-    
-    // בניית רשימת המוצרים מתוך טקסט האישור של ה-AI
-    // אנחנו לוקחים את הפירוט שה-AI נתן ללקוח
-    const fullOrderDetails = replyText
-      .split("קבלת הזמנתך:")[1]
-      ?.split("ההזמנה בטיפולנו")[0]
-      ?.trim() || cleanMsg;
+  // חילוץ נקי של רשימת המוצרים בלבד (מסננים ברכות ופקודות)
+  const lines = replyText.split('\n');
+  const cleanItems = lines
+    .filter(line => line.trim().startsWith('-') || line.includes('מק"ט') || line.includes('שקים'))
+    .map(line => line.replace(/- /g, '• ').trim())
+    .join('\n');
 
-    // הזרקת הזמנה אחת ל-DB שמכילה את כל הרשימה
-    await supabase.from('orders').insert([{
-      client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-      location: "צ'אט AI - סל קניות",
-      product_name: "הזמנה מרובת פריטים", // כותרת כללית
-      warehouse: fullOrderDetails, // כאן נכנסת כל הרשימה: 7 גבס, 5 טיט וכו'
-      order_time: new Date().toLocaleTimeString('he-IL'),
-      status: 'pending'
-    }]);
+  await supabase.from('orders').insert([{
+    client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+    location: "צ'אט AI",
+    product_name: "📦 סל מוצרים חדש",
+    warehouse: cleanItems || "פירוט בהודעה", // כאן נכנסת רק הרשימה הנקייה
+    order_time: new Date().toLocaleTimeString('he-IL'),
+    status: 'pending'
+  }]);
 
-    // ניקוי כל פקודות המערכת מהתשובה ללקוח
-    replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
-  }
+  // ניקוי סופי של פקודות ה-DB מהודעת הוואטסאפ ללקוח
+  replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/g, "").trim();
+ }
 }
 
     return res.status(200).json({ reply: replyText });
