@@ -175,27 +175,40 @@ const data = await response.json();
     if (!replyText) throw new Error("No AI response");
 
     // מנגנון הזרקת הזמנה מתוקן
-    if (replyText.includes("SAVE_ORDER_DB:")) {
-      const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
-      const sku = match ? match[1] : null;
-      const qty = match ? match[2] : "1";
+if (replyText.includes("SAVE_ORDER_DB:")) {
+  const match = replyText.match(/SAVE_ORDER_DB:([\w-]+):?(\d+)?/);
+  const sku = match ? match[1] : null;
+  const qty = match ? match[2] : "1";
 
-if (sku) {
-  // חילוץ שם המוצר מהתשובה של ה-AI
-  const itemName = replyText.split('עבור')[1]?.split('(מק"ט')[0]?.trim() || "מוצר מצאט AI";
-
-  await supabase.from('orders').insert([{
-    client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
-    location: "צ'אט AI סבן",
-    product_name: itemName, // <--- כאן נכנס שם המוצר (למשל: לוח גבס ירוק)
-    sku: sku,               // <--- כאן נכנס רק המק"ט (11305)
-    warehouse: `כמות: ${qty}`, // <--- כאן נשארת רק הכמות
-    order_time: new Date().toLocaleTimeString('he-IL'),
-    status: 'pending'
-  }]);
-        replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
+  if (sku) {
+    // לוגיקת חילוץ שם פריט חכמה:
+    // מחפשים את הטקסט שבין "של" לבין "(מק"ט" או סוף המשפט
+    let itemName = "מוצר מצאט AI";
+    if (cleanMsg.includes("של")) {
+      const parts = cleanMsg.split("של");
+      if (parts[1]) {
+        itemName = parts[1].split("(מק\"ט")[0].trim();
       }
     }
+
+    // הזרקה ל-Supabase לתוך העמודות החדשות שיצרנו
+    const { error } = await supabase.from('orders').insert([{
+      client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+      location: "הזמנה מצאט AI",
+      product_name: itemName, // כאן ייכנס: לוח גבס ירוק 1.2/2.6 ניצן
+      sku: sku,               // כאן ייכנס: 11305
+      warehouse: `כמות: ${qty}`, // כאן תיכנס הכמות: 22
+      status: 'pending',
+      order_time: new Date().toLocaleTimeString('he-IL'),
+      delivery_date: new Date().toISOString().split('T')[0]
+    }]);
+
+    if (error) console.error("SQL Insert Error:", error.message);
+    
+    // ניקוי הקוד מהתשובה שחוזרת ללקוח בווצאפ
+    replyText = replyText.replace(/SAVE_ORDER_DB:[\w:-]+/, "").trim();
+  }
+}
 
     return res.status(200).json({ reply: replyText });
 
