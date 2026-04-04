@@ -20,6 +20,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
+    console.log("OneSignal Initializing...");
       await OneSignal.init({
         appId: "546472ac-f9ab-4c6c-beb2-e41c72af9849",
         safari_web_id: "web.onesignal.auto.195e7e66-9dea-4e11-b56c-b4a654da5ab7",
@@ -28,6 +29,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         },
         allowLocalhostAsSecureOrigin: true,
       });
+      console.log("OneSignal Ready!");
     });
   }, []);
 
