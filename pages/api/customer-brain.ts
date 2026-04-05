@@ -14,21 +14,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
   
-  // זיהוי ייחודי - תיקון: לוקח IP אם אין טלפון כדי לשמור המשכיות בצאט
+  // זיהוי ייחודי - שימוש ב-IP כגיבוי לטלפון
   const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'guest';
   const clientId = senderPhone?.replace('@c.us', '') || userIP;
   
   const geminiKey = process.env.GEMINI_API_KEY;
   const selectedModel = modelPool[Math.floor(Math.random() * modelPool.length)];
 
+  // הגדרת משתנים מראש מחוץ ל-TRY כדי שה-CATCH יכיר אותם
+  let currentUserName = "אורח";
+  let chatHistory = "";
+
   try {
-    // 1. שליפת זיכרון קפדנית לפי ה-ID
+    // 1. שליפת זיכרון מה-DB
     const { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', clientId).maybeSingle();
     
-    let currentUserName = memory?.user_name || "אורח";
-    let chatHistory = memory?.accumulated_knowledge || "";
+    if (memory) {
+      currentUserName = memory.user_name || "אורח";
+      chatHistory = memory.accumulated_knowledge || "";
+    }
 
-    // 2. זיהוי שם ידני מההודעה (אם ה-Gem יפספס, אנחנו נתפוס)
+    // 2. זיהוי שם ידני מההודעה (למקרה של כשל ב-AI)
     if (cleanMsg.includes("השם שלי") || cleanMsg.includes("אני בר")) {
        const extractedName = cleanMsg.replace("השם שלי", "").replace("אני", "").replace("מספר טלפון שלי", "").split(/[0-9]/)[0].trim();
        if (extractedName.length > 1) currentUserName = extractedName;
@@ -40,9 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       היסטוריה: ${chatHistory.slice(-1500)}
       
       משימה:
-      1. אם הלקוח אמר את שמו (${currentUserName}), תפסיק לשאול "איך לעזור" ותתחיל לייעץ לו ישירות על מה שביקש.
-      2. זכור: בר אורני = ${currentUserName}. תתייחס אליו אישית!
-      3. פקודות בסוף: SET_USER_NAME:[שם], CLIENT_NOTE:[הערה].
+      1. אם הלקוח אמר את שמו, פנה אליו בשמו והמשך בייעוץ/הזמנה.
+      2. פקודות בסוף: SET_USER_NAME:[שם], CLIENT_NOTE:[הערה].
       
       הודעה: "${cleanMsg}"
     `;
@@ -57,11 +62,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const aiData = await aiRes.json();
     const replyText = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-    // 3. עדכון שם וביצוע פקודות
+    // 3. עיבוד פקודות
     const nameMatch = replyText.match(/SET_USER_NAME[:\(\[].*?(\]|\)|$|\n)/i);
     const updatedName = nameMatch ? nameMatch[1].replace(/[\[\]\(\):]/g, "").trim() : currentUserName;
 
-    // 4. שמירה כפול ב-DB (גם שם וגם היסטוריה)
+    // 4. שמירה ב-DB
     const newEntry = `\n[${new Date().toLocaleTimeString('he-IL')}] U: ${cleanMsg} | AI: ${replyText.slice(0, 150)}`;
     
     await supabase.from('customer_memory').upsert({
@@ -70,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       accumulated_knowledge: (chatHistory + newEntry).slice(-2500)
     }, { onConflict: 'clientId' });
 
-    // 5. ניקוי אנגלית ושליחה
+    // 5. ניקוי אנגלית מהתשובה ללקוח
     let finalReply = replyText
       .replace(/SET_USER_NAME[:\(\[].*?(\]|\)|$|\n)/gi, "")
       .replace(/CLIENT_NOTE[:\(\[].*?(\]|\)|$|\n)/gi, "")
@@ -81,6 +86,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ reply: finalReply || `שלום ${updatedName}, איך אני יכול לעזור?` });
 
   } catch (error) {
-    return res.status(200).json({ reply: `אחי ${currentUserName}, אני איתך. מה לגבי הייעוץ הטכני שביקשת?` });
+    // עכשיו currentUserName זמין כאן וה-Build יעבור
+    console.error("Critical Error:", error);
+    return res.status(200).json({ 
+      reply: currentUserName !== "אורח" 
+        ? `אחי ${currentUserName}, המערכת בעומס קל. אני בודק את זה וחוזר אליך מיד.` 
+        : "קיבלתי, בודק זמינות ומעדכן אותך." 
+    });
   }
 }
