@@ -7,8 +7,11 @@ const supabase = createClient(
 );
 
 // העדפת מודלים מהירים ויציבים יותר
-const modelPool = ["gemini-1.5-flash", "gemini-2.0-flash"];
-
+const modelPool = [
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3.1-pro-preview",
+  "gemini-2.0-flash"
+];
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   
