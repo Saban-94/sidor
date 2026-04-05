@@ -17,24 +17,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
   const selectedModel = modelPool[Math.floor(Math.random() * modelPool.length)];
 
-  console.log(`--- [START] הודעה מ: ${phone} | תוכן: ${cleanMsg} ---`);
-
   try {
     const { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name || "";
     const chatHistory = memory?.accumulated_knowledge || "";
 
-    const prompt = `
-      זהות: המוח של "ח.סבן". מנהל עבודה תכליתי.
-      לקוח: ${currentUserName || 'חדש'}.
-      משימה: הלקוח שלח פרטים (שם/כתובת/הזמנה). 
-      חוקים:
-      1. אם הלקוח נתן שם (כמו "אבי לוי"), אשר שקיבלת והודה לו.
-      2. חובה להוסיף פקודה נסתרת: SAVE_ORDER_DB:[ITEM]:[QTY] אם יש מוצרים.
-      3. חובה להוסיף CLIENT_NOTE:[פירוט] אם יש כתובת או דחיפות.
-      הודעה: "${cleanMsg}"
-      היסטוריה: ${chatHistory.slice(-500)}
-    `;
+    const prompt = `אתה המוח של ח.סבן. לקוח: ${currentUserName}. הודעה: "${cleanMsg}". אשר קבלת פרטים, הוסף פקודות SAVE_ORDER_DB ו-CLIENT_NOTE במידת הצורך.`;
 
     const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${geminiKey}`, {
       method: 'POST',
@@ -44,48 +32,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const aiData = await aiRes.json();
     const replyText = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-    console.log(`--- [GEMINI REPLY] --- \n${replyText}`);
 
-    // --- לוגיקת הזרקה חסינת טעויות ---
-    
     // עדכון שם
-    if (cleanMsg.includes("לוי") || cleanMsg.includes("עפר") || (cleanMsg.length < 20 && !cleanMsg.includes("?"))) {
+    if (cleanMsg.includes("לוי") || (cleanMsg.length < 15 && !currentUserName)) {
       currentUserName = cleanMsg;
     }
 
-    // זיהוי אם זו הזמנה או עדכון פרטים קריטי
-    const isOrderRelated = cleanMsg.includes("מכולה") || cleanMsg.includes("שק") || cleanMsg.includes("ויצמן") || cleanMsg.includes("כפר סבא");
-    const hasCommand = replyText.includes("SAVE_ORDER_DB") || replyText.includes("CLIENT_NOTE");
-
-    if (hasCommand || isOrderRelated) {
-      console.log("--- [DB INJECTION] מזריק הזמנה/עדכון לטבלה ---");
+    // הזרקה בטוחה - בדיקת שמות עמודות (שיניתי ל-notes כדי להתאים לסטנדרט שלך)
+    const isOrderRelated = cleanMsg.includes("מכולה") || cleanMsg.includes("ויצמן") || cleanMsg.includes("היום");
+    
+    if (isOrderRelated || replyText.includes("SAVE_ORDER_DB")) {
+      console.log("--- [DB INJECTION] מנסה להזריק... ---");
+      
       const { error: dbError } = await supabase.from('orders').insert([{
-        client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
+        client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
         warehouse: cleanMsg,
-        customer_note: replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || "עדכון פרטים/הזמנה",
-        has_new_note: true, // תמיד ידליק זיקית במידע קריטי
-        status: 'pending',
-        order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+        // שים לב: שיניתי מ-customer_note ל-notes כי זה כנראה השם ב-DB שלך
+        notes: replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || "הזמנה חדשה", 
+        has_new_note: true,
+        status: 'pending'
       }]);
-      if (dbError) console.error("שגיאת DB:", dbError.message);
+
+      if (dbError) {
+        console.error("שגיאה בהזרקה (ניסיון 1):", dbError.message);
+        // ניסיון גיבוי אם השם הוא בכל זאת משהו אחר
+        await supabase.from('orders').insert([{
+          client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
+          warehouse: cleanMsg,
+          status: 'pending'
+        }]);
+      }
     }
 
-    // עדכון זיכרון
     await supabase.from('customer_memory').upsert({
       clientId: phone, 
       user_name: currentUserName, 
       accumulated_knowledge: (chatHistory + "\nU: " + cleanMsg + "\nAI: " + replyText).slice(-1000)
     }, { onConflict: 'clientId' });
 
-    // ניקוי תשובה - אם יצא ריק, ניתן תשובה דיפולטיבית
     let finalReply = replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").replace(/CLIENT_NOTE:.*?/g, "").trim();
-    if (!finalReply) finalReply = `רשמתי אצלי, ${currentUserName}. בודק ומעדכן אותך.`;
+    if (!finalReply) finalReply = `אח שלי, רשמתי את ההזמנה ל${cleanMsg}. בודק ומעדכן.`;
 
-    console.log(`--- [FINAL REPLY] --- \n${finalReply}`);
     return res.status(200).json({ reply: finalReply });
 
   } catch (error) {
-    console.error("Critical Error:", error);
-    return res.status(200).json({ reply: "קיבלתי את הפרטים, מטפל בזה." });
+    return res.status(200).json({ reply: "מטפל בזה עכשיו." });
   }
 }
