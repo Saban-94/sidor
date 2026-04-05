@@ -76,15 +76,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // עדכון שם ידני אם זוהה
-    if (cleanMsg.toLowerCase().includes("לוי") || (cleanMsg.length < 15 && !currentUserName.includes(cleanMsg) && !cleanMsg.includes("?"))) {
+// --- מיקום תקין להזרקה ועיבוד אחרי קבלת תשובה מה-AI ---
+
+    // 1. עדכון שם ידני אם זוהה (לוגיקת "לוי")
+    if (cleanMsg.includes("לוי") || (cleanMsg.length < 15 && !currentUserName.includes(cleanMsg) && !cleanMsg.includes("?"))) {
       currentUserName = currentUserName ? `${currentUserName} ${cleanMsg}` : cleanMsg;
     }
 
-    // הזרקת הזמנה וזיקית
+    // 2. הגדרת טריגרים להזרקת הזמנה וזיקית
     const isUrgent = cleanMsg.includes("היום") || cleanMsg.includes("ויצמן");
+    
+    // שליפת הערה מה-AI או יצירת הערה אוטומטית אם דחוף
     const clientNote = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || (isUrgent ? `דחוף: ${cleanMsg}` : null);
+    
+    const hasTrigger = replyText.includes("SAVE_ORDER_DB:") || 
+                       replyText.includes("CLIENT_NOTE:") || 
+                       cleanMsg.includes("מכולה") || 
+                       isUrgent;
 
+    // 3. ביצוע ההזרקה ל-Supabase במידה ויש טריגר
+    if (hasTrigger) {
+      const { error: dbError } = await supabase.from('orders').insert([{
+        client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+        warehouse: cleanMsg, // פירוט הבקשה מהלקוח
+        customer_note: clientNote,
+        has_new_note: !!clientNote, // מדליק את הזיקית בלוח
+        status: 'pending',
+        order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+      }]);
+
+      if (dbError) {
+        console.error("Supabase Insert Error:", dbError.message);
+      } else {
+        console.log("Order saved successfully for:", currentUserName);
+      }
+    }
+
+    // 4. עדכון זיכרון לקוח (חשוב להמשכיות השיחה)
+    await supabase.from('customer_memory').upsert({
+      clientId: phone, 
+      user_name: currentUserName, 
+      accumulated_knowledge: (chatHistory + "\nU: " + cleanMsg + "\nAI: " + replyText).slice(-1200)
+    }, { onConflict: 'clientId' });
+
+    // 5. ניקוי תשובה סופית ללקוח
+    const finalReply = replyText
+      .replace(/SAVE_ORDER_DB:\[?.*?\]?/g, "")
+      .replace(/CLIENT_NOTE:\[?.*?\]?/g, "")
+      .replace(/\[.*?\]/g, "")
+      .trim();
+
+    return res.status(200).json({ reply: finalReply || "קיבלתי, בודק ומעדכן." });
+
+  if (dbError) console.error("Supabase Insert Error:", dbError.message);
+}
     if (replyText.includes("SAVE_ORDER_DB:") || isUrgent) {
       await supabase.from('orders').insert([{
         client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
