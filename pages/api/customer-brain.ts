@@ -13,16 +13,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   const { message, senderPhone } = req.body;
   const cleanMsg = (message || "").trim();
-  const phone = senderPhone?.replace('@c.us', '') || 'unknown';
+  const phone = senderPhone?.replace('@c.us', '') || 'admin';
   const geminiKey = process.env.GEMINI_API_KEY;
   const selectedModel = modelPool[Math.floor(Math.random() * modelPool.length)];
+
+  console.log(`--- [START] צינור חיבור: הודעה מ-${phone} ---`);
 
   try {
     const { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
     let currentUserName = memory?.user_name || "";
     const chatHistory = memory?.accumulated_knowledge || "";
 
-    const prompt = `אתה המוח של ח.סבן. לקוח: ${currentUserName}. הודעה: "${cleanMsg}". אשר קבלת פרטים, הוסף פקודות SAVE_ORDER_DB ו-CLIENT_NOTE במידת הצורך.`;
+    const prompt = `
+      זהות: המוח של "ח.סבן". מנהל עבודה תכליתי.
+      לקוח: ${currentUserName || 'חדש'}.
+      משימה: הלקוח ביקש: "${cleanMsg}".
+      חוקים:
+      1. אם יש שם (כמו לוי), עדכן זיכרון.
+      2. חובה להוציא CLIENT_NOTE:[פירוט] לכל כתובת או דחיפות.
+    `;
 
     const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${geminiKey}`, {
       method: 'POST',
@@ -33,37 +42,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const aiData = await aiRes.json();
     const replyText = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-    // עדכון שם
-    if (cleanMsg.includes("לוי") || (cleanMsg.length < 15 && !currentUserName)) {
-      currentUserName = cleanMsg;
+    // עדכון שם חכם (מזהה "אבי לוי" או "עבודות עפר")
+    if (cleanMsg.includes("לוי") || cleanMsg.includes("עפר") || (cleanMsg.length < 20 && !currentUserName)) {
+      currentUserName = cleanMsg.replace("אני ", "").trim();
     }
 
-    // הזרקה בטוחה - בדיקת שמות עמודות (שיניתי ל-notes כדי להתאים לסטנדרט שלך)
+    // הזרקה ל-DB - תיקון שמות עמודות לפי הלוג
     const isOrderRelated = cleanMsg.includes("מכולה") || cleanMsg.includes("ויצמן") || cleanMsg.includes("היום");
     
     if (isOrderRelated || replyText.includes("SAVE_ORDER_DB")) {
-      console.log("--- [DB INJECTION] מנסה להזריק... ---");
+      console.log("--- [DB INJECTION] מנסה להזריק לטבלה ---");
       
+      // שליפת הערה מה-AI
+      const noteFromAI = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || "הזמנה חדשה";
+
       const { error: dbError } = await supabase.from('orders').insert([{
         client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
         warehouse: cleanMsg,
-        // שים לב: שיניתי מ-customer_note ל-notes כי זה כנראה השם ב-DB שלך
-        notes: replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || "הזמנה חדשה", 
+        // תיקון: שימוש בשם העמודה הנכון (notes או customer_notes)
+        customer_notes: noteFromAI, 
         has_new_note: true,
-        status: 'pending'
+        status: 'pending',
+        order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
       }]);
 
       if (dbError) {
-        console.error("שגיאה בהזרקה (ניסיון 1):", dbError.message);
-        // ניסיון גיבוי אם השם הוא בכל זאת משהו אחר
+        console.error("שגיאת הזרקה (ניסיון 1):", dbError.message);
+        // ניסיון גיבוי עם עמודה בשם 'notes' למקרה שזה השם ב-DB
         await supabase.from('orders').insert([{
           client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
           warehouse: cleanMsg,
+          notes: noteFromAI,
           status: 'pending'
         }]);
       }
     }
 
+    // עדכון זיכרון
     await supabase.from('customer_memory').upsert({
       clientId: phone, 
       user_name: currentUserName, 
@@ -73,9 +88,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let finalReply = replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").replace(/CLIENT_NOTE:.*?/g, "").trim();
     if (!finalReply) finalReply = `אח שלי, רשמתי את ההזמנה ל${cleanMsg}. בודק ומעדכן.`;
 
+    console.log(`--- [END] תשובה סופית: ${finalReply} ---`);
     return res.status(200).json({ reply: finalReply });
 
   } catch (error) {
-    return res.status(200).json({ reply: "מטפל בזה עכשיו." });
+    console.error("Critical Error:", error);
+    return res.status(200).json({ reply: "מטפל בזה, כבר חוזר אליך." });
   }
 }
