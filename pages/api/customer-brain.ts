@@ -6,17 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const modelPool = [
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3.1-pro-preview",
-  "gemini-2.0-flash"
-];
-
-const MUNICIPALITY_RULES: any = {
-  "כפר סבא": { alert: "ויצמן כפר סבא הוא ציר ראשי - חובה פינוי עד 14:00 ותיאום מול העירייה." },
-  "תל אביב": { alert: "חובה לפנות בשישי עד 10:00. קנס: ~730 ש\"ח." },
-  "הרצליה": { alert: "אין השארה בסופ\"ש. פינוי חובה בשישי עד 14:00." }
-};
+const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-2.0-flash"];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -27,45 +17,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
   const selectedModel = modelPool[Math.floor(Math.random() * modelPool.length)];
 
-  console.log(`--- [START] צינור חיבור: הודעה מ-${phone} ---`);
-  console.log(`הודעה גולמית מהלקוח: "${cleanMsg}"`);
+  console.log(`--- [START] הודעה מ: ${phone} | תוכן: ${cleanMsg} ---`);
 
   try {
-    // 1. שליפת נתונים מהמאגר
-    const { data: training } = await supabase.from('ai_training').select('content');
-    const { data: inventory } = await supabase.from('brain_inventory').select('*');
     const { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
-    const { data: lastOrder } = await supabase.from('orders').select('*').ilike('client_info', `%${phone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    
     let currentUserName = memory?.user_name || "";
     const chatHistory = memory?.accumulated_knowledge || "";
 
-    // זיהוי עיר
-    let cityLogic = "";
-    for (const city in MUNICIPALITY_RULES) {
-      if (cleanMsg.includes(city)) {
-        cityLogic = `דגש עירוני למשימה ב${city}: ${MUNICIPALITY_RULES[city].alert}`;
-      }
-    }
-
-    // 2. בניית ה-Prompt
     const prompt = `
-      זהות: אתה המוח של "ח.סבן". מנהל עבודה חד ותכליתי.
+      זהות: המוח של "ח.סבן". מנהל עבודה תכליתי.
       לקוח: ${currentUserName || 'חדש'}.
+      משימה: הלקוח שלח פרטים (שם/כתובת/הזמנה). 
       חוקים:
-      - אם הלקוח ציין שם (כמו "לוי"), רשום בזיכרון.
-      - ${cityLogic}
-      - לכל בקשה דחופה ("להיום", "ויצמן"): הוסף CLIENT_NOTE:[דחוף: ${cleanMsg}].
-      - לאישור סגור: SAVE_ORDER_DB:[ITEM]:[QTY].
-      סגנון: פינג-פונג קצר. בלי חפירות.
+      1. אם הלקוח נתן שם (כמו "אבי לוי"), אשר שקיבלת והודה לו.
+      2. חובה להוסיף פקודה נסתרת: SAVE_ORDER_DB:[ITEM]:[QTY] אם יש מוצרים.
+      3. חובה להוסיף CLIENT_NOTE:[פירוט] אם יש כתובת או דחיפות.
+      הודעה: "${cleanMsg}"
       היסטוריה: ${chatHistory.slice(-500)}
-      הודעה נוכחית: "${cleanMsg}"
     `;
 
-    console.log(`--- [PROMPT TO GEMINI] מודל: ${selectedModel} ---`);
-    console.log(prompt);
-
-    // 3. קריאה ל-Gemini
     const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,50 +44,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const aiData = await aiRes.json();
     const replyText = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+    console.log(`--- [GEMINI REPLY] --- \n${replyText}`);
 
-    console.log(`--- [REPLY FROM GEMINI] ---`);
-    console.log(replyText);
-
-    // 4. עיבוד פקודות וזיהוי שם
-    if (cleanMsg.includes("לוי") || (cleanMsg.length < 15 && !currentUserName.includes(cleanMsg) && !cleanMsg.includes("?"))) {
-      currentUserName = currentUserName ? `${currentUserName} ${cleanMsg}` : cleanMsg;
-      console.log(`שם לקוח עודכן ל: ${currentUserName}`);
+    // --- לוגיקת הזרקה חסינת טעויות ---
+    
+    // עדכון שם
+    if (cleanMsg.includes("לוי") || cleanMsg.includes("עפר") || (cleanMsg.length < 20 && !cleanMsg.includes("?"))) {
+      currentUserName = cleanMsg;
     }
 
-    const isUrgent = cleanMsg.includes("היום") || cleanMsg.includes("ויצמן");
-    const clientNote = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || (isUrgent ? `דחוף: ${cleanMsg}` : null);
-    const hasTrigger = replyText.includes("SAVE_ORDER_DB:") || replyText.includes("CLIENT_NOTE:") || isUrgent;
+    // זיהוי אם זו הזמנה או עדכון פרטים קריטי
+    const isOrderRelated = cleanMsg.includes("מכולה") || cleanMsg.includes("שק") || cleanMsg.includes("ויצמן") || cleanMsg.includes("כפר סבא");
+    const hasCommand = replyText.includes("SAVE_ORDER_DB") || replyText.includes("CLIENT_NOTE");
 
-    if (hasTrigger) {
-      console.log(`טריגר הזרקה זוהה! שומר ל-Supabase...`);
+    if (hasCommand || isOrderRelated) {
+      console.log("--- [DB INJECTION] מזריק הזמנה/עדכון לטבלה ---");
       const { error: dbError } = await supabase.from('orders').insert([{
-        client_info: `שם: ${currentUserName || 'אורח'} | טלפון: ${phone}`,
+        client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
         warehouse: cleanMsg,
-        customer_note: clientNote,
-        has_new_note: !!clientNote,
+        customer_note: replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || "עדכון פרטים/הזמנה",
+        has_new_note: true, // תמיד ידליק זיקית במידע קריטי
         status: 'pending',
         order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
       }]);
-
-      if (dbError) console.error("שגיאת הזרקה ל-DB:", dbError.message);
-      else console.log("הזמנה נשמרה בהצלחה בטבלה.");
+      if (dbError) console.error("שגיאת DB:", dbError.message);
     }
 
-    // 5. עדכון זיכרון
+    // עדכון זיכרון
     await supabase.from('customer_memory').upsert({
       clientId: phone, 
       user_name: currentUserName, 
-      accumulated_knowledge: (chatHistory + "\nU: " + cleanMsg + "\nAI: " + replyText).slice(-1200)
+      accumulated_knowledge: (chatHistory + "\nU: " + cleanMsg + "\nAI: " + replyText).slice(-1000)
     }, { onConflict: 'clientId' });
 
-    // ניקוי פקודות לפני שליחה ללקוח
-    const finalReply = replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").replace(/CLIENT_NOTE:.*?/g, "").trim();
+    // ניקוי תשובה - אם יצא ריק, ניתן תשובה דיפולטיבית
+    let finalReply = replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").replace(/CLIENT_NOTE:.*?/g, "").trim();
+    if (!finalReply) finalReply = `רשמתי אצלי, ${currentUserName}. בודק ומעדכן אותך.`;
 
-    console.log(`--- [END] תשובה סופית ללקוח: "${finalReply}" ---`);
-    return res.status(200).json({ reply: finalReply || "קיבלתי, מטפל בזה." });
+    console.log(`--- [FINAL REPLY] --- \n${finalReply}`);
+    return res.status(200).json({ reply: finalReply });
 
-  } catch (error: any) {
-    console.error("--- [CRITICAL ERROR] ---", error.message);
-    return res.status(200).json({ reply: "מטפל בבקשה שלך, כבר חוזר אליך." });
+  } catch (error) {
+    console.error("Critical Error:", error);
+    return res.status(200).json({ reply: "קיבלתי את הפרטים, מטפל בזה." });
   }
 }
