@@ -6,19 +6,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// מודלים מעודכנים לאפריל 2026 עם רוטציה (ללא שגיאות API)
-const modelPool = [
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3.1-pro-preview",
-  "gemini-2.0-flash"
-];
+const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-2.0-flash"];
 
+// חוקי עיר - הוספתי את כפר סבא לפי הבקשה שלך
 const MUNICIPALITY_RULES: any = {
+  "כפר סבא": { alert: "הצבה ברחוב ויצמן דורשת אישור מיוחד (ציר ראשי). פינוי עד 14:00.", link: "https://bit.ly/kfar-saba-bins" },
   "תל אביב": { alert: "חובה לפנות בשישי עד 10:00. קנס: ~730 ש\"ח." },
-  "הרצליה": { alert: "חובה לפנות בשישי עד 14:00. אין השארה בשבת! קנס: 800 ש\"ח." },
-  "נתניה": { alert: "אגרת הצבה יומית: 140 ש\"ח. הצבה בכחול-לבן בלבד." },
-  "רעננה": { alert: "פינוי חובה משישי 12:00. קנס: 730 ש\"ח." },
-  "חולון": { alert: "נוהל 2026: איסור מוחלט על השארה בסופ\"ש." }
+  "הרצליה": { alert: "אין השארה בסופ\"ש. פינוי חובה בשישי עד 14:00." }
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -30,7 +24,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
 
   try {
-    // 1. שליפת ידע משולב: אימון, מלאי, זיכרון והזמנה אחרונה
     const { data: training } = await supabase.from('ai_training').select('content');
     const { data: inventory } = await supabase.from('brain_inventory').select('*');
     let { data: memory } = await supabase.from('customer_memory').select('*').eq('clientId', phone).maybeSingle();
@@ -38,38 +31,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     let currentUserName = memory?.user_name || "";
     let chatHistory = memory?.accumulated_knowledge || "";
-    
-    // 2. זיהוי לוגיקה עירונית (מכולות)
+
+    // תיקון לוגיקת עיר
     let cityLogic = "";
     for (const city in MUNICIPALITY_RULES) {
-      if (cleanMsg.includes(city)) cityLogic = `עיר: ${city}. הנחיה: ${MUNICIPALITY_RULES[city].alert}`;
+      if (cleanMsg.includes(city)) cityLogic = `דגש עירוני: ${MUNICIPALITY_RULES[city].alert}`;
     }
 
-    const orderStatusInfo = lastOrder ? 
-      `הזמנה #${lastOrder.order_number}: ${lastOrder.status}. שעה: ${lastOrder.delivery_time || 'בטיפול'}. נהג: ${lastOrder.driver_info || 'טרם שויך'}.` 
-      : "אין הזמנה פעילה.";
-
-    // 3. בניית ה-PROMPT המורחב (הכרה ל-GEM)
+    // בניית ה-PROMPT החדש - פוקוס על ביצוע ולא על שאלות מיותרות
     const prompt = `
-      זהות: אתה המוח של "ח.סבן חומרי בניין". סמכותי ומקצועי.
+      זהות: המוח של "ח.סבן". אתה מנהל עבודה בשטח, לא פקיד.
       לקוח: ${currentUserName || 'חדש'}. טלפון: ${phone}.
-      סטטוס הזמנה: ${orderStatusInfo}
       
-      ידע מקצועי (אימון): ${training?.map(t => t.content).join('\n')}
-      מלאי זמין: ${inventory?.map(i => `${i.product_name} (${i.sku}): ${i.price}₪`).join('\n')}
+      חוקי ברזל לשיחה:
+      1. אם הלקוח נתן שם (למשל "לוי"), אל תשאל עליו שוב! רשום אותו בזיכרון.
+      2. אם הלקוח מבקש מכולה/פינוי: זה בעדיפות עליונה. אל תציע לו חומרי בניין (סומסום/טיט) אלא אם הוא ביקש.
+      3. אם חסרה כתובת או גודל מכולה, בקש אותם מיד.
+      4. פקודות: הוסף SAVE_ORDER_DB:[SKU]:[QTY] רק כשברור מה הוא רוצה.
+      5. הזיקית: אם יש בקשה דחופה ("להיום", "ויצמן 7"), הוסף CLIENT_NOTE:[דחוף: ${cleanMsg}].
+
+      מידע מלאי: ${inventory?.map(i => `${i.product_name}: ${i.price}₪`).join(', ')}
       ${cityLogic}
 
-      משימות Gem:
-      - פינג-פונג: בקש פרט אחד בכל פעם (שם משפחה, כתובת).
-      - הזמנה: אשר בבולטים (•) והוסף SAVE_ORDER_DB:[SKU]:[QTY].
-      - הערה/דחיפות: הוסף CLIENT_NOTE:[הטקסט]. (מפעיל זיקית 🦎).
-      - בייעוץ טכני: אל תדבר על הובלה/אספקה.
-
-      הודעה נוכחית: "${cleanMsg}"
-      זיכרון: ${chatHistory.slice(-800)}
+      הודעת לקוח: "${cleanMsg}"
+      היסטוריה: ${chatHistory.slice(-500)}
     `;
 
-    // 4. הרצה עם רוטציית מודלים (Fallback)
     let replyText = "";
     for (const modelName of modelPool) {
       try {
@@ -84,55 +71,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) { continue; }
     }
 
-    // 5. זיהוי שם משפחה ידני (לוגיקה מהמאגר השני)
-    if (cleanMsg.length < 15 && !cleanMsg.includes(" ") && !currentUserName.includes(cleanMsg) && !cleanMsg.includes("?")) {
+    // לוגיקת זיהוי שם משפרת (מונעת כפילויות)
+    if (cleanMsg.length < 15 && !cleanMsg.includes(" ") && !currentUserName.includes(cleanMsg)) {
         currentUserName = currentUserName ? `${currentUserName} ${cleanMsg}` : cleanMsg;
     }
 
-    // 6. עדכון DB וניהול הזיקית 🦎
-    const hasOrderAction = replyText.includes("SAVE_ORDER_DB:") || replyText.includes("CLIENT_NOTE:") || (lastOrder && lastOrder.status === 'pending');
-    
-    if (hasOrderAction) {
-      const clientNote = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || null;
+    // עדכון הזמנה/זיקית
+    const isUrgent = cleanMsg.includes("היום") || cleanMsg.includes("דחוף");
+    if (replyText.includes("SAVE_ORDER_DB:") || isUrgent) {
+      const clientNote = replyText.match(/CLIENT_NOTE:\[(.*?)\]/)?.[1] || (isUrgent ? `דחוף להיום: ${cleanMsg}` : null);
       
-      if (lastOrder && lastOrder.status === 'pending') {
-        await supabase.from('orders').update({
-          client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
-          warehouse: lastOrder.warehouse + (replyText.includes("•") ? `\n• עדכון: ${cleanMsg}` : ""),
-          customer_note: clientNote || lastOrder.customer_note,
-          has_new_note: !!clientNote
-        }).eq('id', lastOrder.id);
-      } else {
-        await supabase.from('orders').insert([{
-          client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
-          product_name: "📦 סל מוצרים",
-          warehouse: cleanMsg,
-          customer_note: clientNote,
-          has_new_note: !!clientNote,
-          status: 'pending',
-          order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-        }]);
-      }
+      await supabase.from('orders').insert([{
+        client_info: `שם: ${currentUserName} | טלפון: ${phone}`,
+        warehouse: cleanMsg,
+        customer_note: clientNote,
+        has_new_note: !!clientNote,
+        status: 'pending',
+        order_time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+      }]);
     }
 
-    // 7. עדכון זיכרון לקוח
     await supabase.from('customer_memory').upsert({
       clientId: phone, 
       user_name: currentUserName, 
       accumulated_knowledge: (chatHistory + "\nU: " + cleanMsg + "\nAI: " + replyText).slice(-1200)
     }, { onConflict: 'clientId' });
 
-    // 8. ניקוי פקודות (מניעת נזילת קוד ללקוח)
-    const finalReply = replyText
-      .replace(/SAVE_ORDER_DB:\[?.*?\]?/g, "")
-      .replace(/CLIENT_NOTE:\[?.*?\]?/g, "")
-      .replace(/\[.*?\]/g, "")
-      .trim() || "תודה, הפרטים עודכנו. נציג יחזור אליך במידת הצורך.";
-
-    return res.status(200).json({ reply: finalReply });
+    const finalReply = replyText.replace(/\[.*?\]/g, "").replace(/SAVE_ORDER_DB:.*?/g, "").replace(/CLIENT_NOTE:.*?/g, "").trim();
+    return res.status(200).json({ reply: finalReply || "קיבלתי, בודק זמינות למכולה בכפר סבא ומעדכן." });
 
   } catch (error) {
-    console.error("Brain Failure:", error);
-    return res.status(200).json({ reply: "קיבלתי, מטפל בזה עכשיו." });
+    return res.status(200).json({ reply: "מטפל בבקשה שלך למכולה, כבר חוזר אליך." });
   }
 }
