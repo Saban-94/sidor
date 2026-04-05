@@ -19,26 +19,29 @@ export default function AdminControlPage() {
     if (data) setCustomers(data);
   };
 
-  useEffect(() => {
+useEffect(() => {
     fetchData();
-    const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', table: 'customer_memory' }, fetchData)
+
+    // הגדרה מדויקת של ערוץ ה-Realtime למניעת שגיאות Type
+    const channel = supabase
+      .channel('admin-realtime')
+      .on(
+        'postgres_changes' as any, // שימוש ב-any כדי לעקוף מגבלות גרסה של SDK
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customer_memory',
+        },
+        () => {
+          fetchData();
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
-
-  const handleSend = async () => {
-    if (!adminMessage || !selectedCustomer) return;
-    
-    const newHistory = `${selectedCustomer.accumulated_knowledge}\n[ADMIN]: ${adminMessage}`;
-    
-    await supabase.from('customer_memory')
-      .update({ accumulated_knowledge: newHistory })
-      .eq('clientId', selectedCustomer.clientId);
-
-    setAdminMessage('');
-    fetchData();
-  };
 
   return (
     <div className="h-screen w-full bg-[#0b141a] text-white flex font-sans overflow-hidden" dir="rtl">
