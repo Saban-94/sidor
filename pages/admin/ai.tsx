@@ -160,17 +160,57 @@ export default function SabanAIAssistant() {
         )}
       </AnimatePresence>
 
+ <Head>
+        <title>ח.סבן AI | עוזר אישי</title>
+        {/* הגדרות PWA קריטיות */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#10b981" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        
+        {/* OneSignal SDK - טעינה אסינכרונית */}
+        <script 
+          src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" 
+          async 
+        ></script>
+      </Head>
+
       {/* Header */}
-      <header className="h-16 flex items-center justify-between px-5 bg-[#202c33] border-b border-white/5 z-10">
-        <Menu size={22} className="text-slate-400" />
+      <header className="h-16 flex items-center justify-between px-5 bg-[#202c33] border-b border-white/5 z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <img src={SABAN_LOGO} className="w-9 h-9 rounded-full border border-emerald-500/30"/>
-          <div className="flex flex-col">
-            <span className="font-bold text-sm text-emerald-500 leading-none">ח.סבן - עוזר חכם</span>
-            <span className="text-[10px] text-slate-400 mt-1">מחובר כעת</span>
-          </div>
+          <Menu size={22} className="text-slate-400 cursor-pointer hover:text-white transition" />
+          
+          {/* כפתור התקנה מהיר - מופיע רק אם הדפדפן תומך בהתקנה */}
+          <button 
+            id="install-pwa"
+            className="hidden text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 px-2 py-1 rounded-md font-bold animate-pulse"
+            onClick={() => {
+              // לוגיקת התקנה (דורשת Service Worker תקין)
+              console.log("Installing Saban App...");
+            }}
+          >
+            התקן אפליקציה
+          </button>
         </div>
-        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col text-left items-end">
+            <span className="font-bold text-sm text-emerald-500 leading-none">ח.סבן - עוזר חכם</span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-[10px] text-slate-400">מחובר כעת</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]" />
+            </div>
+          </div>
+          <img src={SABAN_LOGO} className="w-9 h-9 rounded-full border border-emerald-500/30 shadow-lg"/>
+        </div>
+        
+        {/* כפתור הפעלת התראות OneSignal (פעמון) */}
+        <div 
+          className="onesignal-customlink-container" 
+          style={{ minHeight: '30px' }}
+        >
+          {/* כאן OneSignal יזריק אוטומטית את כפתור ההרשמה אם הגדרת Custom Link */}
+        </div>
       </header>
 
       {/* Chat Messages */}
