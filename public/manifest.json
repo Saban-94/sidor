@@ -1,14 +1,14 @@
 {
-  "name": "Rami Brain Live",
-  "short_name": "Rami AI",
-  "description": "המוח הלוגיסטי של ח. סבן",
+  "name": "ח.סבן חומרי בנין",
+  "short_name": "יועץ טכני",
+  "description": "ח.סבן-AI",
   "start_url": "/admin/studio",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
   "icons": [
     {
-      "src": "https://iili.io/qstzfVf.jpg",
+      "src": "https://i.postimg.cc/9QPdvDWj/Designer-(6).png",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any maskable"
