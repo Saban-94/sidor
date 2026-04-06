@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 const MODEL_POOL = [
   "gemini-1.5-flash", 
@@ -15,39 +18,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { message, imageBase64 } = req.body;
   const geminiKey = process.env.GEMINI_API_KEY;
 
+  if (!geminiKey) return res.status(500).json({ error: "Missing API Key" });
+
   try {
-    // 1. שליפת מלאי רלוונטי מתוך הטבלה brain_inventory
+    // שליפת מלאי עם דגש על שדות טכניים ויחס כיסוי
     const { data: inventory } = await supabase
       .from('brain_inventory')
-      .select('product_name, sku, category, coverage_rate, rami_touch, description')
-      .limit(10);
+      .select('product_name, sku, description, coverage_rate, rami_touch, unit:wastage_factor') 
+      .limit(20);
 
     const inventoryContext = inventory?.map(item => 
-      `- ${item.product_name} (SKU: ${item.sku}): ${item.description}. טיפ של ראמי: ${item.rami_touch}`
+      `* מוצר: ${item.product_name} | מק"ט: ${item.sku} | כיסוי: ${item.coverage_rate || 'לפי צורך'} | טיפ ראמי: ${item.rami_touch || 'אין'} | תיאור: ${item.description || 'אין'}`
     ).join('\n');
 
     for (const modelName of MODEL_POOL) {
       try {
         const isVisual = !!imageBase64;
-        const prompt = `אתה המומחה של ח.סבן. :
+        
+        // פרום טכני, חד וממוקד ללא מילים מיותרות
+        const prompt = `אתה המומחה הטכני של ח.סבן. 
+מלאי זמין:
+${inventoryContext}
 
-         ${inventoryContext} 
-הנחיות קריטיות למכירה:
-1. אם הלקוח מבקש מוצר שמופיע במלאי לעיל - השתמש בפרטים המדויקים (SKU, יחס כיסוי).
-2. אם הלקוח מבקש מוצר ש**לא** מופיע במלאי (כמו "מלט אפור") - אל תסרב! 
-   הוסף אותו ל-JSON תחת השם שהלקוח ביקש והוסף בסוגריים "(הזמנה מיוחדת)".
-3. תמיד תחזיר תשובה בפורמט JSON: 
-   {"reply": "טקסט חופשי ללקוח", "cart": [{"name": "שם המוצר", "qty": כמות, "unit": "יחידה"}]}
-4. בטקסט החופשי (reply), תסביר ללקוח שרשמת לו את המוצר כהזמנה מיוחדת והמחסן יחזור אליו.
-5. אל תשתמש בשם בוס.
+הנחיות עבודה:
+1. ניתוח: זהה מוצרים מהמלאי לפי בקשת הלקוח או ניתוח תמונה.
+2. חוסרים: אם מוצר לא במלאי (למשל "מלט אפור"), הוסף אותו כ"(הזמנה מיוחדת)".
+3. חישוב: אם צוין שטח (מ"ר), חשב כמויות לפי יחס הכיסוי במלאי.
+4. פורמט: החזר אך ורק JSON תקין במבנה:
+{
+  "reply": "הסבר מקצועי, קצר וקולע. ללא המילה 'בוס'. אם יש מוצר חסר, ציין שהוספת כהזמנה מיוחדת.",
+  "cart": [{"name": "שם המוצר", "qty": 1, "unit": "יחידה"}]
+}
 
-הודעת לקוח: ${message}`;
-
+הודעת לקוח/תוכן: ${message || "נתח תמונה מצורפת"}`;
 
         const parts: any[] = [{ text: prompt }];
         if (isVisual) {
           parts.push({
-            inline_data: { mime_type: "image/jpeg", data: imageBase64.replace(/^data:image\/\w+;base64,/, "") }
+            inline_data: { 
+              mime_type: "image/jpeg", 
+              data: imageBase64.replace(/^data:image\/\w+;base64,/, "") 
+            }
           });
         }
 
@@ -64,12 +75,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (rawReply) {
-          // מנסה לחלץ JSON אם ה-AI החזיר אחד, אחרת מחזיר טקסט רגיל
           try {
-            const parsed = JSON.parse(rawReply.replace(/```json|```/g, ""));
+            // ניקוי תגיות Markdown וחילוץ JSON נקי
+            const cleanJson = rawReply.replace(/```json|```/g, "").trim();
+            const parsed = JSON.parse(cleanJson);
             return res.status(200).json(parsed);
-          } catch {
-            return res.status(200).json({ reply: rawReply });
+          } catch (e) {
+            // גיבוי במקרה של כשל בחילוץ ה-JSON
+            return res.status(200).json({ 
+              reply: rawReply.replace(/\{.*\}/s, "").trim(), 
+              cart: [] 
+            });
           }
         }
       } catch (err) { continue; }
