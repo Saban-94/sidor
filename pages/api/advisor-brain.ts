@@ -19,8 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (API Key missing)." });
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const modelPool = ["gemini-1.5-flash", "gemini-pro"]; // שימוש במודלים יציבים
-
+const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview", "gemini-2.0-flash"];
   try {
     const cleanPhone = String(phone).replace(/[\[\]\s]/g, '');
 
