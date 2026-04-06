@@ -82,7 +82,7 @@ export default function CustomerProChat() {
     }, 1500);
   };
 
-  const askAI = async (query: string) => {
+  const askAI = async (query) => {
     if (query.trim() || loading) return;
     const newMessages = [...messages, { role: 'user', content: query }];
     setMessages(newMessages);
