@@ -113,7 +113,7 @@ export default function SabanAIAssistant() {
     setInput('');
 
     try {
-      const res = await fetch('/api/customer-brain', {
+      const res = await fetch('/api/tools-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: query, senderPhone: userCid })
