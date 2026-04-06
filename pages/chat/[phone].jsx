@@ -20,9 +20,9 @@ export default function CustomerProChat() {
   const router = useRouter();
   const { phone } = router.query;
   
-  const [customer, setCustomer] = useState<any>(null);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [customer, setCustomer] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
