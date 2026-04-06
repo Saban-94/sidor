@@ -46,11 +46,21 @@ export default function SabanAIAssistant() {
       const data = await res.json();
 
       // עדכון עגלת הקניות מהמלאי האמיתי אם ה-AI החזיר פריטים
-      if (data.cart) {
-        setCartItems(data.cart.map((item, idx) => ({ id: idx, ...item, unit: item.unit || "יח'" })));
-        setShowCart(true);
-      }
-
+if (data.cart && data.cart.length > 0) {
+  setCartItems(prevCart => {
+    // יצירת מערך חדש המשלב את מה שכבר היה בעגלה + המוצרים החדשים
+    const newItems = data.cart.map((item, idx) => ({
+      ...item,
+      id: Date.now() + idx, // יצירת ID ייחודי כדי למנוע כפילויות ברינדור
+      unit: item.unit || "יח'"
+    }));
+    
+    return [...prevCart, ...newItems];
+  });
+  
+  // פתיחת תפריט העגלה באופן אוטומטי כדי שהלקוח יראה את התוספת
+  setShowCart(true); 
+}
       setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למחסן אחי." }]);
