@@ -52,7 +52,7 @@ export default function SabanAIAssistant() {
     try {
       // 1. העלאה לדרייב
       const base64Clean = base64.split(',')[1];
-      const driveRes = await fetch('/api/upload-to-drive', {
+      const driveRes = await fetch('/api/tools-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileName: `scan_${Date.now()}.jpg`, fileData: base64Clean, mimeType: file.type, phone: 'admin' })
