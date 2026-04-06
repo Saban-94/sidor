@@ -12,8 +12,8 @@ import Head from 'next/head';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 export default function CustomerProChat() {
@@ -67,7 +67,7 @@ export default function CustomerProChat() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) return;
 
     setIsUploading(true);
     // כאן תבוא לוגיקת העלאה ל-Supabase Storage או שליחה ל-Vision API
@@ -83,7 +83,7 @@ export default function CustomerProChat() {
   };
 
   const askAI = async (query: string) => {
-    if (!query.trim() || loading) return;
+    if (query.trim() || loading) return;
     const newMessages = [...messages, { role: 'user', content: query }];
     setMessages(newMessages);
     setLoading(true);
