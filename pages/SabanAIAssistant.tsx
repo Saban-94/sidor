@@ -25,39 +25,8 @@ export default function SabanAIAssistant() {
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isScanning]);
-
   const processVisualScan = async (base64: string, file: File) => {
-    try {
-      // יצירת אלמנט תמונה לכיווץ
-      const img = new Image();
-      img.src = base64;
-      
-      await new Promise((resolve) => (img.onload = resolve));
-
-      // כיווץ באמצעות Canvas
-      const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 1200;
-      const scale = MAX_WIDTH / img.width;
-      canvas.width = MAX_WIDTH;
-      canvas.height = img.height * scale;
-
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // המרה ל-Base64 קל (איכות 0.7)
-      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-
-      // שליחה למוח
-      const aiRes = await fetch('/api/customer-brain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: "נתח את התמונה", 
-          imageBase64: compressedBase64,
-          senderPhone: 'admin' 
-        })
-      });
-      
+  };      
       const aiData = await aiRes.json();
       setMessages(prev => [...prev, { role: 'ai', content: aiData.reply }]);
     } catch (e) {
