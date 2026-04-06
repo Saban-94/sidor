@@ -2,7 +2,7 @@
   "name": "ח.סבן חומרי בנין",
   "short_name": "יועץ טכני",
   "description": "ח.סבן-AI",
-  "start_url": "/admin/studio",
+  "start_url": "/SabanAIAssistant",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
