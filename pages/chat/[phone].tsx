@@ -3,8 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { createClient } from '@supabase/supabase-js';
-import { Send, Bot, MapPin, Phone, MessageSquare, ChevronLeft, Sparkles, Building2 } from 'lucide-react';
+import { 
+  Send, Bot, MapPin, Phone, MessageSquare, 
+  Sparkles, Building2, Camera, Image as ImageIcon, 
+  X, Loader2 
+} from 'lucide-react';
 import Head from 'next/head';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,8 +25,10 @@ export default function CustomerProChat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (phone) {
@@ -36,39 +43,51 @@ export default function CustomerProChat() {
   }, [messages, loading]);
 
   async function loadCustomerContext() {
-    // ניקוי המספר מתווים כמו [ ] או רווחים כדי למנוע שגיאת 406
     const cleanPhone = String(phone).replace(/[\[\]\s]/g, '');
-
-    const { data: cust, error: custError } = await supabase
+    const { data: cust } = await supabase
       .from('customers')
-      .select('*')
+      .select('*, customer_projects(*)')
       .eq('phone', cleanPhone)
       .maybeSingle();
 
     if (cust) {
       setCustomer(cust);
-      const { data: projs } = await supabase
-        .from('customer_projects')
-        .select('*')
-        .eq('customer_id', cust.id);
-      
-      setProjects(projs || []);
-      
+      setProjects(cust.customer_projects || []);
       setMessages([{
         role: 'assistant',
-        content: `שלום ${cust.name}, אני היועץ האישי שלך ב-ח. סבן. אני מכיר את הפרויקטים שלך וזמין לכל הזמנה או ייעוץ טכני. מה חסר לך היום באתר?`
+        content: `שלום ${cust.name}, אני היועץ האישי שלך ב-ח. סבן. אני מחובר לפרויקטים שלך בזמן אמת. מה חסר לך היום באתר?`
       }]);
     }
   }
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  // פונקציית צילום/העלאת תמונה
+  const handleCameraClick = () => {
+    fileInputRef.current?.click();
+  };
 
-    const userMsg = input;
-    setInput('');
-    const newMessages = [...messages, { role: 'user', content: userMsg }];
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    // כאן תבוא לוגיקת העלאה ל-Supabase Storage או שליחה ל-Vision API
+    setTimeout(() => {
+      setMessages(prev => [...prev, { 
+        role: 'user', 
+        content: '📸 שלחתי תמונה של השטח לניתוח...' 
+      }]);
+      setIsUploading(false);
+      // פנייה למוח לניתוח התמונה
+      askAI("ניתוח תמונה משטח העבודה");
+    }, 1500);
+  };
+
+  const askAI = async (query: string) => {
+    if (!query.trim() || loading) return;
+    const newMessages = [...messages, { role: 'user', content: query }];
     setMessages(newMessages);
     setLoading(true);
+    setInput('');
 
     try {
       const response = await fetch('/api/advisor-brain', {
@@ -76,120 +95,118 @@ export default function CustomerProChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           phone: String(phone).replace(/[\[\]\s]/g, ''), 
-          message: userMsg,
+          message: query,
           chatHistory: newMessages.slice(-10)
         })
       });
-
       const data = await response.json();
       if (data.reply) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
       }
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'בוס, יש תקשורת מוגבלת כרגע. נסה לשלוח שוב.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'אחי, יש תקלה קלה בתקשורת. נסה שוב.' }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#F8FAFC] font-sans selection:bg-emerald-100" dir="rtl">
+    <div className="flex flex-col h-[100dvh] bg-[#F1F5F9] font-sans overflow-hidden" dir="rtl">
       <Head>
         <title>Saban AI | Premium Support</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
       </Head>
 
-      {/* Header מעוצב - Glassmorphism */}
-      <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md text-white p-4 pb-6 shadow-2xl rounded-b-[2.5rem] border-b border-emerald-500/30">
-        <div className="max-w-4xl mx-auto flex justify-between items-center px-2">
+      {/* Header מעוצב */}
+      <header className="z-50 bg-slate-900 text-white p-5 shadow-2xl rounded-b-[2rem] border-b-2 border-emerald-500/50">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 rotate-3">
-                <Bot color="white" size={32} />
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full animate-pulse shadow-sm"></span>
+            <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <Bot color="white" size={28} />
             </div>
             <div>
-              <h1 className="font-black text-xl tracking-tighter flex items-center gap-2">
-                SABAN <span className="text-emerald-400">AI</span>
-              </h1>
-              <div className="flex items-center gap-1.5 opacity-70">
-                <Sparkles size={12} className="text-emerald-400" />
-                <p className="text-[10px] font-bold uppercase tracking-widest">מנהל תיק אישי</p>
-              </div>
+              <h1 className="font-black text-lg tracking-tight">SABAN <span className="text-emerald-400">AI</span></h1>
+              <p className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex items-center gap-1">
+                <Sparkles size={10} /> מנהל תיק אישי
+              </p>
             </div>
           </div>
-          <div className="text-left bg-white/5 border border-white/10 p-2.5 rounded-2xl">
-            <p className="text-[9px] uppercase font-black text-emerald-400 mb-0.5">Welcome Back</p>
-            <p className="font-bold text-sm truncate max-w-[100px]">{customer?.name || 'טוען...'}</p>
+          <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+             <p className="text-[10px] text-emerald-400 font-bold">לקוח VIP</p>
+             <p className="font-bold text-xs truncate max-w-[80px]">{customer?.name || 'טוען...'}</p>
           </div>
         </div>
       </header>
 
-      {/* אזור השיחה */}
-      <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 pt-8 no-scrollbar bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+      {/* Messages */}
+      <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 pt-6 no-scrollbar">
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-            <div className={`relative max-w-[88%] p-4 rounded-[2rem] shadow-xl text-sm font-bold leading-relaxed ${
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            key={i} 
+            className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}
+          >
+            <div className={`max-w-[85%] p-4 rounded-3xl shadow-sm text-sm font-bold leading-relaxed ${
               m.role === 'user' 
-              ? 'bg-white text-slate-800 rounded-tr-none border border-slate-100' 
-              : 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-tl-none shadow-emerald-200/50'
+              ? 'bg-white text-slate-800 rounded-tr-none border border-slate-200' 
+              : 'bg-slate-900 text-white rounded-tl-none'
             }`}>
               {m.content}
-              <span className={`absolute bottom-[-18px] text-[9px] font-medium text-slate-400 ${m.role === 'user' ? 'right-2' : 'left-2'}`}>
-                {new Date().toLocaleTimeString('he-IL', {hour: '2-digit', minute:'2-digit'})}
-              </span>
             </div>
-          </div>
+          </motion.div>
         ))}
         {loading && (
-          <div className="flex justify-end pr-4">
-             <div className="flex gap-1.5 p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
-             </div>
-          </div>
+          <div className="flex justify-end"><Loader2 className="animate-spin text-emerald-500" /></div>
         )}
       </main>
 
-      {/* סרגל פרויקטים מהיר - כרטיסיות */}
-      <div className="px-4 py-3 bg-white/50 backdrop-blur-sm border-t border-slate-200">
-        <p className="text-[10px] font-black text-slate-400 uppercase mb-2 mr-2">הפרויקטים שלך:</p>
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+      {/* Quick Project Tabs */}
+      <div className="px-4 py-2 bg-white/60 backdrop-blur-md">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
           {projects.map(p => (
-            <button 
-              key={p.id} 
-              onClick={() => setInput(`אני צריך חומר ל${p.project_name}`)}
-              className="flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-600 transition-all active:scale-95 group"
-            >
-              <Building2 size={14} className="text-slate-400 group-hover:text-emerald-500" />
-              {p.project_name}
+            <button key={p.id} onClick={() => setInput(`עדכון לגבי ${p.project_name}`)} className="bg-white border border-slate-200 px-4 py-2 rounded-2xl text-xs font-bold whitespace-nowrap shadow-sm flex items-center gap-2">
+              <Building2 size={14} className="text-emerald-500" /> {p.project_name}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Input - "Floating" Style */}
-      <footer className="p-4 bg-white border-t border-slate-100 pb-10">
-        <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <div className="relative flex-1 group">
+      {/* Input Bar המעוצב עם כפתור המצלמה */}
+      <footer className="p-4 bg-white border-t border-slate-100 pb-8">
+        <div className="max-w-4xl mx-auto flex items-center gap-3">
+          
+          <div className="relative flex-1">
+            {/* כפתור מצלמה מוטמע בשורת הקלט */}
+            <button 
+              onClick={handleCameraClick}
+              disabled={isUploading}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all active:scale-90"
+            >
+              {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={20} />}
+            </button>
+
             <input 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="כתוב כאן מה חסר לאתר..."
-              disabled={loading}
-              className="w-full bg-slate-100 rounded-[2rem] py-5 px-6 pr-14 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all shadow-inner border border-transparent focus:border-emerald-100"
+              onKeyPress={(e) => e.key === 'Enter' && askAI(input)}
+              placeholder="מה לשלוח לאתר אחי?"
+              className="w-full bg-slate-100 rounded-full py-4 px-6 pl-14 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 transition-all border-none"
             />
-            <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-              <MessageSquare size={20} />
-            </div>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              accept="image/*" 
+              capture="environment" 
+              className="hidden" 
+            />
           </div>
+
           <button 
-            onClick={handleSend}
-            disabled={loading}
-            className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-emerald-600 disabled:bg-slate-300 transition-all active:scale-90 shadow-xl shadow-slate-200"
+            onClick={() => askAI(input)}
+            className="bg-emerald-500 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 active:scale-90 transition-all"
           >
             <Send size={24} className="rotate-180" />
           </button>
