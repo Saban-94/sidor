@@ -102,7 +102,7 @@ export default function SabanAIAssistant() {
       const driveData = await driveRes.json();
 
       // 2. ניתוח AI
-      const aiRes = await fetch('/api/customer-brain', {
+      const aiRes = await fetch('/api/tools-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: "נתח את התמונה", imageBase64: base64Clean, imageUrl: driveData.link })
