@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { Menu, Send, X, Camera, ShoppingCart, Share2, Sparkles } from 'lucide-react';
+import { Menu, Send, X, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,25 +10,48 @@ import { useRouter } from 'next/router';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
 const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
+const MAGIC_SOUND = "/magic-chime.mp3"; // וודא שהקובץ קיים בתיקיית public
 
 export default function SabanAIAssistant() {
   const router = useRouter();
   const { phone } = router.query;
 
+  // מצבים לממשק
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [isAppReady, setIsAppReady] = useState(false);
+  
   const scrollRef = useRef(null);
+  const audioRef = useRef(null);
 
+  // פונקציית ברכה אוטומטית עם עליית הקוד
   useEffect(() => {
+    setIsAppReady(true);
     if (messages.length === 0) {
-      setMessages([{ role: 'ai', content: "שלום שלח צילום של הליקוי או תאר לי מה הבעיה, המלאי של המחסן מסונכרן אצלי." }]);
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? "בוקר טוב" : hour < 18 ? "צהריים טובים" : "ערב טוב";
+      
+      setTimeout(() => {
+        setMessages([{ 
+          role: 'ai', 
+          content: `${greeting} אחי! כאן המומחה של ח.סבן. המחסן מסונכרן אצלי במוח - מה נבנה היום? 🏗️` 
+        }]);
+      }, 600);
     }
   }, []);
 
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const playMagicSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => console.log("Audio play blocked"));
+    }
+  };
 
   const askAI = async (query, base64 = null) => {
     if (!query?.trim() && !base64) return;
@@ -45,169 +68,167 @@ export default function SabanAIAssistant() {
       });
       const data = await res.json();
 
-      // עדכון עגלת הקניות מהמלאי האמיתי אם ה-AI החזיר פריטים
-if (data.cart && data.cart.length > 0) {
-  setCartItems(prevCart => {
-    // יצירת מערך חדש המשלב את מה שכבר היה בעגלה + המוצרים החדשים
-    const newItems = data.cart.map((item, idx) => ({
-      ...item,
-      id: Date.now() + idx, // יצירת ID ייחודי כדי למנוע כפילויות ברינדור
-      unit: item.unit || "יח'"
-    }));
-    
-    return [...prevCart, ...newItems];
-  });
-  
-  // פתיחת תפריט העגלה באופן אוטומטי כדי שהלקוח יראה את התוספת
-  setShowCart(true); 
-}
+      if (data.cart && data.cart.length > 0) {
+        playMagicSound();
+        setCartItems(prev => {
+          const newItems = data.cart.map((item, idx) => ({
+            ...item,
+            id: Date.now() + idx,
+            unit: item.unit || "יח'"
+          }));
+          return [...prev, ...newItems];
+        });
+        setShowCart(true);
+      }
+
       setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למחסן אחי." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "המחסן לא זמין כרגע, תנסה שוב אחי." }]);
     } finally {
       setLoading(false);
     }
   };
 
+  const themeClass = isDarkMode ? "bg-[#0b141a] text-[#e9edef]" : "bg-[#f0f2f5] text-[#111b21]";
+  const bubbleAi = isDarkMode ? "bg-[#202c33] text-white" : "bg-white text-black shadow-sm";
+  const bubbleUser = "bg-emerald-600 text-white shadow-md";
+
   return (
-    <div className="h-screen w-full flex flex-col bg-[#0b141a] text-[#e9edef] overflow-hidden" dir="rtl">
-      <header className="h-16 bg-[#202c33] flex items-center justify-between px-5 border-b border-white/5">
-        <Menu size={22} className="text-slate-400" />
-        <img src={SABAN_LOGO} className="w-10 h-10 rounded-full border-2 border-emerald-500/50" />
-        <div className="relative cursor-pointer" onClick={() => setShowCart(true)}>
-          <ShoppingCart size={22} className="text-emerald-500" />
-          {cartItems.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-[10px] w-4 h-4 rounded-full flex items-center justify-center">!</span>}
+    <div className={`h-screen w-full flex flex-col transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
+      <Head><title>ח.סבן | AI Expert</title></Head>
+      
+      {/* אלמנט אודיו חבוי */}
+      <audio ref={audioRef} src={MAGIC_SOUND} />
+
+      {/* Header משודרג */}
+      <header className={`h-20 flex items-center justify-between px-6 z-50 border-b ${isDarkMode ? 'bg-[#202c33] border-white/5' : 'bg-white border-black/5 shadow-sm'}`}>
+        <div className="flex items-center gap-4">
+          <Menu size={24} className="text-slate-400 cursor-pointer" />
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
+            {isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-slate-600" />}
+          </button>
+        </div>
+        
+        <motion.img 
+          initial={{ scale: 0 }} animate={{ scale: 1 }}
+          src={SABAN_LOGO} className="w-12 h-12 rounded-full border-2 border-emerald-500 shadow-lg" 
+        />
+
+        <div className="relative cursor-pointer p-2" onClick={() => setShowCart(true)}>
+          <ShoppingCart size={26} className="text-emerald-500" />
+          <AnimatePresence>
+            {cartItems.length > 0 && (
+              <motion.span 
+                initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                className="absolute top-0 right-0 bg-red-500 text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center text-white"
+              >
+                {cartItems.length}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+      {/* אזור הצ'אט */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-6 pb-32 custom-scrollbar">
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] p-3 px-4 rounded-2xl ${m.role === 'user' ? 'bg-[#202c33]' : 'bg-[#005c4b]'}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm prose prose-invert">{m.content}</ReactMarkdown>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}
+          >
+            <div className={`max-w-[85%] p-4 rounded-2xl relative ${m.role === 'user' ? bubbleUser : bubbleAi}`}>
+              {m.role === 'ai' && <Sparkles size={14} className="absolute -top-2 -right-2 text-emerald-400" />}
+              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-[15px] leading-relaxed prose prose-invert">
+                {m.content}
+              </ReactMarkdown>
             </div>
-          </div>
+          </motion.div>
         ))}
-        {loading && <div className="text-xs text-slate-500 animate-pulse">המוח בודק מלאי...</div>}
+        {loading && (
+          <div className="flex justify-end">
+            <div className={`p-4 rounded-2xl animate-pulse ${bubbleAi}`}>המוח סורק מלאי...</div>
+          </div>
+        )}
         <div ref={scrollRef} />
       </main>
 
-<AnimatePresence>
-  {showCart && (
-    <>
-      {/* Overlay רקע כהה לסגירה בלחיצה בחוץ */}
-      <motion.div 
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={() => setShowCart(false)}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[45]"
-      />
-      
-      <motion.div 
-        initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed inset-y-0 right-0 w-[85%] max-w-sm bg-[#111b21] z-50 shadow-2xl border-l border-white/5 flex flex-col"
-      >
-        {/* Header עגלה */}
-        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#202c33]">
-          <div>
-            <h2 className="text-xl font-extrabold text-white">הסל שלי</h2>
-            <p className="text-xs text-emerald-500 font-medium">{cartItems.length} מוצרים בהמתנה</p>
-          </div>
-          <button onClick={() => setShowCart(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400">
-            <X size={24} />
-          </button>
-        </div>
+      {/* עגלה מקצועית */}
+      <AnimatePresence>
+        {showCart && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[55]" 
+            />
+            <motion.div 
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 20 }}
+              className={`fixed inset-y-0 right-0 w-[85%] max-w-sm z-[60] shadow-2xl p-6 flex flex-col ${isDarkMode ? 'bg-[#111b21]' : 'bg-white'}`}
+            >
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-emerald-500 italic underline decoration-2">הסל של סבן</h2>
+                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-400" />
+              </div>
 
-        {/* רשימת פריטים */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
-          {cartItems.length > 0 ? (
-            cartItems.map((item, idx) => (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
-                key={item.id || idx} 
-                className="bg-[#202c33] p-4 rounded-2xl border-r-4 border-emerald-500 shadow-md group relative overflow-hidden"
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {cartItems.map((item, idx) => (
+                  <motion.div 
+                    layout key={item.id}
+                    className={`p-4 rounded-2xl border-r-4 border-emerald-500 flex justify-between items-center ${isDarkMode ? 'bg-[#202c33]' : 'bg-slate-50 shadow-sm'}`}
+                  >
+                    <div>
+                      <p className="font-bold text-sm">{item.name.replace("(הזמנה מיוחדת)", "")}</p>
+                      <p className="text-emerald-500 font-black text-lg">{item.qty} <span className="text-[10px] text-slate-400 uppercase">{item.unit}</span></p>
+                    </div>
+                    <Trash2 size={18} className="text-red-400/50 hover:text-red-500 cursor-pointer" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
+                  </motion.div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => {
+                  const txt = cartItems.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join('\n');
+                  window.open(`https://wa.me/972508860896?text=${encodeURIComponent("אהלן, הזמנה חדשה:\n" + txt)}`);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-5 rounded-2xl mt-6 font-black text-white shadow-xl flex items-center justify-center gap-3 transition-transform active:scale-95"
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className="font-bold text-[15px] text-white leading-tight">
-                      {/* מסתיר את הכיתוב הטכני מהלקוח */}
-                      {item.name.replace("(הזמנה מיוחדת)", "").trim()}
-                    </p>
-                    {item.name.includes("הזמנה מיוחדת") && (
-                      <span className="inline-block mt-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[10px] rounded-md font-bold uppercase tracking-wider">
-                        בטיפול אישי
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-left mr-4">
-                    <p className="text-emerald-500 font-black text-lg leading-none">{item.qty}</p>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase mt-1">{item.unit || 'יח\''}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">
-              <ShoppingCart size={48} strokeWidth={1} />
-              <p className="text-sm">הסל ריק, בוא נבנה משהו...</p>
-            </div>
-          )}
-        </div>
+                <Share2 size={22}/> שלח למחסן
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-        {/* Footer עגלה - כפתור שליחה */}
-        <div className="p-6 bg-[#202c33] border-t border-white/5">
+      {/* Footer שליחה */}
+      <footer className={`fixed bottom-0 left-0 right-0 p-4 transition-colors duration-500 ${isDarkMode ? 'bg-[#0b141a] border-t border-white/5' : 'bg-[#f0f2f5] border-t border-black/5'}`}>
+        <div className="flex items-center gap-3 max-w-4xl mx-auto bg-transparent">
           <button 
-            disabled={cartItems.length === 0}
-            onClick={() => {
-              const orderText = cartItems.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join('\n');
-              window.open(`https://wa.me/972508860896?text=${encodeURIComponent("אהלן, הזמנה חדשה מה-AI:\n" + orderText)}`);
-            }} 
-            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:cursor-not-allowed py-4 rounded-2xl font-bold text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-3 transition-all active:scale-95"
+            onClick={() => document.getElementById('camInput').click()}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isDarkMode ? 'bg-[#2a3942] text-emerald-400' : 'bg-white text-emerald-600 shadow-md'}`}
           >
-            <Share2 size={20}/>
-            <span>שלח הזמנה למחסן</span>
+            <Camera size={26}/>
+          </button>
+          <input id="camInput" type="file" className="hidden" onChange={(e) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(e.target.files[0]);
+            reader.onload = (ev) => askAI(null, ev.target.result);
+          }} />
+          
+          <input 
+            value={input} onChange={e => setInput(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && askAI(input)}
+            placeholder="תאר לי מה הבעיה..." 
+            className={`flex-1 rounded-2xl px-6 py-4 outline-none text-sm font-bold shadow-inner ${isDarkMode ? 'bg-[#2a3942] text-white' : 'bg-white text-black border border-black/5'}`}
+          />
+          
+          <button 
+            onClick={() => askAI(input)}
+            className="w-14 h-14 bg-emerald-600 hover:bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg active:scale-90 transition-all"
+          >
+            <Send size={24} className="rotate-180" />
           </button>
         </div>
-      </motion.div>
-    </>
-  )}
-</AnimatePresence>
-
-{/* פוטר הודעות משודרג */}
-<footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#0b141a]/80 backdrop-blur-lg border-t border-white/5 z-40">
-  <div className="flex items-center gap-3 max-w-4xl mx-auto">
-    <motion.button 
-      whileTap={{ scale: 0.9 }}
-      onClick={() => document.getElementById('fileInput').click()} 
-      className="w-12 h-12 bg-[#2a3942] hover:bg-[#374248] rounded-full flex items-center justify-center text-emerald-500 transition-colors shadow-lg"
-    >
-      <Camera size={22}/>
-    </motion.button>
-    
-    <input id="fileInput" type="file" className="hidden" onChange={(e) => {
-      const reader = new FileReader();
-      if (e.target.files?.[0]) {
-        reader.readAsDataURL(e.target.files[0]);
-        reader.onload = (ev) => askAI(null, ev.target.result);
-      }
-    }} />
-    
-    <div className="flex-1 relative flex items-center">
-      <input 
-        value={input} 
-        onChange={e => setInput(e.target.value)} 
-        onKeyDown={e => e.key === 'Enter' && askAI(input)} 
-        placeholder="מה צריך לבנות היום?" 
-        className="w-full bg-[#2a3942] text-white rounded-2xl px-5 py-3.5 outline-none text-sm font-medium placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-inner" 
-      />
+      </footer>
     </div>
-
-    <motion.button 
-      whileTap={{ scale: 0.9, rotate: -10 }}
-      onClick={() => askAI(input)} 
-      className="w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg transition-colors"
-    >
-      <Send size={20} className="rotate-180 ml-0.5" />
-    </motion.button>
-  </div>
-</footer>
+  );
+}
