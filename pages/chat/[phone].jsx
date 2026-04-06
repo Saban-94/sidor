@@ -38,7 +38,7 @@ export default function SabanAIAssistant() {
       setTimeout(() => {
         setMessages([{ 
           role: 'ai', 
-          content: `${greeting} אחי! כאן המומחה של ח.סבן. המחסן מסונכרן אצלי במוח - מה נבנה היום? 🏗️` 
+          content: `${greeting}  כאן  של ח.סבן. המחסן מסונכרן אצלי במוח - מה נבנה היום? 🏗️` 
         }]);
       }, 600);
     }
