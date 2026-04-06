@@ -2,9 +2,10 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// שימוש ב-Service Role כדי לעקוף RLS בשרת במידת הצורך
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -14,52 +15,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const cleanMsg = message?.trim();
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // --- הגנות בסיס ---
-  if (!cleanMsg) return res.status(200).json({ reply: "בוס, הודעה ריקה?" });
+  if (!cleanMsg) return res.status(200).json({ reply: "בוס, מה נשמע? איך אני יכול לעזור?" });
   if (!apiKey) return res.status(200).json({ reply: "⚠️ שגיאת מפתח (API Key missing)." });
 
-  // --- Expert Core: Model Pool ---
-  const modelPool = ["gemini-3.1-flash-lite-preview", "gemini-1.5-flash"];
   const genAI = new GoogleGenerativeAI(apiKey);
+  const modelPool = ["gemini-1.5-flash", "gemini-pro"]; // שימוש במודלים יציבים
 
   try {
-    // 1. Instant Sync: שליפת קונטקסט לקוח ומחירון
     const cleanPhone = String(phone).replace(/[\[\]\s]/g, '');
-    
-    const [{ data: customer }, { data: products }] = await Promise.all([
-      supabase.from('customers').select('*, customer_projects(*)').eq('phone', cleanPhone).single(),
-      supabase.from('products_catalog').select('*').eq('is_active', true)
-    ]);
+
+    // 1. שלב הזהות: בדיקה אם הלקוח קיים, אם לא - יצירה אוטומטית
+    let { data: customer } = await supabase
+      .from('customers')
+      .select('*, customer_projects(*)')
+      .eq('phone', cleanPhone)
+      .maybeSingle();
+
+    if (!customer) {
+      const { data: newCust, error: createErr } = await supabase
+        .from('customers')
+        .insert({ phone: cleanPhone, name: 'לקוח חדש' })
+        .select('*, customer_projects(*)')
+        .single();
+      
+      if (createErr) throw createErr;
+      customer = newCust;
+    }
+
+    // 2. שלב הידע: שליפת מחירון פעיל
+    const { data: products } = await supabase
+      .from('products_catalog')
+      .select('*')
+      .eq('is_active', true);
 
     const productList = products?.map(p => 
-      `- ${p.product_name} (${p.unit}): ${p.price_retail}₪. מידע טכני: ${p.technical_notes}`
+      `- ${p.product_name} (${p.unit}): ${p.price_retail}₪. מפרט: ${p.technical_notes || 'סטנדרטי'}`
     ).join('\n');
 
     const projectList = customer?.customer_projects?.map((p: any) => 
-      `${p.project_name} (כתובת: ${p.address})`
-    ).join(', ');
+      `- ${p.project_name} (כתובת: ${p.address || 'לא צוינה'})`
+    ).join('\n') || 'אין פרויקטים רשומים כרגע.';
 
-    // 2. Advisor Pro: בניית הפרומפט המערכתי
+    // 3. Advisor Pro Prompt
     const systemPrompt = `
-      אתה "Saban Advisor Pro" - המוח הדיגיטלי של ח. סבן חומרי בניין.
-      הלקוח: ${customer?.name || 'קבלן'}. 
-      פרויקטים פעילים: ${projectList || 'אין פרויקטים רשומים'}.
+      אתה "Saban Advisor Pro" - המוח של ח. סבן.
+      הלקוח הנוכחי: ${customer?.name || 'קבלן'} (טלפון: ${cleanPhone}).
+      
+      פרויקטים של הלקוח:
+      ${projectList}
 
-      מחירון וייעוץ מומחה:
+      מחירון ומידע טכני:
       ${productList}
 
-      תפקידך (Advisor Workflow):
-      1. ייעוץ טכני: המלץ על המוצר הנכון לפי המידע הטכני.
-      2. בניית הזמנה: אסוף מוצרים, כמויות, וסוג פריקה.
-      3. סנכרון: וודא לאיזה פרויקט האספקה.
-      4. פורמט סגירה: אם זיהית מוצר וכמות, הוסף בסוף התשובה: [ORDER: {"product": "שם", "qty": מספר, "unit": "יחידה"}]
+      הנחיות עבודה:
+      1. פנה ללקוח בשמו אם הוא ידוע. אם הוא חדש, ברך אותו והצע לפתוח פרויקט.
+      2. אם הלקוח מבקש מוצר, וודא כמויות ולאיזה פרויקט זה מיועד.
+      3. אם הוא מציין פרויקט חדש, אשר שקלטת.
+      4. פקודות סמויות (הוסף בסוף התשובה במידת הצורך):
+         - ליצירת פרויקט: [CREATE_PROJECT: "שם הפרויקט"]
+         - לרישום הזמנה: [ORDER: {"product": "שם", "qty": מספר, "unit": "יחידה"}]
 
-      שפה: עברית של מקצוענים, עניינית, חברית ("בוס", "אחי").
+      שפה: עברית מקצועית, חברית, קצרה ולעניין.
     `;
 
-    // 3. הפעלת ה-Model Pool (Fallback Logic)
+    // 4. שליחת הודעה ל-Gemini
     let aiResponse = "";
-    let detectedOrder = null;
+    let finalOrder = null;
     let success = false;
 
     for (const modelName of modelPool) {
@@ -73,36 +94,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         const result = await chat.sendMessage(`${systemPrompt}\n\nהודעת הלקוח: ${cleanMsg}`);
-        const rawText = result.response.text();
-        
-        // חילוץ נתוני הזמנה מהטקסט
-        const orderMatch = rawText.match(/\[ORDER: (.*?)\]/);
-        if (orderMatch) {
-          try {
-            detectedOrder = JSON.parse(orderMatch[1]);
-          } catch (e) {
-            console.error("Order parsing failed");
-          }
-        }
-
-        aiResponse = rawText.replace(/\[ORDER: .*?\]/g, '').trim();
+        aiResponse = result.response.text();
         success = true;
-        break; 
+        break;
       } catch (err) {
-        console.error(`מודל ${modelName} נכשל, מנסה את הבא...`);
+        console.error(`מודל ${modelName} נכשל, מנסה באק-אפ...`);
         continue;
       }
     }
 
-    if (!success) throw new Error("כל המודלים ב-Pool נכשלו");
+    if (!success) throw new Error("AI Connection Failed");
+
+    // 5. עיבוד פקודות (עבודה שחורה ב-DB)
     
+    // א. יצירת פרויקט חדש אם ה-AI זיהה צורך
+    const projectMatch = aiResponse.match(/\[CREATE_PROJECT: "(.*?)"\]/);
+    if (projectMatch && customer?.id) {
+      await supabase.from('customer_projects').insert({
+        customer_id: customer.id,
+        project_name: projectMatch[1]
+      });
+    }
+
+    // ב. חילוץ אובייקט הזמנה לממשק
+    const orderMatch = aiResponse.match(/\[ORDER: (.*?)\]/);
+    if (orderMatch) {
+      try { finalOrder = JSON.parse(orderMatch[1]); } catch (e) {}
+    }
+
+    // ניקוי הפקודות מהטקסט שחוזר ללקוח
+    const cleanReply = aiResponse
+      .replace(/\[CREATE_PROJECT:.*?\]/g, '')
+      .replace(/\[ORDER:.*?\]/g, '')
+      .trim();
+
     return res.status(200).json({ 
-      reply: aiResponse,
-      detectedOrder: detectedOrder 
+      reply: cleanReply,
+      detectedOrder: finalOrder,
+      customerName: customer?.name
     });
 
   } catch (error) {
     console.error('Advisor Error:', error);
-    return res.status(500).json({ reply: "בוס, המוח בשיפוצים. נסה שוב עוד רגע." });
+    return res.status(200).json({ reply: "בוס, המערכת בעומס. אני בודק את זה וחוזר אליך." });
   }
 }
