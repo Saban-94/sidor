@@ -3,7 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
 
-const MODEL_POOL = ["gemini-2.0-flash", "gemini-1.5-flash"];
+const MODEL_POOL = [
+  "gemini-1.5-flash", 
+  "gemini-3.1-flash-lite-preview",
+  "gemini-2.0-flash" 
+];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
