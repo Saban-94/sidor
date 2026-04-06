@@ -65,8 +65,8 @@ export default function CustomerProChat() {
     fileInputRef.current?.click();
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const handleFileUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
     if (file) return;
 
     setIsUploading(true);
