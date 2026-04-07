@@ -3,6 +3,7 @@ import '../styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
@@ -64,9 +65,11 @@ function MyApp({ Component, pageProps }: AppProps) {
         <title>SabanOS - Building Materials Management</title>
       </Head>
 
-      <main className="h-screen w-full font-sans antialiased overflow-hidden">
-        <Component {...pageProps} />
-      </main>
+      <ThemeProvider>
+        <main className="h-screen w-full font-sans antialiased overflow-hidden">
+          <Component {...pageProps} />
+        </main>
+      </ThemeProvider>
     </>
   );
 }

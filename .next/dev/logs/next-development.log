@@ -13,3 +13,21 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 [00:03:33.106] Server  LOG      ✓ Compiled in 98ms
 [00:04:17.599] Server  LOG      ✓ Compiled in 94ms
 [00:04:35.550] Server  LOG        Reload env: .env.development.local
+[00:05:48.778] Server  LOG        Reload env: .env.development.local
+[00:23:10.721] Server  LOG      ✓ Compiled in 162ms
+[00:23:27.691] Server  LOG      ✓ Compiled in 207ms
+[00:24:02.380] Server  LOG      ✓ Compiled in 113ms
+[00:24:14.146] Server  LOG      ✓ Compiled in 87ms
+[00:24:19.400] Server  LOG      ✓ Compiled in 91ms
+[00:24:30.257] Server  LOG      ✓ Compiled in 96ms
+[00:25:18.711] Server  LOG      ✓ Compiled in 98ms
+[00:25:24.655] Server  LOG      ✓ Compiled in 39ms
+[00:25:27.493] Server  LOG      ✓ Compiled in 46ms
+[00:25:28.299] Browser ERROR   window.OneSignal already defined as 'function'!
+         Please make sure to define as 'window.OneSignal = window.OneSignal || [];' 
+[00:25:28.299] Browser ERROR   window.OneSignal already defined as 'function'!
+         Please make sure to define as 'window.OneSignal = window.OneSignal || [];' 
+[00:25:35.414] Server  LOG      ✓ Compiled in 96ms
+[00:25:40.851] Server  LOG      ✓ Compiled in 108ms
+[00:27:10.513] Server  LOG      ✓ Compiled in 117ms
+[00:28:21.369] Server  LOG        Reload env: .env.development.local

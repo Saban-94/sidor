@@ -18,16 +18,16 @@ interface ChatMessagesProps {
 
 const MarkdownComponents = {
   p: ({ node, ...props }: any) => <p className="mb-2" {...props} />,
-  strong: ({ node, ...props }: any) => <strong className="font-bold text-[#34d399]" {...props} />,
-  em: ({ node, ...props }: any) => <em className="italic text-[#cbd5e1]" {...props} />,
+  strong: ({ node, ...props }: any) => <strong className="font-bold text-[var(--color-primary)]" {...props} />,
+  em: ({ node, ...props }: any) => <em className="italic text-[var(--color-text-secondary)]" {...props} />,
   ul: ({ node, ...props }: any) => <ul className="list-disc list-inside space-y-1 mb-2" {...props} />,
   ol: ({ node, ...props }: any) => <ol className="list-decimal list-inside space-y-1 mb-2" {...props} />,
   li: ({ node, ...props }: any) => <li className="ml-2" {...props} />,
   code: ({ node, inline, ...props }: any) => 
     inline ? (
-      <code className="bg-[#0f172a] px-2 py-1 rounded text-[#34d399] font-mono text-sm" {...props} />
+      <code className="bg-[var(--color-surface)] px-2 py-1 rounded text-[var(--color-primary)] font-mono text-sm" {...props} />
     ) : (
-      <code className="block bg-[#0f172a] p-3 rounded-lg font-mono text-sm overflow-x-auto" {...props} />
+      <code className="block bg-[var(--color-surface)] p-3 rounded-lg font-mono text-sm overflow-x-auto" {...props} />
     ),
 };
 
@@ -81,17 +81,17 @@ export default function ChatMessages({
             <motion.div
               animate={{ opacity: [0.4, 1, 0.4] }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-[#34d399]"
+              className="w-2 h-2 rounded-full bg-[var(--color-primary)]"
             />
             <motion.div
               animate={{ opacity: [0.4, 1, 0.4] }}
               transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-              className="w-2 h-2 rounded-full bg-[#34d399]"
+              className="w-2 h-2 rounded-full bg-[var(--color-primary)]"
             />
             <motion.div
               animate={{ opacity: [0.4, 1, 0.4] }}
               transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
-              className="w-2 h-2 rounded-full bg-[#34d399]"
+              className="w-2 h-2 rounded-full bg-[var(--color-primary)]"
             />
           </div>
         </motion.div>

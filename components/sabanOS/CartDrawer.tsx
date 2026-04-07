@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, Check, Plus, Minus } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface CartItem {
   id: string;
@@ -25,6 +26,7 @@ export default function CartDrawer({
   onRemoveItem,
   onUpdateQuantity,
 }: CartDrawerProps) {
+  const { language } = useTheme();
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
@@ -42,11 +44,11 @@ export default function CartDrawer({
 
           {/* Drawer */}
           <motion.div
-            initial={{ x: '100%' }}
+            initial={{ x: language === 'he' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            exit={{ x: language === 'he' ? '100%' : '-100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden"
+            className={`fixed ${language === 'he' ? 'right-0' : 'left-0'} top-0 h-full w-full sm:w-96 glass-effect-strong border-[var(--color-border)] ${language === 'he' ? 'border-l' : 'border-r'} z-50 flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">

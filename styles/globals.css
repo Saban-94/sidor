@@ -3,7 +3,8 @@
 @import "tailwindcss";
 
 @theme {
-  /* SabanOS Glassmorphism Theme */
+  /* SabanOS Dual Theme System - Zero Transparency Issues */
+  /* Dark Theme (Default) */
   --color-background: #0b141a;
   --color-surface: #111f2e;
   --color-surface-secondary: #1a2f3f;
@@ -29,12 +30,50 @@
   --radius: 0.75rem;
 }
 
+/* Light Theme Variables */
+:root.light {
+  color-scheme: light;
+  --color-background: #f8f9fa;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f0f3f7;
+  --color-surface-tertiary: #e8ecf1;
+  
+  --color-primary: #10b981;
+  --color-primary-dark: #047857;
+  --color-primary-light: #6ee7b7;
+  
+  --color-accent: #ef4444;
+  --color-accent-secondary: #f97316;
+  
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  
+  --color-message-user: #e5f8f7;
+  --color-message-ai: #dbeafe;
+  
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-light: rgba(0, 0, 0, 0.04);
+}
+
 @layer base {
-  html, body {
+  html {
+    @apply h-full m-0 p-0;
+    direction: rtl;
+    text-align: right;
+  }
+
+  html.ltr {
+    direction: ltr;
+    text-align: left;
+  }
+
+  body {
     @apply h-full m-0 p-0 overflow-hidden;
     background-color: var(--color-background);
     color: var(--color-text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Noto Sans Hebrew', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   * {
@@ -52,28 +91,50 @@
     -webkit-user-select: text;
     user-select: text;
   }
+
+  /* RTL-specific adjustments */
+  html[dir="rtl"] {
+    --tw-translate-x-reverse: 1;
+  }
 }
 
 @layer components {
-  /* Glassmorphism base glass effect */
+  /* Glassmorphism base glass effect - with theme support */
   .glass-effect {
-    @apply backdrop-blur-xl border;
+    @apply backdrop-blur-xl border transition-smooth;
     background-color: rgba(17, 31, 46, 0.4);
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-border);
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.17);
   }
 
+  :root.light .glass-effect {
+    background-color: rgba(255, 255, 255, 0.5);
+    border-color: var(--color-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  }
+
   .glass-effect-strong {
-    @apply backdrop-blur-2xl border;
+    @apply backdrop-blur-2xl border transition-smooth;
     background-color: rgba(11, 20, 26, 0.6);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--color-border);
     box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.05), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   }
 
+  :root.light .glass-effect-strong {
+    background-color: rgba(255, 255, 255, 0.7);
+    border-color: var(--color-border);
+    box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.03), 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+  }
+
   .glass-effect-light {
-    @apply backdrop-blur-md border;
+    @apply backdrop-blur-md border transition-smooth;
     background-color: rgba(26, 47, 63, 0.3);
-    border-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--color-border-light);
+  }
+
+  :root.light .glass-effect-light {
+    background-color: rgba(255, 255, 255, 0.4);
+    border-color: var(--color-border-light);
   }
 
   /* Glow effects */
@@ -89,23 +150,28 @@
     box-shadow: 0 0 15px rgba(255, 71, 87, 0.3);
   }
 
-  /* Chat message bubbles */
+  /* Chat message bubbles - Zero transparency issues */
   .message-bubble-user {
-    @apply rounded-3xl px-4 py-2 max-w-xs;
+    @apply rounded-3xl px-4 py-2 max-w-xs transition-smooth;
     background-color: var(--color-message-user);
     color: var(--color-text-primary);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .message-bubble-ai {
-    @apply rounded-3xl px-4 py-2 max-w-xs;
+    @apply rounded-3xl px-4 py-2 max-w-xs transition-smooth;
     background-color: var(--color-message-ai);
     color: var(--color-text-primary);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   /* Chat container */
   .chat-container {
-    background: linear-gradient(135deg, rgba(11, 20, 26, 0.95) 0%, rgba(17, 31, 46, 0.95) 100%);
+    background: linear-gradient(135deg, var(--color-background) 0%, var(--color-surface-secondary) 100%);
     background-attachment: fixed;
+    transition: background 0.3s ease;
   }
 
   /* Terminal/code style */
