@@ -12,6 +12,7 @@ import ChatInput from '@/components/sabanOS/ChatInput';
 import CartDrawer from '@/components/sabanOS/CartDrawer';
 import FloatingActionButton from '@/components/sabanOS/FloatingActionButton';
 
+// ממשק הודעה בעברית
 interface Message {
   id: string;
   content: string;
@@ -19,6 +20,7 @@ interface Message {
   timestamp: Date;
 }
 
+// ממשק פריט בסל
 interface CartItem {
   id: string;
   name: string;
@@ -28,29 +30,32 @@ interface CartItem {
 }
 
 export default function SabanOSChat() {
+  // הודעת פתיחה של המוח של סבן
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Hello! I am your Saban AI assistant. How can I help you manage your building materials today?',
+      content: 'אהלן בוס! אני המוח של ח.סבן. איך אני יכול לעזור לך לנהל את האתר או המלאי היום?',
       isUser: false,
       timestamp: new Date(),
     },
   ]);
   
   const [input, setInput] = useState('');
+  
+  // מוצרים לדוגמה בסל בגרסת עברית
   const [cartItems, setCartItems] = useState<CartItem[]>([
     {
       id: '1',
-      name: 'Portland Cement - Grade A',
+      name: 'מלט פורטלנד - שק 25 ק"ג',
       price: 450,
-      quantity: 5,
+      quantity: 10,
       verified: true,
     },
     {
       id: '2',
-      name: 'Steel Reinforcement Bars',
+      name: 'ברזל בניין - מוט 12 מ"מ',
       price: 650,
-      quantity: 2,
+      quantity: 5,
       verified: true,
     },
   ]);
@@ -67,6 +72,7 @@ export default function SabanOSChat() {
     scrollToBottom();
   }, [messages]);
 
+  // לוגיקת שליחת הודעה עם תשובות חכמות בעברית
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
@@ -81,12 +87,12 @@ export default function SabanOSChat() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate AI response with varied responses
+    // סימולציית "המוח" של סבן עם תשובות רלוונטיות לענף
     setTimeout(() => {
       const responses = [
-        `Great question about "${text}"! I can help you with:\n\n- **Product Search**: Find cement, steel, sand, aggregates\n- **Order Tracking**: Real-time delivery updates\n- **Technical Advice**: Expert guidance on materials\n- **Pricing**: Best rates for bulk orders`,
-        `Thank you for asking about "${text}". Here's what I recommend:\n\n1. **Quality Assessment**: AI-verified materials\n2. **Inventory Check**: Current stock levels\n3. **Delivery Options**: Standard or express crane delivery\n4. **Cost Optimization**: Bulk discounts available`,
-        `Excellent inquiry! Regarding "${text}":\n\n- **Material Specifications**: Full technical details\n- **Certifications**: All items verified\n- **Warranty**: 30-day quality guarantee\n- **Support**: 24/7 technical support team`,
+        `אחלה שאלה לגבי "${text}"! הנה מה שאני יכול להציע:\n\n- **חיפוש מוצרים**: מלט, ברזל, חול, חצץ\n- **מעקב הזמנות**: עדכוני משלוחים בזמן אמת מהמגרש\n- **ייעוץ טכני**: מפרטים של מוצרי איטום וגבס\n- **מחירון**: מחירים מיוחדים להזמנות סיטונאיות`,
+        `קיבלתי, בודק לך לגבי "${text}". המלצה שלי:\n\n1. **איכות חומר**: כל המוצרים שלנו מאושרים ע"י מכון התקנים\n2. **מצב מלאי**: המחסן מסונכרן, יש זמינות מיידית\n3. **לוגיסטיקה**: אפשרות למשלוח מנוף מהיום להיום\n4. **חיסכון**: הנחת כמות משמעותית לסגירת שלד`,
+        `שאלה מקצועית! לגבי "${text}":\n\n- **מפרט טכני**: כל המידע על כושר כיסוי ועמידות\n- **אימות AI**: המוצר נבדק ונמצא תקין למפרט שלך\n- **אחריות**: אחריות יצרן מלאה ל-30 יום\n- **תמיכה**: הנציגים שלנו זמינים לך גם בוואטסאפ לכל שאלה`,
       ];
       
       const aiMessage: Message = {
@@ -100,13 +106,14 @@ export default function SabanOSChat() {
     }, 1200);
   };
 
+  // הוספת מוצרים רנדומליים בעברית לסל (לצורך הטסט)
   const handleAddToCart = () => {
     const products = [
-      { name: 'Concrete Blocks - Standard', price: 320 },
-      { name: 'Drywall Sheets - Premium', price: 280 },
-      { name: 'Paint - Exterior Grade', price: 150 },
-      { name: 'Pipes - PVC 100mm', price: 95 },
-      { name: 'Bricks - Red Clay', price: 200 },
+      { name: 'בלוק 20 - סטנדרט', price: 320 },
+      { name: 'לוח גבס לבן - פרימיום', price: 280 },
+      { name: 'צבע חוץ - סופרקריל', price: 150 },
+      { name: 'צינור PVC 100 מ"מ', price: 95 },
+      { name: 'לבני חרס - אדום', price: 200 },
     ];
 
     const randomProduct = products[Math.floor(Math.random() * products.length)];
@@ -131,26 +138,26 @@ export default function SabanOSChat() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-gradient-to-br from-[#0b141a] via-[#111f2e] to-[#0b141a] overflow-hidden safe-area">
-      {/* Header */}
+    <div className="h-screen w-full flex flex-col bg-gradient-to-br from-[#0b141a] via-[#111f2e] to-[#0b141a] overflow-hidden safe-area" dir="rtl">
+      {/* Header - כותרת סבן OS */}
       <SabanOSHeader 
         cartCount={cartItems.length}
         onCartClick={() => setIsCartOpen(true)}
       />
 
-      {/* Main Chat Container */}
+      {/* Main Chat Container - אזור הצ'אט המרכזי */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Messages Area */}
+        {/* Messages Area - תצוגת ההודעות */}
         <ChatMessages 
           messages={messages}
           isLoading={isLoading}
           messagesEndRef={messagesEndRef}
         />
 
-        {/* Quick Actions */}
+        {/* Quick Actions - פעולות מהירות (הזמנה, ייעוץ וכו') */}
         <QuickActions onActionClick={handleAddToCart} />
 
-        {/* Input Area */}
+        {/* Input Area - שורת הקלט */}
         <ChatInput 
           value={input}
           onChange={setInput}
@@ -159,10 +166,10 @@ export default function SabanOSChat() {
         />
       </div>
 
-      {/* Floating Action Button */}
+      {/* Floating Action Button - כפתור מצלמה לניתוח חכם */}
       <FloatingActionButton />
 
-      {/* Cart Drawer */}
+      {/* Cart Drawer - מגירת סל הקניות בצד */}
       <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
