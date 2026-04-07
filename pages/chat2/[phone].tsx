@@ -74,7 +74,7 @@ export default function SabanAIAssistant() {
     }
   };
 
-  const askAI = async (query, base64 = null) => {
+const askAI = async (query, base64 = null) => {
     if ((!query?.trim() && !base64) || loading || isTyping) return;
     
     if (query) setMessages(prev => [...prev, { role: 'user', content: query }]);
@@ -82,22 +82,60 @@ export default function SabanAIAssistant() {
     setInput('');
 
     try {
-      // חיבור ל-Backend החדש דרך SabanAPI
+      // שליחה ל-Backend החדש
       const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'admin');
       const data = await SabanAPI.sendMessage(targetPhone, query);
       
       setLoading(false);
 
       if (!data || !data.success) {
-        setMessages(prev => [...prev, { role: 'ai', content: data?.error || "משהו השתבש בחיבור, נסה שוב אחי." }]);
+        setMessages(prev => [...prev, { role: 'ai', content: data?.error || "משהו השתבש, נסה שוב אחי." }]);
         return;
       }
 
-      // אם Gemini זיהה הזמנה ורשם אותה בגיליון
-      if (data.orderPlaced) {
+      // --- התיקון עבור הסל (Cart) ---
+      // אם Gemini זיהה הזמנה (orderPlaced: true)
+      if (data.orderPlaced && data.reply) {
         playMagicSound();
+        
+        // יצירת פריט זמני לסל מתוך מה ש-Gemini הבין
+        const newCartItem = {
+          id: Date.now(),
+          name: data.items || "מוצר מהזמנה בצ'אט", // לוקח את הפירוט מה-API
+          qty: "לפי פירוט", // Gemini כבר רשם את הכמות בגיליון
+          unit: ""
+        };
+
+        setCartItems(prev => [...prev, newCartItem]);
+        setShowCart(true); // פותח את הסל אוטומטית כדי שהלקוח יראה שזה נקלט
       }
 
+      // אפקט הקלדה לתשובה
+      setIsTyping(true);
+      let i = 0;
+      const words = data.reply.split(" ");
+      const interval = setInterval(() => {
+        if (i < words.length) {
+          setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
+          i++;
+        } else {
+          clearInterval(interval);
+          setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
+          setStreamingText("");
+          setIsTyping(false);
+          
+          if (data.reply.includes("SHOW_PRODUCT_CARD:")) {
+             const sku = data.reply.split("SHOW_PRODUCT_CARD:")[1].split(/\s/)[0].trim();
+             setSelectedProductSku(sku);
+          }
+        }
+      }, 40);
+
+    } catch (e) {
+      setLoading(false);
+      setMessages(prev => [...prev, { role: 'ai', content: "שגיאת חיבור לסקריפט." }]);
+    }
+  };
       // אפקט הקלדה לתשובה מה-AI
       setIsTyping(true);
       let i = 0;
