@@ -82,7 +82,7 @@ export default function SabanAIAssistant() {
     setInput('');
 
     try {
-      const res = await fetch('/api/tools-brain', {
+      const res = await fetch('/api/unified-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: query, imageBase64: base64, senderPhone: phone || 'admin' })
