@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { Menu, Send, X, Calculator, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2, CheckCircle2 } from 'lucide-react';
+import { Menu, Send, X, Calculator, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2, CheckCircle2, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -74,11 +74,10 @@ export default function SabanAIAssistant() {
   const askAI = async (query, base64 = null) => {
     if ((!query?.trim() && !base64) || loading || isTyping) return;
     
-    // הצגת הודעת משתמש (טקסט או חיווי תמונה)
     if (query) {
       setMessages(prev => [...prev, { role: 'user', content: query }]);
     } else if (base64) {
-      setMessages(prev => [...prev, { role: 'user', content: "📸 שלחתי לך תמונה, תגיד לי מה אתה רואה ואיך להזמין..." }]);
+      setMessages(prev => [...prev, { role: 'user', content: "📸 שולח תמונה לבדיקה..." }]);
     }
 
     setLoading(true);
@@ -87,31 +86,30 @@ export default function SabanAIAssistant() {
     try {
       const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'admin');
       
-      // שליחה למוח עם תמיכה בתמונה (Base64)
-      const data = await SabanAPI.sendMessage(targetPhone, query || "ניתוח תמונה מצורפת", base64);
+      // שליחה למוח - מעביר גם טקסט וגם תמונה אם קיימת
+      const data = await SabanAPI.sendMessage(targetPhone, query || "נתח את התמונה הזו עבורי", base64);
       
       setLoading(false);
 
       if (!data || !data.success) {
-        setMessages(prev => [...prev, { role: 'ai', content: data?.error || "משהו השתבש בחיבור, נסה שוב אחי." }]);
+        setMessages(prev => [...prev, { role: 'ai', content: data?.error || "אחי, יש תקלה בחיבור. נסה שוב." }]);
         return;
       }
 
-      // ניהול סל קניות מקצועי - הזרקת נתונים מה-AI לממשק
+      // הזרקת מוצרים לסל - תיקון שמות וצבעים
       if (data.orderPlaced) {
         playMagicSound();
         const newProduct = {
           id: Date.now(),
-          name: data.items || "מוצר מהזמנה חכמה",
-          qty: "1", // כמות ברירת מחדל אם לא זוהתה אחרת
-          unit: "יח'",
-          aiVerified: true
+          name: data.items || "מוצר מהזמנה",
+          qty: "נקלט",
+          unit: "",
+          isAiGenerated: true
         };
         setCartItems(prev => [...prev, newProduct]);
-        setTimeout(() => setShowCart(true), 500); // פתיחה חלקה של הסל
+        setTimeout(() => setShowCart(true), 600);
       }
 
-      // אפקט הקלדה יוקרתי
       setIsTyping(true);
       let i = 0;
       const words = data.reply.split(" ");
@@ -130,200 +128,142 @@ export default function SabanAIAssistant() {
              setSelectedProductSku(sku);
           }
         }
-      }, 35);
+      }, 30);
 
     } catch (e) {
       setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "אחי, יש תקלה בתקשורת. תבדוק אינטרנט." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "שגיאת תקשורת מול ה-API." }]);
     }
   };
 
   const themeClass = isDarkMode ? "bg-[#0b141a] text-[#e9edef]" : "bg-[#f0f2f5] text-[#111b21]";
 
   return (
-    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
+    <div className={`h-screen w-full flex flex-col font-sans overflow-hidden ${themeClass}`} dir="rtl">
       <Head>
-        <title>SabanOS | AI Assistant</title>
-        <link rel="manifest" href="/manifest.json" />
+        <title>SabanOS | המומחה של סבן</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
       </Head>
       
       <audio ref={audioRef} src={MAGIC_SOUND} />
 
-      {/* Splash Screen */}
-      <AnimatePresence>
-        {showSplash && (
-          <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b141a] z-[100] flex items-center justify-center">
-            <motion.img 
-              initial={{ scale: 0.8, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              src={SABAN_LOGO} 
-              className="w-28 h-28 rounded-3xl shadow-2xl shadow-emerald-500/20"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Header - Glassmorphism UI */}
-      <header className={`h-16 flex items-center justify-between px-5 z-40 border-b backdrop-blur-md ${isDarkMode ? 'bg-[#202c33]/90 border-white/5' : 'bg-white/90 shadow-sm border-black/5'}`}>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"><Menu size={20} className="text-slate-400" /></div>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-xl hover:bg-white/5 transition-all active:scale-90">
+      {/* Header - Fixed Contrast */}
+      <header className={`h-16 flex items-center justify-between px-5 z-40 border-b ${isDarkMode ? 'bg-[#202c33] border-white/10' : 'bg-white border-black/10'}`}>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 bg-white/5 rounded-xl">
             {isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-slate-600" />}
           </button>
         </div>
 
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] uppercase tracking-widest text-emerald-500 font-bold">Saban OS</span>
-          <img src={SABAN_LOGO} className="w-8 h-8 rounded-full border-2 border-emerald-500/30 object-cover" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black text-emerald-500 uppercase tracking-tighter">Saban AI</span>
+          <img src={SABAN_LOGO} className="w-9 h-9 rounded-full border-2 border-emerald-500" />
         </div>
 
-        <div className="relative p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-all active:scale-90" onClick={() => setShowCart(true)}>
-          <ShoppingCart size={22} className="text-emerald-500" />
+        <div className="relative cursor-pointer p-2" onClick={() => setShowCart(true)}>
+          <ShoppingCart size={24} className="text-emerald-500" />
           {cartItems.length > 0 && (
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-0 right-0 bg-red-500 text-[9px] w-4 h-4 rounded-full flex items-center justify-center text-white font-black border-2 border-[#202c33]">
+            <span className="absolute top-0 right-0 bg-red-600 text-[10px] w-5 h-5 rounded-full flex items-center justify-center text-white font-bold border-2 border-[#202c33]">
               {cartItems.length}
-            </motion.span>
+            </span>
           )}
         </div>
       </header>
 
       {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative">
-        <div className="fixed inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center opacity-[0.02] pointer-events-none" />
-        
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-fixed bg-center bg-no-repeat opacity-100">
         {messages.map((m, i) => (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[88%] p-3.5 px-4 rounded-2xl shadow-md leading-relaxed ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tl-none border border-white/5' : 'bg-[#005c4b] text-white rounded-tr-none shadow-emerald-900/20'}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-[14px] prose prose-invert prose-p:leading-relaxed prose-strong:text-emerald-300">{m.content}</ReactMarkdown>
+            <div className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tl-none border border-white/5' : 'bg-[#005c4b] text-white rounded-tr-none'}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm leading-relaxed prose prose-invert">{m.content}</ReactMarkdown>
             </div>
           </motion.div>
         ))}
 
         {(isTyping || streamingText) && (
           <div className="flex justify-end">
-            <div className="max-w-[85%] p-3.5 px-4 rounded-2xl bg-[#005c4b] rounded-tr-none shadow-md flex items-center gap-2">
-              <span className="text-[14px] font-medium">{streamingText || "סבן AI חושב..."}</span>
-              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-emerald-300 rounded-full" />
+            <div className="max-w-[85%] p-4 rounded-2xl bg-[#005c4b] rounded-tr-none shadow-lg">
+              <span className="text-sm font-bold text-emerald-100">{streamingText || "סבן חושב..."}</span>
+              <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 0.6 }} className="inline-block w-1 h-4 bg-emerald-300 ml-1" />
             </div>
           </div>
         )}
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* Cart Drawer - Modern Slide */}
+      {/* Cart Drawer - High Contrast Fixed */}
       <AnimatePresence>
         {showCart && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/70 backdrop-blur-md z-[55]" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25 }} className={`fixed inset-y-0 right-0 w-full max-w-[340px] z-[60] p-6 flex flex-col shadow-2xl ${isDarkMode ? 'bg-[#111b21]' : 'bg-white'}`}>
-              <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-8 bg-emerald-500 rounded-full" />
-                  <h2 className="text-2xl font-black text-white italic tracking-tighter">הסל שלי</h2>
-                </div>
-                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-500 hover:text-white transition-colors" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/80 z-[55] backdrop-blur-sm" />
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className={`fixed inset-y-0 right-0 w-[90%] max-w-sm z-[60] p-6 flex flex-col ${isDarkMode ? 'bg-[#111b21]' : 'bg-white'}`}>
+              <div className="flex justify-between items-center mb-8 border-b pb-4 border-white/10">
+                <h2 className="text-2xl font-black text-emerald-500 italic">הסל שלי</h2>
+                <X onClick={() => setShowCart(false)} className="text-white cursor-pointer" />
               </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar">
-                {cartItems.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
-                    <ShoppingCart size={48} strokeWidth={1} />
-                    <p className="text-sm">הסל ריק אחי, בוא נזמין משהו</p>
-                  </div>
-                ) : (
-                  cartItems.map((item) => (
-                    <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} key={item.id} className={`p-4 rounded-2xl border border-white/5 flex justify-between items-center group transition-all ${isDarkMode ? 'bg-[#202c33] hover:bg-[#2a3942]' : 'bg-slate-50'}`}>
-                      <div className="flex items-center gap-3">
-                        {item.aiVerified && <CheckCircle2 size={16} className="text-emerald-500" />}
-                        <div>
-                          <p className="font-bold text-[13px] text-white line-clamp-1">{item.name}</p>
-                          <p className="text-emerald-500 font-black text-xs mt-0.5">{item.qty} {item.unit}</p>
-                        </div>
+              <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="p-4 rounded-xl bg-[#202c33] border border-white/5 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <Package size={20} className="text-emerald-500" />
+                      <div>
+                        {/* טקסט לבן חזק - אין שקיפות */}
+                        <p className="font-bold text-sm text-white">{item.name}</p>
+                        <p className="text-emerald-400 font-black text-xs mt-1">{item.qty}</p>
                       </div>
-                      <Trash2 size={16} className="text-red-400 opacity-0 group-hover:opacity-100 cursor-pointer transition-all" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
-                    </motion.div>
-                  ))
-                )}
+                    </div>
+                    <Trash2 size={18} className="text-red-500 cursor-pointer" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
+                  </div>
+                ))}
               </div>
-
               <button 
-                disabled={cartItems.length === 0}
-                onClick={() => window.open(`https://wa.me/972508860896?text=${encodeURIComponent("הזמנה חדשה דרך SabanOS AI:\n" + cartItems.map(i => `✅ ${i.name} - כמות: ${i.qty}`).join('\n'))}`)} 
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:grayscale py-4 rounded-2xl mt-6 font-bold text-white flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+                onClick={() => window.open(`https://wa.me/972508860896?text=${encodeURIComponent("הזמנה מ-SabanOS:\n" + cartItems.map(i => `• ${i.name}`).join('\n'))}`)} 
+                className="w-full bg-emerald-600 py-4 rounded-2xl mt-6 font-black text-white flex items-center justify-center gap-2 shadow-xl shadow-emerald-900/20"
               >
-                <Share2 size={18}/> שלח הזמנה לוואטסאפ
+                <Share2 size={20}/> אשר ושלח לוואטסאפ
               </button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* Floating UI Elements */}
-      <AnimatePresence>
-        {selectedProductSku && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#111b21] w-full max-w-lg h-[85vh] rounded-[2.5rem] overflow-hidden flex flex-col border border-white/10 shadow-2xl">
-              <div className="p-5 bg-[#202c33] flex justify-between items-center border-b border-white/5">
-                <span className="text-emerald-400 font-bold flex items-center gap-2"><Sparkles size={18}/> כרטיס מוצר חכם</span>
-                <X size={22} className="cursor-pointer text-slate-400 hover:text-white" onClick={() => setSelectedProductSku(null)} />
-              </div>
-              <iframe src={`/product/${selectedProductSku}?embed=true`} className="flex-1 w-full bg-white border-none" />
-              <button onClick={() => setSelectedProductSku(null)} className="m-6 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all">חזרה לצ'אט המהיר</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Footer - Interactive Input */}
-      <footer className={`p-4 pb-8 z-10 transition-colors ${isDarkMode ? 'bg-[#0b141a]' : 'bg-[#f0f2f5]'}`}>
+      {/* Footer & Input */}
+      <footer className={`p-4 z-10 ${isDarkMode ? 'bg-[#0b141a]' : 'bg-[#f0f2f5]'}`}>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 max-w-5xl mx-auto">
           {QUICK_QUERIES.map((q, i) => (
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.95 }} key={i} onClick={() => askAI(q.label)} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-[12px] font-bold border transition-all shadow-sm flex items-center gap-2 ${isDarkMode ? 'bg-[#202c33] border-white/5 text-white' : 'bg-white border-black/5 text-slate-700'}`}>
-              <span>{q.icon}</span>{q.label}
-            </motion.button>
+            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-black bg-[#202c33] text-white border border-white/5">
+              <span className="ml-2">{q.icon}</span>{q.label}
+            </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-3 max-w-5xl mx-auto bg-[#2a3942] p-2 rounded-3xl shadow-xl border border-white/5">
-          <motion.button 
-            whileTap={{ scale: 0.85 }} 
-            onClick={() => document.getElementById('camInput').click()} 
-            className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-          >
-            <Camera size={22}/>
-          </motion.button>
+        <div className="flex items-center gap-3 max-w-5xl mx-auto bg-[#2a3942] p-2 rounded-2xl shadow-2xl">
+          <button onClick={() => document.getElementById('camInput').click()} className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <Camera size={24}/>
+          </button>
           <input id="camInput" type="file" accept="image/*" className="hidden" onChange={(e) => {
-            const file = e.target.files[0];
-            if (!file) return;
             const reader = new FileReader();
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(e.target.files[0]);
             reader.onload = (ev) => askAI(null, ev.target.result);
           }} />
           
           <input 
             value={input} onChange={e => setInput(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && askAI(input)}
-            placeholder="רשום הודעה או צלם מוצר..." 
-            className="flex-1 bg-transparent outline-none text-sm font-medium text-white px-2 placeholder:text-slate-500"
+            placeholder="איך אפשר לעזור אחי?" 
+            className="flex-1 bg-transparent text-white outline-none font-bold placeholder:text-slate-500"
           />
           
-          <button 
-            onClick={() => askAI(input)} 
-            disabled={loading || isTyping} 
-            className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-500 disabled:opacity-30 disabled:grayscale transition-all active:scale-90"
-          >
-            <Send size={20} className="rotate-180" />
+          <button onClick={() => askAI(input)} disabled={loading || isTyping} className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-500">
+            <Send size={22} className="rotate-180" />
           </button>
         </div>
       </footer>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .prose strong { color: #34d399; font-weight: 800; }
-        input:focus { outline: none; }
       `}</style>
     </div>
   );
