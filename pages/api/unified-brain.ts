@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // 2. הכנת הבקשה ל-Gemini עם דגש על פלט JSON מובנה
-    const model = imageBase64 ? "gemini-1.5-pro" : "gemini-1.5-flash"; 
+    const model = imageBase64 ? "gemini-3.1-flash-lite-preview" : "gemini-2.0-flash"; 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
     const systemPrompt = `
