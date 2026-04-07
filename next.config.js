@@ -1,3 +1,4 @@
+// Cache invalidation: 2026-04-07
 /** @type {import('next').NextConfig} */
 const withPWA = require('next-pwa')({
   dest: 'public',

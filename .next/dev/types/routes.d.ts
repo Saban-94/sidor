@@ -3,7 +3,7 @@
 
 type AppRoutes = "/test-drive"
 type AppRouteHandlerRoutes = "/api/test-upload" | "/api/upload-to-drive"
-type PageRoutes = "/" | "/_app" | "/admin/ai" | "/admin/ai-assistant" | "/admin/ai-simulator" | "/admin/ai-studio" | "/admin/bot-flow-builder" | "/admin/brain-manager" | "/admin/chats" | "/admin/containers-hub" | "/admin/control-center" | "/admin/crm-manager" | "/admin/dashboard" | "/admin/dispatch-view" | "/admin/group-saban94" | "/admin/inventory-brain" | "/admin/master" | "/admin/master-dashboard" | "/admin/orders-hub" | "/admin/rami-board" | "/admin/saban-studio" | "/admin/sidor" | "/admin/studio" | "/admin/studio2-pro" | "/admin/users/page" | "/chat-premium" | "/chat/[phone]" | "/chat2/[phone]" | "/containers" | "/crm" | "/dashboard" | "/dashboard3" | "/knowledge-hub" | "/product/[id]" | "/start"
+type PageRoutes = "/" | "/SabanAIAssistant" | "/_app" | "/admin/ai" | "/admin/ai-assistant" | "/admin/ai-simulator" | "/admin/ai-studio" | "/admin/bot-flow-builder" | "/admin/brain-manager" | "/admin/chats" | "/admin/containers-hub" | "/admin/control-center" | "/admin/crm-manager" | "/admin/dashboard" | "/admin/dispatch-view" | "/admin/group-chat" | "/admin/group-saban94" | "/admin/inventory-brain" | "/admin/master" | "/admin/master-dashboard" | "/admin/orders-hub" | "/admin/rami-board" | "/admin/saban-studio" | "/admin/sidor" | "/admin/studio" | "/admin/studio2-pro" | "/admin/users/page" | "/chat-premium" | "/chat/[phone]" | "/chat2/[phone]" | "/containers" | "/crm" | "/dashboard" | "/dashboard3" | "/knowledge-hub" | "/product/[id]" | "/start"
 type LayoutRoutes = never
 type RedirectRoutes = never
 type RewriteRoutes = never
@@ -25,6 +25,7 @@ interface ParamMap {
   "/admin/crm-manager": {}
   "/admin/dashboard": {}
   "/admin/dispatch-view": {}
+  "/admin/group-chat": {}
   "/admin/group-saban94": {}
   "/admin/inventory-brain": {}
   "/admin/master": {}
@@ -47,6 +48,7 @@ interface ParamMap {
   "/dashboard3": {}
   "/knowledge-hub": {}
   "/product/[id]": { "id": string; }
+  "/SabanAIAssistant": {}
   "/start": {}
   "/test-drive": {}
 }
