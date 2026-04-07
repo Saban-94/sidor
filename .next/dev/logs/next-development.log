@@ -31,3 +31,45 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 [00:25:40.851] Server  LOG      ✓ Compiled in 108ms
 [00:27:10.513] Server  LOG      ✓ Compiled in 117ms
 [00:28:21.369] Server  LOG        Reload env: .env.development.local
+[00:29:30.321] Server  ERROR   Error: useTheme must be used within a ThemeProvider
+[00:29:30.325] Server  ERROR    ⨯ Error: useTheme must be used within a ThemeProvider
+[00:29:30.329] Server  ERROR    ⨯ Error: useTheme must be used within a ThemeProvider
+[00:29:32.569] Browser ERROR   uncaughtError: Error: useTheme must be used within a ThemeProvider
+[00:29:59.038] Server  LOG      ✓ Compiled in 45ms
+[00:29:59.163] Server  WARN     ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:29:59.167] Server  WARN     ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:30:02.090] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <MyApp pageProps={{}} Component={function SabanOSChat} err={undefined} router={{sdc:{},sbc:{}, ...}}>
+      <Head>
+      <ThemeProvider>
+        <main className="h-screen w...">
+          <SabanOSChat>
+            <div className="h-screen w...">
+              <SabanOSHeader>
+              <div className="flex-1 fle...">
+                <ChatMessages messages={[...]} isLoading={false} messagesEndRef={{current:null}}>
+                  <div className="flex-1 ove...">
+                    <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:0}} ...>
+                      <div className="flex justi..." style={{opacity:0, ...}} ref={function useMotionRef.useCallback}>
+                        <div className="message-bu...">
+                          <Markdown>
+                          <p className="text-xs mt-1 opacity-60">
++                           ٠٤:٢٥ م
+-                           ٠١:٢٥ م
+                    ...
+                ...
+              ...
+    ...
+

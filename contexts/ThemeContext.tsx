@@ -16,11 +16,9 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('dark');
   const [language, setLanguageState] = useState<Language>('he');
-  const [mounted, setMounted] = useState(false);
 
   // Initialize theme from localStorage or system preference
   useEffect(() => {
-    setMounted(true);
     const savedTheme = localStorage.getItem('saban-theme') as Theme | null;
     const savedLanguage = localStorage.getItem('saban-language') as Language | null;
     
@@ -39,8 +37,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Apply theme and language to document
   useEffect(() => {
-    if (!mounted) return;
-
     const html = document.documentElement;
     
     // Set theme
@@ -58,7 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Save to localStorage
     localStorage.setItem('saban-theme', theme);
     localStorage.setItem('saban-language', language);
-  }, [theme, language, mounted]);
+  }, [theme, language]);
 
   const toggleTheme = () => {
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -71,10 +67,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
   };
-
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, language, toggleTheme, setTheme, setLanguage }}>
