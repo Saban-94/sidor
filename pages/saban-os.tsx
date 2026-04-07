@@ -13,8 +13,6 @@ import ChatInput from '@/components/sabanOS/ChatInput';
 import CartDrawer from '@/components/sabanOS/CartDrawer';
 import FloatingActionButton from '@/components/sabanOS/FloatingActionButton';
 import SideNavigation from '@/components/sabanOS/SideNavigation';
-import ProductCard from '@/components/sabanOS/ProductCard';
-import OrderSummary from '@/components/sabanOS/OrderSummary';
 
 interface Message {
   id: string;
@@ -73,7 +71,6 @@ export default function SabanOSChat() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [lastUserInput, setLastUserInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -86,8 +83,6 @@ export default function SabanOSChat() {
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
-
-    setLastUserInput(text);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -182,12 +177,6 @@ export default function SabanOSChat() {
           messages={messages}
           isLoading={isLoading}
           messagesEndRef={messagesEndRef}
-        />
-
-        {/* Order Summary Bubble */}
-        <OrderSummary 
-          userInput={lastUserInput}
-          isVisible={lastUserInput.length > 0 && messages.some(m => m.isUser && m.content === lastUserInput)}
         />
 
         {/* Quick Actions */}

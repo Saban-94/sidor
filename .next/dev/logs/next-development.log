@@ -73,3 +73,15 @@ https://react.dev/link/hydration-mismatch
               ...
     ...
 
+[00:30:07.004] Server  LOG        Reload env: .env.development.local
+[00:38:42.377] Server  LOG      ✓ Compiled in 148ms
+[00:38:42.721] Browser ERROR   %o
+
+%s
+
+%s
+ {} The above error occurred in the <SabanOSChat> component. React will try to recreate this component tree from scratch using the error boundary you provided, PagesDevOverlayErrorBoundary.
+[00:38:45.314] Server  LOG      ✓ Compiled in 48ms
+[00:38:48.530] Server  LOG      ✓ Compiled in 48ms
+[00:38:55.783] Server  LOG      ✓ Compiled in 60ms
+[00:39:04.915] Server  LOG        Reload env: .env.development.local
