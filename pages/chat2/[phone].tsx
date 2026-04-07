@@ -80,7 +80,53 @@ export default function SabanArtisanOS() {
 
     return () => { supabase.removeChannel(channel); };
   }, []);
+const askAI = async (query: string, base64: string | null = null) => {
+    if ((!query?.trim() && !base64) || loading || isTyping) return;
+    
+    if (query) setMessages(prev => [...prev, { role: 'user', content: query }]);
+    setLoading(true);
+    setInput('');
 
+    try {
+      // שליחת ההודעה ל-Apps Script במקום ל-API המקומי
+      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'admin');
+      const data = await SabanAPI.sendMessage(targetPhone, query);
+      
+      setLoading(false);
+
+      // טיפול בשגיאות מהשרת
+      if (!data || !data.success) {
+        setMessages(prev => [...prev, { role: 'ai', content: data?.error || "משהו השתבש בחיבור לשרת, נסה שוב אחי." }]);
+        return;
+      }
+
+      // חיווי קולי/ויזואלי אם המודל זיהה הזמנה וכתב אותה לגיליון
+      if (data.orderPlaced) {
+        playMagicSound();
+        // כאן תוכל בהמשך גם לרענן את העגלה (Cart) אם תרצה
+      }
+
+      // אפקט הקלדה רציף לתשובה שהגיעה מה-Gemini
+      setIsTyping(true);
+      let i = 0;
+      const words = data.reply.split(" ");
+      const interval = setInterval(() => {
+        if (i < words.length) {
+          setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
+          i++;
+        } else {
+          clearInterval(interval);
+          setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
+          setStreamingText("");
+          setIsTyping(false);
+        }
+      }, 40);
+
+    } catch (e) {
+      setLoading(false);
+      setMessages(prev => [...prev, { role: 'ai', content: "שגיאת רשת מול הסקריפט, נסה שוב." }]);
+    }
+  };
   const handleSend = async () => {
     if (!inputText.trim() || !profile) return;
     const text = inputText; setInputText('');
