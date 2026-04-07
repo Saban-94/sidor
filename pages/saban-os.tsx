@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
-import { Menu, Send, X, Calculator, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2, CheckCircle2, Package, LayoutDashboard, History, Settings } from 'lucide-react';
+import { Menu, Send, X, Calculator, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2, CheckCircle2, LayoutDashboard, History, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,6 +12,7 @@ import { SabanAPI } from '@/lib/SabanAPI';
 // רכיבי UI מותאמים אישית
 import ProductCard from '@/components/sabanOS/ProductCard';
 import OrderSummary from '@/components/sabanOS/OrderSummary';
+import CartDrawer from '@/components/sabanOS/CartDrawer';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
 const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
@@ -47,7 +48,9 @@ export default function SabanOSProfessionalChat() {
     }
   }, []);
 
-  useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamingText, loading]);
+  useEffect(() => { 
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+  }, [messages, streamingText, loading]);
 
   const playMagicSound = () => {
     if (audioRef.current) {
@@ -80,7 +83,7 @@ export default function SabanOSProfessionalChat() {
       setLoading(false);
 
       if (!data || !data.success) {
-        setMessages(prev => [...prev, { role: 'ai', content: data?.reply || "בוס, תקלה בחיבור." }]);
+        setMessages(prev => [...prev, { role: 'ai', content: data?.reply || "בוס, תקלה בחיבור למוח." }]);
         return;
       }
 
@@ -89,7 +92,7 @@ export default function SabanOSProfessionalChat() {
         playMagicSound(); 
         const newItem = {
           id: Date.now().toString(),
-          name: data.items || textQuery, // שימוש בנתונים שחזרו מהמוח
+          name: data.items || textQuery, 
           qty: "1",
           verified: true
         };
@@ -121,20 +124,19 @@ export default function SabanOSProfessionalChat() {
 
     } catch (e) {
       setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "שגיאת תקשורת." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "שגיאת תקשורת מול המוח." }]);
     }
   };
 
-  // ערכת נושא דינמית למניעת טקסט שקוף
   const themeClass = isDarkMode ? "bg-[#0b141a] text-white" : "bg-[#f0f2f5] text-[#111b21]";
-  const bubbleClass = (isUser: boolean) => isUser 
+  const bubbleClass = (role: string) => role === 'user' 
     ? (isDarkMode ? "bg-[#202c33] border-white/5" : "bg-white border-black/10 shadow-sm text-black")
     : "bg-[#005c4b] text-white";
 
   return (
     <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
       <Head>
-        <title>SabanOS | Professional AI</title>
+        <title>SabanOS | Unified Brain</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
       </Head>
       
@@ -184,14 +186,15 @@ export default function SabanOSProfessionalChat() {
 
       {/* Chat Messages */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative">
+        <div className="fixed inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center opacity-[0.02] pointer-events-none" />
         {messages.map((m, i) => (
           <div key={i}>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[85%] p-3.5 px-4 rounded-2xl shadow-md border ${bubbleClass(m.role === 'user')}`}>
+              <div className={`max-w-[85%] p-3.5 px-4 rounded-2xl shadow-md border ${bubbleClass(m.role)}`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm prose prose-invert">{m.content}</ReactMarkdown>
               </div>
             </motion.div>
-            {/* כרטיס מוצר ויזואלי אם נשלף מהטבלה */}
+            {/* כרטיס מוצר ויזואלי אם קיים */}
             {m.product && <ProductCard product={m.product} onAdd={() => askAI(`הזמן ${m.product.name}`)} />}
           </div>
         ))}
@@ -208,7 +211,7 @@ export default function SabanOSProfessionalChat() {
       </main>
 
       {/* Cart Drawer */}
-      <CartDrawer isOpen={showCart} onClose={() => setShowCart(false)} items={cartItems} />
+      <CartDrawer isOpen={showCart} onClose={() => setShowCart(false)} items={cartItems} onRemoveItem={(id) => setCartItems(prev => prev.filter(i => i.id !== id))} />
 
       {/* Footer עם מצלמה ומקלדת */}
       <footer className="p-4 pb-10 bg-transparent">
