@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 import { useRouter } from 'next/router';
 import { SabanAPI } from '@/lib/SabanAPI';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
 const MAGIC_SOUND = "/magic-chime.mp3"; 
 
