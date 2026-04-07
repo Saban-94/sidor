@@ -60,6 +60,7 @@ self.__BUILD_MANIFEST = {
     "/dashboard3",
     "/knowledge-hub",
     "/product/[id]",
+    "/saban-os",
     "/start"
   ]
 };self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()
