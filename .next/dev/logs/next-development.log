@@ -1,1 +1,5 @@
-[00:00:01.352] Server  LOG      ✓ Ready in 1074ms
+[00:00:01.241] Server  LOG      ✓ Ready in 984ms
+[00:00:13.583] Browser WARN    Do not add <script> tags using next/head (see <script> tag with src="https://cdn.onesignal.com/sdks/OneSignalSDK.js"). Use next/script instead. 
+See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-component
+[00:00:13.584] Browser ERROR   window.OneSignal already defined as 'object'!
+         Please make sure to define as 'window.OneSignal = window.OneSignal || [];' {"VERSION":151607,"directFunctionCallsArray":[],"log":{}}

@@ -9,6 +9,7 @@ self.__BUILD_MANIFEST = {
   },
   "sortedPages": [
     "/",
+    "/SabanAIAssistant",
     "/_app",
     "/_error",
     "/admin/ai",
@@ -23,6 +24,7 @@ self.__BUILD_MANIFEST = {
     "/admin/crm-manager",
     "/admin/dashboard",
     "/admin/dispatch-view",
+    "/admin/group-chat",
     "/admin/group-saban94",
     "/admin/inventory-brain",
     "/admin/master",
@@ -45,6 +47,7 @@ self.__BUILD_MANIFEST = {
     "/api/google-ai",
     "/api/save-order",
     "/api/send-message",
+    "/api/tools-brain",
     "/api/unified-brain",
     "/api/update-order",
     "/api/whatsapp/send",
