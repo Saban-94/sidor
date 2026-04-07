@@ -1,0 +1,52 @@
+/**
+ * SabanAPI.js - שכבת התקשורת בין ה-PWA ל-Backend (Apps Script + Gemini)
+ * Author: Rami
+ */
+
+const API_URL = "https://script.google.com/macros/s/AKfycbxWiqsm8W82izlKZq4myLafLm8kI8ivkfZW2smw93Q1vkpr2DF7N5svC6La0Z8bj_Or/exec";
+
+export const SabanAPI = {
+  /**
+   * פעולת התחברות: מוודאת שהלקוח קיים בגיליון ומחזירה את פרטיו
+   * @param {string} phone - מספר טלפון (ללא מקפים)
+   * @param {string} password - קוד אימות
+   */
+  login: async (phone, password) => {
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        redirect: "follow", // קריטי ל-Google Scripts
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8", // עוקף שגיאות CORS
+        },
+        body: JSON.stringify({ action: "login", phone, password })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("Login failed:", error);
+      return { success: false, error: "שגיאת תקשורת מול השרת" };
+    }
+  },
+
+  /**
+   * שליחת הודעת לקוח לניתוח על ידי Gemini ורישום ההזמנה
+   * @param {string} phone - מספר טלפון (מזהה הלקוח)
+   * @param {string} message - הטקסט החופשי שהלקוח הקליד
+   */
+  sendMessage: async (phone, message) => {
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        redirect: "follow",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify({ action: "sendMessage", phone, message })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("Send message failed:", error);
+      return { success: false, error: "שגיאת תקשורת מול השרת" };
+    }
+  }
+};
