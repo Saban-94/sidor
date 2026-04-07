@@ -40,12 +40,33 @@ var __TURBOPACK__imported__module__$5b$externals$5d2f$react__$5b$external$5d$__$
 ;
 function MyApp({ Component, pageProps }) {
     (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react__$5b$external$5d$__$28$react$2c$__cjs$29$__["useEffect"])(()=>{
-        // בדיקה אם הדפדפן תומך ב-Service Workers
+        // Register Service Worker for PWA functionality
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', ()=>{
-                navigator.serviceWorker.register('/sw.js').then((reg)=>console.log('Saban OS Worker: Active', reg.scope), (err)=>console.log('Saban OS Worker: Failed', err));
+                navigator.serviceWorker.register('/sw.js').then((reg)=>console.log('SabanOS Service Worker: Active', reg.scope), (err)=>console.log('SabanOS Service Worker: Failed', err));
             });
         }
+        // Prevent double tap zoom on mobile
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (event)=>{
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        // Prevent pinch zoom
+        document.addEventListener('gesturestart', (event)=>{
+            event.preventDefault();
+        }, false);
+        // Prevent wheel zoom (Ctrl+Scroll)
+        document.addEventListener('wheel', (event)=>{
+            if (event.ctrlKey) {
+                event.preventDefault();
+            }
+        }, {
+            passive: false
+        });
     }, []);
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["Fragment"], {
         children: [
@@ -53,25 +74,58 @@ function MyApp({ Component, pageProps }) {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
                         name: "viewport",
-                        content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"
+                        content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
                     }, void 0, false, {
                         fileName: "[project]/pages/_app.tsx",
-                        lineNumber: 24,
+                        lineNumber: 46,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
                         name: "theme-color",
-                        content: "#10b981"
+                        content: "#0b141a"
                     }, void 0, false, {
                         fileName: "[project]/pages/_app.tsx",
-                        lineNumber: 25,
+                        lineNumber: 50,
                         columnNumber: 9
                     }, this),
-                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("title", {
-                        children: "SABAN OS | Premium AI"
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
+                        name: "description",
+                        content: "SabanOS - Professional Building Materials Management System powered by Saban AI"
                     }, void 0, false, {
                         fileName: "[project]/pages/_app.tsx",
-                        lineNumber: 26,
+                        lineNumber: 51,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
+                        name: "apple-mobile-web-app-capable",
+                        content: "true"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 52,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
+                        name: "apple-mobile-web-app-status-bar-style",
+                        content: "black-translucent"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 53,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
+                        name: "apple-mobile-web-app-title",
+                        content: "SabanOS"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 54,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("meta", {
+                        name: "apple-mobile-web-app-capable",
+                        content: "yes"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 57,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("link", {
@@ -79,7 +133,7 @@ function MyApp({ Component, pageProps }) {
                         href: "/manifest.json"
                     }, void 0, false, {
                         fileName: "[project]/pages/_app.tsx",
-                        lineNumber: 27,
+                        lineNumber: 60,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("link", {
@@ -87,27 +141,43 @@ function MyApp({ Component, pageProps }) {
                         href: "/icon-192x192.png"
                     }, void 0, false, {
                         fileName: "[project]/pages/_app.tsx",
-                        lineNumber: 28,
+                        lineNumber: 61,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("link", {
+                        rel: "icon",
+                        type: "image/png",
+                        href: "/icon-192x192.png"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 62,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("title", {
+                        children: "SabanOS - Building Materials Management"
+                    }, void 0, false, {
+                        fileName: "[project]/pages/_app.tsx",
+                        lineNumber: 64,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/pages/_app.tsx",
-                lineNumber: 22,
+                lineNumber: 44,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])("main", {
-                className: "min-h-screen font-sans antialiased bg-[#F8FAFC]",
+                className: "h-screen w-full font-sans antialiased overflow-hidden",
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$externals$5d2f$react$2f$jsx$2d$dev$2d$runtime__$5b$external$5d$__$28$react$2f$jsx$2d$dev$2d$runtime$2c$__cjs$29$__["jsxDEV"])(Component, {
                     ...pageProps
                 }, void 0, false, {
                     fileName: "[project]/pages/_app.tsx",
-                    lineNumber: 32,
+                    lineNumber: 68,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/pages/_app.tsx",
-                lineNumber: 31,
+                lineNumber: 67,
                 columnNumber: 7
             }, this)
         ]

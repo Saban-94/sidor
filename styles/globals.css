@@ -3,54 +3,156 @@
 @import "tailwindcss";
 
 @theme {
-  /* Existing WhatsApp Theme */
-  --color-brand: #00a884;
-  --color-whatsapp-green: #00a884;
-  --color-whatsapp-bg: #f0f2f5;
-  --color-chat-bg: #e5ddd5;
+  /* SabanOS Glassmorphism Theme */
+  --color-background: #0b141a;
+  --color-surface: #111f2e;
+  --color-surface-secondary: #1a2f3f;
+  --color-surface-tertiary: #243749;
   
-  /* Premium Saban AI Theme */
-  --color-saban-dark: #0B141A;
-  --color-saban-emerald: #00A884;
-  --color-saban-blue: #3B82F6;
-  --color-saban-slate: #0F172A;
-  --color-saban-surface: #1E293B;
-  --color-saban-muted: #94A3B8;
+  --color-primary: #10b981;
+  --color-primary-dark: #005c4b;
+  --color-primary-light: #34d399;
+  
+  --color-accent: #ff4757;
+  --color-accent-secondary: #ffa502;
+  
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #94a3b8;
+  --color-text-tertiary: #64748b;
+  
+  --color-message-user: #202c33;
+  --color-message-ai: #005c4b;
+  
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-light: rgba(255, 255, 255, 0.05);
+  
+  --radius: 0.75rem;
 }
 
 @layer base {
   html, body {
     @apply h-full m-0 p-0 overflow-hidden;
-    direction: rtl;
-    background-color: #0B141A;
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   }
 
   * {
     @apply box-border;
   }
+
+  input, textarea, button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input[type="text"], 
+  input[type="email"], 
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 @layer components {
-  .glass {
-    @apply border border-white/10;
-    background-color: rgba(11, 20, 26, 0.5);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  /* Glassmorphism base glass effect */
+  .glass-effect {
+    @apply backdrop-blur-xl border;
+    background-color: rgba(17, 31, 46, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.17);
   }
 
-  .terminal {
-    @apply font-mono text-xs leading-relaxed text-saban-emerald;
+  .glass-effect-strong {
+    @apply backdrop-blur-2xl border;
+    background-color: rgba(11, 20, 26, 0.6);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.05), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   }
 
+  .glass-effect-light {
+    @apply backdrop-blur-md border;
+    background-color: rgba(26, 47, 63, 0.3);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Glow effects */
+  .glow-emerald {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+
+  .glow-emerald-sm {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 15px rgba(255, 71, 87, 0.3);
+  }
+
+  /* Chat message bubbles */
+  .message-bubble-user {
+    @apply rounded-3xl px-4 py-2 max-w-xs;
+    background-color: var(--color-message-user);
+    color: var(--color-text-primary);
+  }
+
+  .message-bubble-ai {
+    @apply rounded-3xl px-4 py-2 max-w-xs;
+    background-color: var(--color-message-ai);
+    color: var(--color-text-primary);
+  }
+
+  /* Chat container */
   .chat-container {
-    background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
-    background-blend-mode: overlay;
-    background-color: rgba(11, 20, 26, 0.95);
+    background: linear-gradient(135deg, rgba(11, 20, 26, 0.95) 0%, rgba(17, 31, 46, 0.95) 100%);
+    background-attachment: fixed;
+  }
+
+  /* Terminal/code style */
+  .terminal {
+    @apply font-mono text-xs leading-relaxed;
+    color: var(--color-primary);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .transition-fast {
+    transition: all 0.15s ease-out;
   }
 }
 
 @layer utilities {
-  input:focus, button:focus {
+  input:focus, button:focus, textarea:focus {
     outline: none;
+  }
+
+  .backdrop-glass {
+    backdrop-filter: blur(10px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Prevent zoom on iOS input focus */
+  @supports (font-size: max(1rem)) {
+    input, textarea, select {
+      font-size: max(1rem, 16px);
+    }
   }
 }
