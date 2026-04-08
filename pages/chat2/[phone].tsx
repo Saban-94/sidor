@@ -182,30 +182,122 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* סל קניות מונפש */}
+{/* סל קניות מונפש ודינמי */}
       <AnimatePresence>
         {showCart && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55]" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed inset-y-0 right-0 w-[80%] max-w-sm z-[60] p-6 flex flex-col bg-[#111b21] shadow-2xl border-r border-white/10">
+            {/* רקע עמום */}
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setShowCart(false)} 
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55]" 
+            />
+            
+            {/* תפריט הסל הצדי */}
+            <motion.div 
+              initial={{ x: '100%' }} 
+              animate={{ x: 0 }} 
+              exit={{ x: '100%' }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-[85%] max-w-sm z-[60] p-6 flex flex-col bg-[#111b21] shadow-2xl border-r border-white/10"
+            >
+              {/* כותרת הסל */}
               <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
-                <h2 className="text-xl font-black text-emerald-500 italic flex items-center gap-2"><Package /> הסל של סבן</h2>
-                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-400" />
+                <h2 className="text-xl font-black text-emerald-500 italic flex items-center gap-2">
+                  <Package /> הסל של סבן
+                </h2>
+                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-400 hover:text-white transition-colors" />
               </div>
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {cartItems.map(item => (
-                  <div key={item.id} className="p-4 bg-[#202c33] rounded-xl flex justify-between items-center border-r-4 border-emerald-500 shadow-inner">
-                    <span className="text-sm font-bold text-white">{item.name}</span>
-                    <Trash2 size={16} className="text-red-400/50 cursor-pointer" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
+
+              {/* רשימת המוצרים */}
+              <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                {cartItems.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-2 opacity-50">
+                    <ShoppingCart size={40} />
+                    <span className="text-sm font-bold">הסל ריק, בוס</span>
                   </div>
-                ))}
+                ) : (
+                  cartItems.map(item => (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={item.id} 
+                      className="p-4 bg-[#202c33] rounded-xl flex justify-between items-center border-r-4 border-emerald-500 shadow-inner group"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-white">{item.name}</span>
+                        <span className="text-[10px] text-emerald-500/70 font-bold uppercase">מאושר במלאי</span>
+                      </div>
+                      <button 
+                        onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))}
+                        className="p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} className="text-red-400/50 group-hover:text-red-400" />
+                      </button>
+                    </motion.div>
+                  ))
+                )}
               </div>
-              <button 
-                onClick={() => window.open(`https://wa.me/972508860896?text=${encodeURIComponent("הזמנה מ-SabanOS:\n" + cartItems.map(i => `• ${i.name}`).join('\n'))}`)}
-                className="w-full bg-emerald-600 py-4 rounded-2xl mt-auto font-black text-white flex items-center justify-center gap-2 shadow-lg active:scale-95"
-              >
-                <Share2 size={18} /> שלח הודעה לראמי
-              </button>
+
+              {/* כפתורי פעולה */}
+              <div className="mt-auto pt-6 space-y-3">
+                
+                {/* כפתור שליחה למאגרים (לבן ומרשים) */}
+                <button 
+                  disabled={cartItems.length === 0 || loading}
+                  onClick={async () => {
+                    const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
+                    const itemsList = cartItems.map(i => i.name).join(', ');
+                    
+                    try {
+                      playMagicSound();
+                      
+                      // שליחה במקביל ל-Supabase ולגוגל שיטס
+                      await Promise.all([
+                        // שליחה ל-Supabase (טבלת orders)
+                        fetch('/api/save-order', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            phone: targetPhone,
+                            items: cartItems,
+                            status: 'pending'
+                          })
+                        }),
+                        // תיעוד ב-Apps Script (גוגל שיטס)
+                        SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה סופית מהסל: ${itemsList}`)
+                      ]);
+
+                      // הודעת סיכום לוואטסאפ
+                      const waText = `הזמנה חדשה מ-SabanOS 🏗️\nלקוח: ${targetPhone}\n\nפריטים:\n${cartItems.map(i => `• ${i.name}`).join('\n')}\n\nנא לאשר ולצאת לביצוע!`;
+                      window.open(`https://wa.me/972508860896?text=${encodeURIComponent(waText)}`, '_blank');
+                      
+                      setCartItems([]);
+                      setShowCart(false);
+                    } catch (e) {
+                      console.error("Order process failed", e);
+                    }
+                  }}
+                  className="w-full bg-white text-black py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 transition-all disabled:opacity-30"
+                >
+                  <CheckCircle2 size={20} />
+                  שלח הזמנה לביצוע
+                </button>
+
+                {/* כפתור שיתוף וואטסאפ רגיל */}
+                <button 
+                  onClick={() => {
+                    const txt = `רשימת מוצרים מסבן:\n${cartItems.map(i => `• ${i.name}`).join('\n')}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
+                  }}
+                  className="w-full bg-emerald-600/10 text-emerald-500 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 border border-emerald-500/20 hover:bg-emerald-600/20 transition-all"
+                >
+                  <Share2 size={18} /> שיתוף רשימה
+                </button>
+              </div>
             </motion.div>
           </>
         )}
