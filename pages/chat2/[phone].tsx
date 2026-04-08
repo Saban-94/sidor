@@ -74,16 +74,15 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
     setInput('');
 
     try {
-      // --- הפנייה הכפולה במקביל - פתיחת סתימות ---
+      // --- הפנייה הכפולה במקביל: מוח + תיעוד ---
       const [brainResponse] = await Promise.all([
-        // 1. המוח הראשי (Vercel API)
+        // 1. המוח הראשי (Vercel API) לחישובים ותשובה
         fetch('/api/tools-brain', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          // וולידציה שהנתונים נשלחים בדיוק כפי שהמוח מצפה
           body: JSON.stringify({ 
             message: query || "", 
             imageBase64: imageBase64 || null 
@@ -96,16 +95,18 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
           return res.json();
         }),
 
-        // 2. התיעוד ב-Apps Script (Google Sheets)
-        // שולחים ורצים קדימה בלי לחכות (Background Task)
-        SabanAPI.sendMessage(targetPhone, userMsg, imageBase64).catch(e => console.error("Logging failed", e))
+        // 2. התיעוד ב-Apps Script (Google Sheets) - "שגר ושכח"
+        SabanAPI.sendMessage(targetPhone, userMsg, imageBase64).catch(e => 
+          console.error("Logging to Sheets failed:", e)
+        )
       ]);
 
       setLoading(false);
 
-      // טיפול בתגובה מהמוח
+      // טיפול בתגובה מהמוח (חישובים, מלאי ותשובה)
       if (brainResponse && brainResponse.reply) {
-        // הוספת מוצרים לסל אם קיימים
+        
+        // א. עדכון סל הקניות אם המוח זיהה פריטים להזמנה
         if (brainResponse.cart && brainResponse.cart.length > 0) {
           playMagicSound();
           const newItems = brainResponse.cart.map((item: any) => ({
@@ -114,10 +115,12 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
             qty: item.qty
           }));
           setCartItems(prev => [...prev, ...newItems]);
-          setTimeout(() => setShowCart(true), 1200);
+          
+          // פתיחת הסל אוטומטית אחרי שנייה וחצי
+          setTimeout(() => setShowCart(true), 1500);
         }
 
-        // אפקט הקלדה
+        // ב. אפקט הקלדה לתשובה המקצועית של רויטל
         setIsTyping(true);
         let i = 0;
         const words = brainResponse.reply.split(" ");
@@ -129,7 +132,11 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
             i++;
           } else {
             clearInterval(interval);
-            setMessages(prev => [...prev, { role: 'ai', content: brainResponse.reply, timestamp: new Date() }]);
+            setMessages(prev => [...prev, { 
+              role: 'ai', 
+              content: brainResponse.reply, 
+              timestamp: new Date() 
+            }]);
             setStreamingText("");
             setIsTyping(false);
           }
@@ -137,51 +144,14 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
       }
     } catch (e: any) {
       setLoading(false);
+      setIsTyping(false);
       console.error("Critical Chat Error:", e.message);
-      setMessages(prev => [...prev, { role: 'ai', content: "בוס, יש תקלה בחיבור למוח. וודא ש-GEMINI_API_KEY מוגדר ב-Vercel." }]);
+      setMessages(prev => [...prev, { 
+        role: 'ai', 
+        content: "בוס, יש תקלה בחיבור למוח. וודא שהשרת תקין והמפתח מוגדר." 
+      }]);
     }
   };
-
-      setLoading(false);
-
-      if (brainResponse && brainResponse.reply) {
-        // טיפול בסל קניות (אם המוח החזיר פריטים)
-        if (brainResponse.cart && brainResponse.cart.length > 0) {
-          playMagicSound();
-          const newItems = brainResponse.cart.map((item: any) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
-            qty: item.qty
-          }));
-          setCartItems(prev => [...prev, ...newItems]);
-          setTimeout(() => setShowCart(true), 1200);
-        }
-
-        // אפקט הקלדה לתשובה
-        setIsTyping(true);
-        let i = 0;
-        const words = brainResponse.reply.split(" ");
-        setStreamingText("");
-        
-        const interval = setInterval(() => {
-          if (i < words.length) {
-            setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
-            i++;
-          } else {
-            clearInterval(interval);
-            setMessages(prev => [...prev, { role: 'ai', content: brainResponse.reply, timestamp: new Date() }]);
-            setStreamingText("");
-            setIsTyping(false);
-          }
-        }, 30);
-      }
-    } catch (e) {
-      setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "בוס, יש עומס בשרתים. נסה שוב." }]);
-    }
-  };
-  
-  const themeClass = isDarkMode ? "bg-[#0b141a] text-white" : "bg-[#f0f2f5] text-[#111b21]";
 
   return (
     <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
