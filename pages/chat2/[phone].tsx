@@ -63,46 +63,76 @@ export default function SabanOSChatV2() {
     }
   };
 
-  const askAI = async (query: string) => {
-    if (!query.trim() || loading || isTyping) return;
+const askAI = async (query: string, imageBase64: string | null = null) => {
+    if ((!query.trim() && !imageBase64) || loading || isTyping) return;
     
-    setMessages(prev => [...prev, { role: 'user', content: query }]);
+    // הצגת הודעת המשתמש
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: query || "📸 ניתוח תמונה...", 
+      timestamp: new Date() 
+    }]);
+    
     setLoading(true);
     setInput('');
 
     try {
-      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
-      const data = await SabanAPI.sendMessage(targetPhone, query);
+      // פנייה למוח החדש ב-API הפנימי
+      const res = await fetch('/api/tools-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: query, 
+          imageBase64: imageBase64 // שליחת תמונה אם קיימת
+        })
+      });
+
+      const data = await res.json();
       setLoading(false);
 
-      if (data && data.success) {
-        if (data.orderPlaced) {
+      if (data && data.reply) {
+        // 1. בדיקה אם המוח הכניס מוצרים לסל (חישוב כמויות או זיהוי תמונה)
+        if (data.cart && data.cart.length > 0) {
           playMagicSound();
-          setCartItems(prev => [...prev, { id: Date.now().toString(), name: data.items || query, qty: "1" }]);
-          setTimeout(() => setShowCart(true), 1000);
+          const newItems = data.cart.map((item: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
+            qty: item.qty
+          }));
+          setCartItems(prev => [...prev, ...newItems]);
+          
+          // פתיחת הסל אוטומטית אם נוספו פריטים
+          setTimeout(() => setShowCart(true), 1200);
         }
 
+        // 2. אפקט הקלדה לתשובה המקצועית
         setIsTyping(true);
         let i = 0;
         const words = data.reply.split(" ");
+        setStreamingText("");
+        
         const interval = setInterval(() => {
           if (i < words.length) {
             setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
             i++;
           } else {
             clearInterval(interval);
-            setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
+            setMessages(prev => [...prev, { 
+              role: 'ai', 
+              content: data.reply, 
+              timestamp: new Date() 
+            }]);
             setStreamingText("");
             setIsTyping(false);
           }
-        }, 35);
+        }, 30);
       }
     } catch (e) {
       setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "תקלה בחיבור למוח האוטומטי." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "בוס, המוח עמוס כרגע. נסה שוב בעוד רגע." }]);
     }
   };
-
+  
   const themeClass = isDarkMode ? "bg-[#0b141a] text-white" : "bg-[#f0f2f5] text-[#111b21]";
 
   return (
