@@ -31,9 +31,11 @@ export default function CartDrawer({
   const router = useRouter();
   const { phone } = router.query;
   
-  // פתרון שגיאת Hydration (מחכים שהקומפוננטה תעלה בדפדפן)
+  // פתרון שגיאת Hydration
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
@@ -42,7 +44,6 @@ export default function CartDrawer({
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
-    // ניקוי נתונים לפני שליחה למניעת שגיאת 400
     const orderData = {
       phone: String(targetPhone),
       items: items.map(item => ({
@@ -55,7 +56,6 @@ export default function CartDrawer({
 
     try {
       await Promise.all([
-        // שליחה ל-Supabase דרך ה-API המקומי
         fetch('/api/save-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -67,8 +67,6 @@ export default function CartDrawer({
           }
           return res.json();
         }),
-
-        // תיעוד בגוגל שיטס
         SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה סופית: ${items.map(i => i.name).join(', ')}`)
       ]);
 
@@ -77,7 +75,6 @@ export default function CartDrawer({
       
       onClose();
     } catch (error: any) {
-      console.error("Order Error:", error.message);
       alert("שגיאה ברישום ההזמנה: " + error.message);
     }
   };
