@@ -1,9 +1,8 @@
 import React from 'react';
 import Head from 'next/head';
-import OrderBoard from '../components/OrderBoard';
-import SmartOrderSync from '../components/SmartOrderSync';
-import Layout from '../components/Layout';
-
+import SmartOrderSync from '@/components/SmartOrderSync';
+import OrderBoard from '@/components/OrderBoard';
+import Layout from '@/components/Layout';
 export default function PWAHome() {
   return (
     <Layout>
