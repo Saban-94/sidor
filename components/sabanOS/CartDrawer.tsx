@@ -26,13 +26,12 @@ interface CartDrawerProps {
 export default function CartDrawer({
   isOpen,
   onClose,
-  items = [],
+  items = [], // הגנה 1: ערך ברירת מחדל ריק
   onRemoveItem,
   onUpdateQuantity,
   onSendMessage,
   setCartItems
 }: CartDrawerProps) {
-  // הלוגיקה חייבת להיות בתוך גוף הפונקציה!
   const router = useRouter();
   const { phone } = router.query;
   
@@ -45,8 +44,9 @@ export default function CartDrawer({
     setMounted(true);
   }, []);
 
-  const currentItems = items || [];
-  const total = currentItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  // הגנה 2: שימוש באופרטור ?? כדי לוודא שיש מערך לפני ה-reduce
+  const currentItems = items ?? [];
+  const total = currentItems.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
 
   const handleFinalOrder = async () => {
     if (currentItems.length === 0) return;
@@ -69,13 +69,10 @@ export default function CartDrawer({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
         }),
-        SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה מהסל: ${currentItems.length} פריטים`)
+        SabanAPI.sendMessage(targetPhone, `צ'ק-אאוט: ${currentItems.length} פריטים`)
       ]);
 
-      if (typeof setCartItems === 'function') {
-        setCartItems([]);
-      }
-      
+      if (typeof setCartItems === 'function') setCartItems([]);
       onClose();
 
       if (typeof onSendMessage === 'function') {
@@ -84,13 +81,13 @@ export default function CartDrawer({
         ⏰ מועד: ${deliveryTime || 'יתואם טלפונית'}
         🏗️ פריקה: ${unloadingType}`);
       }
-
     } catch (error) {
       console.error("Order process failed:", error);
       alert("תקלה ברישום ההזמנה.");
     }
   };
 
+  // הגנה 3: החזרת null עד שהדף נטען בדפדפן
   if (!mounted) return null;
 
   return (
@@ -110,7 +107,7 @@ export default function CartDrawer({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl bg-[#0b141a]/95 shadow-emerald-500/10"
+            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl bg-[#0b141a]/95 text-right"
             dir="rtl"
           >
             {/* Header */}
@@ -126,8 +123,6 @@ export default function CartDrawer({
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3">
-              
-              {/* קוביית פרטי לוגיסטיקה */}
               <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4 space-y-3">
                 <div className="flex items-center gap-3 text-sm">
                   <MapPin className="w-4 h-4 text-emerald-500" />
@@ -164,12 +159,7 @@ export default function CartDrawer({
               </div>
 
               {currentItems.map((item, index) => (
-                <motion.div
-                  key={item.id || index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass-effect-light p-4 rounded-2xl border border-white/5 text-right"
-                >
+                <div key={item.id || index} className="glass-effect-light p-4 rounded-2xl border border-white/5">
                   <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-xs text-emerald-500 font-black">{item.quantity} יחידות</span>
@@ -177,7 +167,7 @@ export default function CartDrawer({
                       {item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור מחיר'}
                     </p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
 
