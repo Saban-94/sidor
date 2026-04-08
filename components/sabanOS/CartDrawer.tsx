@@ -26,7 +26,7 @@ interface CartDrawerProps {
 export default function CartDrawer({
   isOpen,
   onClose,
-  items,
+  items = [],
   onRemoveItem,
   onUpdateQuantity,
   onSendMessage,
@@ -47,7 +47,7 @@ export default function CartDrawer({
     setMounted(true);
   }, []);
 
-  const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  const total = (items || []).reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
   const handleFinalOrder = async () => {
     if (items.length === 0) return;
