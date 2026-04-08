@@ -17,23 +17,48 @@ export default function SmartOrderSync() {
     { label: 'דוח נהגים', icon: MessageSquare }
   ];
 
-  const handleSendCommand = async (text) => {
-    if (!text?.trim() || loading) return;
+const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     setLoading(true);
     setStatus(null);
-    try {
-      const response = await fetch('/api/shipping-brain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text, sender_name: "ראמי מסארווה" })
-      });
-      setStatus(response.ok ? 'success' : 'error');
-    } catch (err) {
-      setStatus('error');
-    } finally {
-      setLoading(false);
-      setTimeout(() => setStatus(null), 3000);
-    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        // חילוץ ה-Base64 הנקי
+        const base64Clean = event.target.result.split(',')[1];
+        
+        // שליחה למוח החדש
+        const res = await fetch('/api/shipping-brain', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({ 
+            imageBase64: base64Clean, // השדה שהמוח מחפש
+            query: input || "ניתוח כללי" 
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          setStatus('success');
+          console.log("נתונים חולצו:", data);
+        } else {
+          console.error("שגיאת שרת:", data.error);
+          setStatus('error');
+        }
+      } catch (err) {
+        setStatus('error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
   };
 
   return (
