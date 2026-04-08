@@ -1,11 +1,30 @@
 import React from 'react';
 import Head from 'next/head';
-import SmartOrderSync from '@/components/SmartOrderSync';
-import OrderBoard from '@/components/OrderBoard';
-import Layout from '@/components/Layout';
+// נשתמש בנתיב יחסי ישיר במקום @
+import SmartOrderSync from '../components/SmartOrderSync';
+import OrderBoard from '../components/OrderBoard';
+import Layout from '../components/Layout';
+
 export default function PWAHome() {
   return (
     <Layout>
+      <Head>
+        <title>SabanOS | ניהול חכם</title>
+      </Head>
+      <main className="min-h-screen bg-[#0b141a] pb-32 font-sans">
+        <div className="p-4 bg-[#111b21] sticky top-0 z-40 border-b border-white/5 flex justify-center">
+          <h1 className="text-xl font-bold text-emerald-500 italic tracking-tighter">
+            SabanOS 🧠 Smart Console
+          </h1>
+        </div>
+        <div className="p-2">
+          <OrderBoard />
+        </div>
+        <SmartOrderSync />
+      </main>
+    </Layout>
+  );
+}
       <Head>
         <title>SabanOS | ניהול חכם</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
