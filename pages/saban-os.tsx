@@ -19,7 +19,7 @@ interface Message {
   content: string;
   isUser: boolean;
   timestamp: Date;
-  
+  imageBase64?: string;
 }
 
 interface CartItem {
@@ -191,7 +191,6 @@ export default function SabanOSChat() {
         />
       </div>
 
-      {/* Floating Action Button */}
       <FloatingActionButton />
 
       {/* Cart Drawer */}
