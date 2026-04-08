@@ -66,26 +66,81 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
     if ((!query.trim() && !imageBase64) || loading || isTyping) return;
     
     const userMsg = query || "📸 ניתוח תמונה...";
+    const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
+
+    // הצגת הודעת המשתמש בממשק
     setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp: new Date() }]);
     setLoading(true);
     setInput('');
 
     try {
-      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
-
-      // --- הפנייה הכפולה במקביל ---
-      const [brainResponse, logResponse] = await Promise.all([
-        // 1. המוח הראשי (לחישובים ותשובה מהירה לממשק)
+      // --- הפנייה הכפולה במקביל - פתיחת סתימות ---
+      const [brainResponse] = await Promise.all([
+        // 1. המוח הראשי (Vercel API)
         fetch('/api/tools-brain', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: query, imageBase64 })
-        }).then(res => res.json()),
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          // וולידציה שהנתונים נשלחים בדיוק כפי שהמוח מצפה
+          body: JSON.stringify({ 
+            message: query || "", 
+            imageBase64: imageBase64 || null 
+          })
+        }).then(async res => {
+          if (!res.ok) {
+            const errorTxt = await res.text();
+            throw new Error(`Brain Error: ${res.status} - ${errorTxt}`);
+          }
+          return res.json();
+        }),
 
-        // 2. התיעוד ב-Apps Script (לרישום בגיליונות, יומן ורויטל)
-        // אנחנו לא מחכים לתשובה שלו כדי לא לעכב את הלקוח
+        // 2. התיעוד ב-Apps Script (Google Sheets)
+        // שולחים ורצים קדימה בלי לחכות (Background Task)
         SabanAPI.sendMessage(targetPhone, userMsg, imageBase64).catch(e => console.error("Logging failed", e))
       ]);
+
+      setLoading(false);
+
+      // טיפול בתגובה מהמוח
+      if (brainResponse && brainResponse.reply) {
+        // הוספת מוצרים לסל אם קיימים
+        if (brainResponse.cart && brainResponse.cart.length > 0) {
+          playMagicSound();
+          const newItems = brainResponse.cart.map((item: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
+            qty: item.qty
+          }));
+          setCartItems(prev => [...prev, ...newItems]);
+          setTimeout(() => setShowCart(true), 1200);
+        }
+
+        // אפקט הקלדה
+        setIsTyping(true);
+        let i = 0;
+        const words = brainResponse.reply.split(" ");
+        setStreamingText("");
+        
+        const interval = setInterval(() => {
+          if (i < words.length) {
+            setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
+            i++;
+          } else {
+            clearInterval(interval);
+            setMessages(prev => [...prev, { role: 'ai', content: brainResponse.reply, timestamp: new Date() }]);
+            setStreamingText("");
+            setIsTyping(false);
+          }
+        }, 30);
+      }
+    } catch (e: any) {
+      setLoading(false);
+      console.error("Critical Chat Error:", e.message);
+      setMessages(prev => [...prev, { role: 'ai', content: "בוס, יש תקלה בחיבור למוח. וודא ש-GEMINI_API_KEY מוגדר ב-Vercel." }]);
+    }
+  };
 
       setLoading(false);
 
