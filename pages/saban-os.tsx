@@ -36,9 +36,9 @@ export default function SabanOSChat() {
   // מניעת שגיאות Hydration
   const [mounted, setMounted] = useState(false);
   
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]); // מערך ריק כברירת מחדל
+  const [cartItems, setCartItems] = useState<CartItem[]>([]); // מערך ריק כברירת מחדל
   const [input, setInput] = useState('');
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
