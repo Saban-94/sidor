@@ -11,22 +11,41 @@ interface ChatInputProps {
   isLoading: boolean;
 }
 
-export default function ChatInput({
-  value,
-  onChange,
-  onSend,
-  isLoading,
-}: ChatInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+export default function ChatInput({ value, onChange, onSend, isLoading }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((value.trim() || fileInputRef.current?.files?.length) && !isLoading) {
-      onSend(value);
+  // טעינה מראש של הצלצול כדי שלא ייעלם
+  useEffect(() => {
+    audioRef.current = new Audio('/magic-chime.mp3');
+    audioRef.current.load();
+  }, []);
+
+  const playChime = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0; // חזרה להתחלה
+      audioRef.current.play().catch(e => console.log("Audio play blocked", e));
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target?.result as string;
+      
+      // הפעלת הצלצול בדיוק ברגע שה-Base64 מוכן
+      playChime();
+      
+      // שליחה לרויטל
+      onSend(value || "רויטל, תנתחי לי את התמונה הזו בבקשה", base64);
+    };
+    reader.readAsDataURL(file);
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
