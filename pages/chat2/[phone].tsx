@@ -1,10 +1,25 @@
 'use client';
-export const dynamic = 'force-dynamic';
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, Check, Plus, Minus, ShoppingBag, MapPin, Clock, Truck } from 'lucide-react';
-import { SabanAPI } from '@/lib/SabanAPI';
 import { useRouter } from 'next/router';
+export const dynamic = 'force-dynamic';
+// ייבוא הרכיבים והכלים
+import SabanOSHeader from '@/components/sabanOS/Header';
+import ChatMessages from '@/components/sabanOS/ChatMessages';
+import QuickActions from '@/components/sabanOS/QuickActions';
+import ChatInput from '@/components/sabanOS/ChatInput';
+import CartDrawer from '@/components/sabanOS/CartDrawer';
+import FloatingActionButton from '@/components/sabanOS/FloatingActionButton';
+import { SabanAPI } from '@/lib/SabanAPI';
+
+// ממשקים
+interface Message {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: Date;
+}
 
 interface CartItem {
   id: string;
@@ -14,202 +29,178 @@ interface CartItem {
   verified: boolean;
 }
 
-interface CartDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  items: CartItem[];
-  onRemoveItem: (id: string) => void;
-  onUpdateQuantity?: (id: string, quantity: number) => void;
-  onSendMessage: (text: string) => void;
-  setCartItems: (items: CartItem[]) => void;
-}
-
-export default function CartDrawer({
-  isOpen,
-  onClose,
-  items,
-  onRemoveItem,
-  onUpdateQuantity,
-  onSendMessage,
-  setCartItems
-}: CartDrawerProps) {
+export default function SabanOSChat() {
   const router = useRouter();
   const { phone } = router.query;
-  
-  // פתרון שגיאת Hydration
+
+  // מניעת שגיאות Hydration
   const [mounted, setMounted] = useState(false);
   
-  // שדות לוגיסטיים שרויטל תשלים
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryTime, setDeliveryTime] = useState('');
-  const [unloadingType, setUnloadingType] = useState('לא נקבע');
+  const [messages, setMessages] = useState<Message[]>([]); // מערך ריק כברירת מחדל
+  const [cartItems, setCartItems] = useState<CartItem[]>([]); // מערך ריק כברירת מחדל
+  const [input, setInput] = useState('');
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // אתחול ראשוני
   useEffect(() => {
     setMounted(true);
+    audioRef.current = new Audio('/magic-chime.mp3');
+    
+    if (messages.length === 0) {
+      setMessages([{
+        id: '1',
+        content: 'אהלן בוס! רויטל כאן. המחסן מסונכרן אצלי, איך אפשר לעזור היום?',
+        isUser: false,
+        timestamp: new Date(),
+      }]);
+    }
   }, []);
 
-  const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-  const handleFinalOrder = async () => {
-    if (items.length === 0) return;
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
-    const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
-    
-    // הכנת הנתונים המורחבים לטבלה
-    const orderData = {
-      phone: String(targetPhone),
-      items: items.map(i => ({ name: i.name, qty: i.quantity })),
-      address: deliveryAddress, // מה שרויטל חילצה
-      delivery_time: deliveryTime, // מה שרויטל חילצה
-      unloading_method: unloadingType, // מנוף 10 מ' או ידני
-      status: 'pending'
+  const playMagicSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  // ---------------------------------------------------------
+  // פונקציית שליחה מאוחדת (מוח Vercel + תיעוד Sheets)
+  // ---------------------------------------------------------
+  const handleSendMessage = async (text: string, imageBase64: string | null = null) => {
+    if ((!text.trim() && !imageBase64) || isLoading) return;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      content: text || "📸 ניתוח תמונה...",
+      isUser: true,
+      timestamp: new Date(),
     };
 
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    setIsLoading(true);
+
     try {
-      // 1. שליחה ל-Supabase ולגוגל במקביל
-      await Promise.all([
-        fetch('/api/save-order', {
+      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
+
+      // שליחה במקביל למוח ולתיעוד
+      const [brainResponse] = await Promise.all([
+        fetch('/api/tools-brain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
+          body: JSON.stringify({ message: text, imageBase64 })
+        }).then(res => {
+          if (!res.ok) throw new Error("Brain API failure");
+          return res.json();
         }),
-        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט. כתובת: ${deliveryAddress}, פריקה: ${unloadingType}`)
+
+        SabanAPI.sendMessage(targetPhone, text, imageBase64).catch(e => 
+          console.error("Sheets recording failed", e)
+        )
       ]);
 
-      // 2. ריקון הסל המקומי
-      setCartItems([]);
-      
-      // 3. סגירת המגירה
-      onClose();
+      if (brainResponse && brainResponse.reply) {
+        // הוספה אוטומטית לסל אם המוח זיהה פריטים
+        if (brainResponse.cart && brainResponse.cart.length > 0) {
+          playMagicSound();
+          const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
+            price: 0,
+            quantity: item.qty,
+            verified: true,
+          }));
+          setCartItems(prev => [...prev, ...newItems]);
+          setTimeout(() => setIsCartOpen(true), 1500);
+        }
 
-      // 4. הודעת סיכום סופית מרויטל
-      onSendMessage(`תודה בוס! ההזמנה נקלטה בסיסטם. 
-      📍 כתובת: ${deliveryAddress || 'תעודכן מול רויטל'}
-      ⏰ מועד: ${deliveryTime || 'יתואם טלפונית'}
-      🏗️ פריקה: ${unloadingType}
-      אנחנו יוצאים לדרך! 🚛`);
-
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          content: brainResponse.reply,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+      }
     } catch (error) {
-      console.error("Order process failed:", error);
-      alert("בוס, הייתה תקלה ברישום. הנתונים בטבלה אבל הסל לא התרוקן.");
+      console.error("Chat Error:", error);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        content: "בוס, המוח קצת עמוס. נסה שוב בעוד רגע.",
+        isUser: false,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleUpdateQuantity = (id: string, quantity: number) => {
+    setCartItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+    );
   };
 
   if (!mounted) return null;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-          />
+    <div className="h-screen w-full flex flex-col bg-gradient-to-br from-[#0b141a] via-[#111f2e] to-[#0b141a] overflow-hidden safe-area" dir="rtl">
+      {/* Header */}
+      <SabanOSHeader 
+        cartCount={cartItems.length}
+        onCartClick={() => setIsCartOpen(true)}
+      />
 
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl bg-[#0b141a]/95"
-            dir="rtl"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-emerald-500" />
-                <h2 className="text-xl font-bold text-white tracking-tight">סיכום הזמנה</h2>
-              </div>
-              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
+      {/* Main Chat Container */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="absolute inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center opacity-[0.03] pointer-events-none" />
+        
+        <ChatMessages 
+          messages={messages}
+          isLoading={isLoading}
+          messagesEndRef={messagesEndRef}
+        />
 
-            {/* Items List */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3">
-              
-              {/* קוביית פרטי אספקה (מה שרויטל משלימה) */}
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4 space-y-3">
-                <div className="flex items-center gap-3 text-sm text-slate-300">
-                  <MapPin className="w-4 h-4 text-emerald-500" />
-                  <input 
-                    type="text" 
-                    placeholder="כתובת אספקה (רויטל תשלים...)" 
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
-                  />
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-300">
-                  <Clock className="w-4 h-4 text-emerald-500" />
-                  <input 
-                    type="text" 
-                    placeholder="מועד הגעה מבוקש..." 
-                    value={deliveryTime}
-                    onChange={(e) => setDeliveryTime(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
-                  />
-                </div>
-                <div className="flex items-center gap-3 text-sm text-slate-300">
-                  <Truck className="w-4 h-4 text-emerald-500" />
-                  <select 
-                    value={unloadingType}
-                    onChange={(e) => setUnloadingType(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white appearance-none cursor-pointer"
-                  >
-                    <option value="לא נקבע" className="bg-[#0b141a]">סוג פריקה?</option>
-                    <option value="מנוף 10 מטר" className="bg-[#0b141a]">משאית מנוף (עד 10 מטר)</option>
-                    <option value="פריקה ידנית" className="bg-[#0b141a]">פריקה ידנית</option>
-                  </select>
-                </div>
-              </div>
+        {/* Quick Actions - מעבירים את הפונקציה המגיירת */}
+        <QuickActions onActionClick={(label: string) => handleSendMessage(label)} />
 
-              {items.length === 0 ? (
-                <div className="text-center py-12 opacity-50 text-slate-400 text-xs">הסל ריק, בוס</div>
-              ) : (
-                items.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    className="glass-effect-light p-4 rounded-2xl flex items-start justify-between gap-3 border border-white/5"
-                  >
-                    <div className="flex-1 min-w-0 text-right">
-                      <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-emerald-500 font-black">{item.quantity} יחידות</span>
-                        <p className="text-sm font-black text-emerald-500">
-                          {item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור מחיר'}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
+        {/* Input Area */}
+        <ChatInput 
+          value={input}
+          onChange={setInput}
+          onSend={handleSendMessage}
+          isLoading={isLoading}
+        />
+      </div>
 
-            {/* Footer */}
-            {items.length > 0 && (
-              <div className="glass-effect-strong border-t border-white/10 p-4 sm:p-6 space-y-4 bg-[#0b141a]/90">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-slate-400 font-medium text-sm">סה"כ לתשלום</span>
-                  <span className="font-black text-white text-2xl tracking-tighter">{total.toLocaleString()} ₪</span>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleFinalOrder}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg flex items-center justify-center gap-3"
-                >
-                  <Check className="w-6 h-6" />
-                  שלח הזמנה לביצוע
-                </motion.button>
-              </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+      {/* Floating Action Button */}
+      <FloatingActionButton />
+
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onRemoveItem={handleRemoveFromCart}
+        onUpdateQuantity={handleUpdateQuantity}
+      />
+    </div>
   );
 }
