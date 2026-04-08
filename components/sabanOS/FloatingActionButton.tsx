@@ -12,7 +12,7 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({
-  value,
+  value = "", // הגנה 1: ערך ברירת מחדל למקרה ש-value מגיע כ-undefined
   onChange,
   onSend,
   isLoading,
@@ -20,16 +20,17 @@ export default function ChatInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // פונקציה להשמעת צליל הקסם ברגע שהקובץ עולה
   const playMagicChime = () => {
     const audio = new Audio('/magic-chime.mp3');
-    audio.play().catch(e => console.log("Audio play failed", e));
+    audio.play().catch(() => {});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim() && !isLoading) {
-      onSend(value);
+    // הגנה 2: בדיקה בטוחה של trim למניעת שגיאת undefined
+    const safeValue = value?.trim() || "";
+    if (safeValue && !isLoading) {
+      onSend(safeValue);
     }
   };
 
@@ -40,7 +41,6 @@ export default function ChatInput({
     }
   };
 
-  // טיפול בעליית תמונה ממצלמה/גלריה
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -48,12 +48,9 @@ export default function ChatInput({
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target?.result as string;
-      
-      // הפעלת אפקט הצלצול ברגע שהמסמך מוכן לשליחה
       playMagicChime();
-      
-      // שליחה מיידית למוח לניתוח
-      onSend(value || "ניתוח תמונה...", base64);
+      // הגנה 3: אם אין טקסט, שולחים הודעת ברירת מחדל לצד התמונה
+      onSend(value?.trim() || "ניתוח תמונה...", base64);
     };
     reader.readAsDataURL(file);
     
@@ -67,8 +64,6 @@ export default function ChatInput({
       className="glass-effect-strong border-t border-white/10 px-4 py-4 sm:px-6 z-10"
     >
       <form onSubmit={handleSubmit} className="flex gap-3 max-w-6xl mx-auto items-center relative">
-        
-        {/* כפתור מצלמה מוטמע בתוך שדה הכתיבה */}
         <input 
           type="file" 
           accept="image/*" 
@@ -79,7 +74,6 @@ export default function ChatInput({
         />
 
         <div className="flex-1 relative flex items-center">
-          {/* כפתור המצלמה ממוקם בצד ימין בתוך האינפוט */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -92,7 +86,7 @@ export default function ChatInput({
           <input
             ref={inputRef}
             type="text"
-            value={value}
+            value={value || ""} // וידוא שהערך לעולם לא undefined
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="איך רויטל יכולה לעזור?"
@@ -104,14 +98,12 @@ export default function ChatInput({
               transition-all duration-300
               disabled:opacity-50 disabled:cursor-not-allowed
               text-base sm:text-sm"
-            style={{ fontSize: 'max(16px, 1rem)' }}
           />
         </div>
 
-        {/* Send Button */}
         <motion.button
           type="submit"
-          disabled={!value.trim() || isLoading}
+          disabled={!value?.trim() || isLoading} // שימוש ב-optional chaining
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="flex-shrink-0 p-3 rounded-full
@@ -127,7 +119,6 @@ export default function ChatInput({
           )}
         </motion.button>
       </form>
-
       <p className="text-[10px] text-[#64748b] mt-2 text-center sm:text-right uppercase tracking-widest font-black">
         Saban AI Vision Technology
       </p>
