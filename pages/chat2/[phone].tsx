@@ -80,12 +80,15 @@ export default function SabanOSChat() {
   // ---------------------------------------------------------
   // פונקציית שליחה מאוחדת (מוח Vercel + תיעוד Sheets)
   // ---------------------------------------------------------
-  const handleSendMessage = async (text: string, imageBase64: string | null = null) => {
-    if ((!text.trim() && !imageBase64) || isLoading) return;
+const handleSendMessage = async (text: string, imageBase64: string | null = null) => {
+    // בדיקה בטוחה של הקלט למניעת שגיאות trim
+    const safeText = text?.trim() || "";
+    if ((!safeText && !imageBase64) || isLoading) return;
 
+    // 1. יצירת הודעת משתמש (כולל התמונה להצגה בצ'אט)
     const userMsg: Message = {
       id: Date.now().toString(),
-      content: text || "📸 ניתוח תמונה...",
+      content: safeText || "📸 ניתוח תמונה...",
       isUser: true,
       timestamp: new Date(),
       imageBase64: imageBase64 || undefined,
@@ -98,39 +101,40 @@ export default function SabanOSChat() {
     try {
       const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
 
-      // שליחה במקביל למוח ולתיעוד
+      // 2. שליחה במקביל למוח (Gemini) ולתיעוד ב-Sheets/API
       const [brainResponse] = await Promise.all([
         fetch('/api/tools-brain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, imageBase64 })
+          body: JSON.stringify({ message: safeText, imageBase64, phone: targetPhone })
         }).then(res => {
           if (!res.ok) throw new Error("Brain API failure");
           return res.json();
         }),
 
-        SabanAPI.sendMessage(targetPhone, text, imageBase64).catch(e => 
+        SabanAPI.sendMessage(targetPhone, safeText, imageBase64).catch(e => 
           console.error("Sheets recording failed", e)
         )
       ]);
 
-if (brainResponse && brainResponse.cart && brainResponse.cart.length > 0) {
-  playMagicSound();
-  
-  const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
-    // הגנה: אם המוח החזיר name או product_name, אנחנו לוקחים מה שיש
-    id: Math.random().toString(36).substr(2, 9),
-    name: item.name || item.product_name || "מוצר כללי", 
-    price: 0,
-    // הגנה: המוח לפעמים מחזיר qty ולפעמים quantity
-    quantity: Number(item.qty || item.quantity || 1), 
-    verified: true,
-  }));
+      // 3. טיפול בעגלת הקניות (אם המוח זיהה מוצרים)
+      if (brainResponse?.cart && brainResponse.cart.length > 0) {
+        playMagicSound();
+        
+        const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          name: item.name || item.product_name || "מוצר כללי", 
+          price: 0,
+          quantity: Number(item.qty || item.quantity || 1), 
+          verified: true,
+        }));
 
-  setCartItems(prev => [...prev, ...newItems]);
-  setTimeout(() => setIsCartOpen(true), 1500);
-}
+        setCartItems(prev => [...prev, ...newItems]);
+        setTimeout(() => setIsCartOpen(true), 1500);
+      }
 
+      // 4. הוספת תשובת ה-AI לצ'אט
+      if (brainResponse?.reply) {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           content: brainResponse.reply,
@@ -139,11 +143,12 @@ if (brainResponse && brainResponse.cart && brainResponse.cart.length > 0) {
         };
         setMessages((prev) => [...prev, aiMsg]);
       }
+
     } catch (error) {
       console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
         id: Date.now().toString(),
-        content: "בוס, המוח קצת עמוס. נסה שוב בעוד רגע.",
+        content: "אח שלי, המוח קצת עמוס. נסה שוב בעוד רגע.",
         isUser: false,
         timestamp: new Date(),
       }]);
