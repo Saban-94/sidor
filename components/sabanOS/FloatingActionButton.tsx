@@ -1,18 +1,46 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, X, Image as ImageIcon, Search } from 'lucide-react';
+import React, { useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Send, Camera, Loader2 } from 'lucide-react';
 
-interface FABProps {
-  onImageCapture?: (text: string, base64: string) => void;
+interface ChatInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: (message: string, imageBase64?: string | null) => void;
+  isLoading: boolean;
 }
 
-export default function FloatingActionButton({ onImageCapture }: FABProps) {
-  const [isActive, setIsActive] = useState(false);
+export default function ChatInput({
+  value,
+  onChange,
+  onSend,
+  isLoading,
+}: ChatInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // פונקציה שמטפלת בבחירת קובץ או צילום
+  // פונקציה להשמעת צליל הקסם ברגע שהקובץ עולה
+  const playMagicChime = () => {
+    const audio = new Audio('/magic-chime.mp3');
+    audio.play().catch(e => console.log("Audio play failed", e));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (value.trim() && !isLoading) {
+      onSend(value);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
+  // טיפול בעליית תמונה ממצלמה/גלריה
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -20,119 +48,89 @@ export default function FloatingActionButton({ onImageCapture }: FABProps) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target?.result as string;
-      // שליחה לרויטל לניתוח
-      if (onImageCapture) {
-        onImageCapture("ניתוח תמונה מהשטח...", base64);
-      }
-      setIsActive(false); // סגירת התפריט לאחר בחירה
+      
+      // הפעלת אפקט הצלצול ברגע שהמסמך מוכן לשליחה
+      playMagicChime();
+      
+      // שליחה מיידית למוח לניתוח
+      onSend(value || "ניתוח תמונה...", base64);
     };
     reader.readAsDataURL(file);
     
-    // איפוס האינפוט
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const openCamera = (useGallery: boolean = false) => {
-    if (fileInputRef.current) {
-      // אם בחרנו גלריה נבטל את ה-capture, אם מצלמה נפעיל אותו
-      if (useGallery) {
-        fileInputRef.current.removeAttribute('capture');
-      } else {
-        fileInputRef.current.setAttribute('capture', 'environment');
-      }
-      fileInputRef.current.click();
-    }
-  };
-
   return (
-    <>
-      {/* Camera Icon FAB */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsActive(!isActive)}
-        className="fixed bottom-8 left-8 z-30
-          w-14 h-14 rounded-full
-          bg-gradient-to-r from-[#10b981] to-[#059669]
-          text-white shadow-2xl
-          flex items-center justify-center
-          hover:shadow-3xl transition-all duration-300
-          glow-emerald"
-      >
-        <AnimatePresence mode="wait">
-          {isActive ? (
-            <motion.div key="close" initial={{ rotate: -90 }} animate={{ rotate: 0 }} exit={{ rotate: 90 }}>
-              <X className="w-6 h-6" />
-            </motion.div>
-          ) : (
-            <motion.div key="camera" initial={{ rotate: 90 }} animate={{ rotate: 0 }} exit={{ rotate: -90 }}>
-              <Camera className="w-6 h-6" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.button>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-effect-strong border-t border-white/10 px-4 py-4 sm:px-6 z-10"
+    >
+      <form onSubmit={handleSubmit} className="flex gap-3 max-w-6xl mx-auto items-center relative">
+        
+        {/* כפתור מצלמה מוטמע בתוך שדה הכתיבה */}
+        <input 
+          type="file" 
+          accept="image/*" 
+          capture="environment" 
+          className="hidden" 
+          ref={fileInputRef}
+          onChange={handleFileChange}
+        />
 
-      {/* Action Menu */}
-      <AnimatePresence>
-        {isActive && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            className="fixed bottom-24 left-8 z-20 flex flex-col gap-3"
+        <div className="flex-1 relative flex items-center">
+          {/* כפתור המצלמה ממוקם בצד ימין בתוך האינפוט */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="absolute right-3 p-2 text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
           >
-            {/* סרוק חומרים (מצלמה) */}
-            <motion.button
-              whileHover={{ scale: 1.05, x: 10 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => openCamera(false)}
-              className="px-4 py-3 rounded-2xl glass-effect-strong
-                text-white font-black text-xs shadow-lg
-                flex items-center gap-3 border border-white/10"
-            >
-              <div className="bg-emerald-500 p-1.5 rounded-lg"><Camera className="w-4 h-4" /></div>
-              סרוק חומרים
-            </motion.button>
+            <Camera className="w-5 h-5" />
+          </button>
 
-            {/* גלריה */}
-            <motion.button
-              whileHover={{ scale: 1.05, x: 10 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => openCamera(true)}
-              className="px-4 py-3 rounded-2xl glass-effect-strong
-                text-white font-black text-xs shadow-lg
-                flex items-center gap-3 border border-white/10"
-            >
-              <div className="bg-blue-500 p-1.5 rounded-lg"><ImageIcon className="w-4 h-4" /></div>
-              גלריית תמונות
-            </motion.button>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="איך רויטל יכולה לעזור?"
+            disabled={isLoading}
+            className="w-full pr-12 pl-5 py-3 rounded-full
+              bg-[#1a2f3f] border border-white/20
+              text-white placeholder-[#64748b]
+              focus:border-[#10b981] focus:ring-2 focus:ring-[#10b981]/30
+              transition-all duration-300
+              disabled:opacity-50 disabled:cursor-not-allowed
+              text-base sm:text-sm"
+            style={{ fontSize: 'max(16px, 1rem)' }}
+          />
+        </div>
 
-            {/* ניתוח חכם */}
-            <motion.button
-              whileHover={{ scale: 1.05, x: 10 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => openCamera(false)}
-              className="px-4 py-3 rounded-2xl glass-effect-strong
-                text-white font-black text-xs shadow-lg
-                flex items-center gap-3 border border-white/10"
-            >
-              <div className="bg-purple-500 p-1.5 rounded-lg"><Search className="w-4 h-4" /></div>
-              ניתוח חכם
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Send Button */}
+        <motion.button
+          type="submit"
+          disabled={!value.trim() || isLoading}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex-shrink-0 p-3 rounded-full
+            bg-gradient-to-r from-[#10b981] to-[#059669]
+            text-white shadow-lg hover:shadow-xl
+            disabled:opacity-50 disabled:cursor-not-allowed
+            transition-all duration-300 flex items-center justify-center min-w-[44px]"
+        >
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Send className="w-5 h-5 rotate-180" />
+          )}
+        </motion.button>
+      </form>
 
-      {/* Hidden file input */}
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-      />
-    </>
+      <p className="text-[10px] text-[#64748b] mt-2 text-center sm:text-right uppercase tracking-widest font-black">
+        Saban AI Vision Technology
+      </p>
+    </motion.div>
   );
 }
