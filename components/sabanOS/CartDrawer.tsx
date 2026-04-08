@@ -19,8 +19,8 @@ interface CartDrawerProps {
   items: CartItem[];
   onRemoveItem: (id: string) => void;
   onUpdateQuantity?: (id: string, quantity: number) => void;
-  onSendMessage: (text: string) => void; // <-- הוספנו את זה
-  setCartItems: (items: CartItem[]) => void; // <-- והוספנו את זה לניקוי מהיר
+  onSendMessage: (text: string) => void; 
+  setCartItems: (items: CartItem[]) => void; 
 }
 
 export default function CartDrawer({
@@ -29,11 +29,12 @@ export default function CartDrawer({
   items,
   onRemoveItem,
   onUpdateQuantity,
+  onSendMessage,
+  setCartItems
 }: CartDrawerProps) {
   const router = useRouter();
   const { phone } = router.query;
   
-  // פתרון שגיאת Hydration
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -41,12 +42,11 @@ export default function CartDrawer({
 
   const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
-const handleFinalOrder = async () => {
+  const handleFinalOrder = async () => {
     if (items.length === 0) return;
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
-    // הכנת הנתונים לטבלה (פורמט נקי)
     const orderData = {
       phone: String(targetPhone),
       items: items.map(i => ({ name: i.name, qty: i.quantity })),
@@ -64,30 +64,26 @@ const handleFinalOrder = async () => {
         SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה מהסל: ${items.map(i => i.name).join(', ')}`)
       ]);
 
-      // 2. התיקון שביקשת: ריקון הסל המקומי
-      // אנחנו קוראים ל-onRemoveItem על כל פריט כדי לאפס את ה-State
-      items.forEach(item => onRemoveItem(item.id));
+      // 2. ריקון הסל המקומי בבת אחת
+      setCartItems([]);
       
       // 3. סגירת המגירה
       onClose();
 
-      // 4. הפעלת רויטל לצומת הלוגיסטית
+      // 4. הפעלת רויטל לצומת הלוגיסטית (תיקון שם הפונקציה ל-onSendMessage)
       const summary = items.map(i => `${i.quantity} יחידות של ${i.name}`).join(', ');
       
-      // שליחת הודעה אוטומטית למוח כדי שרויטל תגיב ללקוח
-      handleSendMessage(`אישור קבלת רשימה: המערכת קלטה את ההזמנה שלך (${summary}). בוא נשלים פרטי אספקה: 
+      onSendMessage(`אישור קבלת רשימה: המערכת קלטה את ההזמנה שלך (${summary}). בוא נשלים פרטי אספקה: 
       1. מה הכתובת המדויקת למשלוח?
       2. מתי תרצה את האספקה (יום ושעה)?
-      3. איזה פריקה נדרשת: מנוף (עד 10 מטר) או פריקה ידנית?`);
+      3. איזה פריקה נדרשת: משאית מנוף (עד 10 מטר מרחק הנפה) או פריקה ידנית?`);
 
     } catch (error) {
       console.error("Order process failed:", error);
-      alert("בוס, הרשימה נשלחה אבל הייתה תקלה קטנה בריקון הסל. נסה לרענן.");
+      alert("בוס, הייתה תקלה ברישום. הנתונים בטבלה אבל הסל לא התרוקן.");
     }
   };
 
-
-  // מונע את שגיאת ה-Minified React error #418
   if (!mounted) return null;
 
   return (
@@ -107,7 +103,7 @@ const handleFinalOrder = async () => {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl"
+            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl bg-[#0b141a]/95"
             dir="rtl"
           >
             {/* Header */}
@@ -116,10 +112,7 @@ const handleFinalOrder = async () => {
                 <ShoppingBag className="w-5 h-5 text-emerald-500" />
                 <h2 className="text-xl font-bold text-white tracking-tight">סל הקניות</h2>
               </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              >
+              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
@@ -143,15 +136,11 @@ const handleFinalOrder = async () => {
                   >
                     <div className="flex-1 min-w-0 text-right">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-sm font-bold text-white truncate">
-                          {item.name}
-                        </h3>
+                        <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
                         {item.verified && (
                           <div className="flex-shrink-0 flex items-center gap-1 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/20">
                             <Check className="w-3 h-3 text-emerald-500" />
-                            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-tighter">
-                              אומת AI
-                            </span>
+                            <span className="text-[10px] text-emerald-500 font-black tracking-tighter">אומת AI</span>
                           </div>
                         )}
                       </div>
@@ -159,21 +148,9 @@ const handleFinalOrder = async () => {
                       <div className="flex items-center justify-between">
                         {onUpdateQuantity && (
                           <div className="flex items-center gap-2 bg-black/30 rounded-xl px-2 py-1" dir="ltr">
-                            <button
-                              onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                              className="p-1 hover:text-emerald-500 text-slate-400 transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                            <span className="text-xs font-black w-4 text-center text-white">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => item.quantity > 1 && onUpdateQuantity(item.id, item.quantity - 1)}
-                              className="p-1 hover:text-emerald-500 text-slate-400 transition-colors"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
+                            <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} className="p-1 hover:text-emerald-500 text-slate-400"><Plus className="w-3 h-3" /></button>
+                            <span className="text-xs font-black w-4 text-center text-white">{item.quantity}</span>
+                            <button onClick={() => item.quantity > 1 && onUpdateQuantity(item.id, item.quantity - 1)} className="p-1 hover:text-emerald-500 text-slate-400"><Minus className="w-3 h-3" /></button>
                           </div>
                         )}
                         <p className="text-sm font-black text-emerald-500">
@@ -181,13 +158,7 @@ const handleFinalOrder = async () => {
                         </p>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => onRemoveItem(item.id)}
-                      className="p-2 rounded-xl hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <button onClick={() => onRemoveItem(item.id)} className="p-2 rounded-xl text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                   </motion.div>
                 ))
               )}
@@ -197,21 +168,14 @@ const handleFinalOrder = async () => {
             {items.length > 0 && (
               <div className="glass-effect-strong border-t border-white/10 p-4 sm:p-6 space-y-4 bg-[#0b141a]/90">
                 <div className="flex justify-between items-center px-1">
-                  <span className="text-slate-400 font-medium">סה"כ לתשלום</span>
-                  <span className="font-black text-white text-2xl tracking-tighter">
-                    {total.toLocaleString()} ₪
-                  </span>
+                  <span className="text-slate-400 font-medium text-sm">סה"כ לתשלום</span>
+                  <span className="font-black text-white text-2xl tracking-tighter">{total.toLocaleString()} ₪</span>
                 </div>
-
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleFinalOrder}
-                  className="w-full py-4 rounded-2xl
-                    bg-gradient-to-r from-emerald-500 to-emerald-600
-                    text-white font-black text-lg shadow-[0_0_20px_rgba(16,185,129,0.2)]
-                    hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] transition-all duration-300
-                    flex items-center justify-center gap-3"
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg flex items-center justify-center gap-3"
                 >
                   <Check className="w-6 h-6" />
                   שלח הזמנה לביצוע
