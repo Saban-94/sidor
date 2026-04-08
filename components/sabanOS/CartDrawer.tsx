@@ -35,10 +35,10 @@ export default function CartDrawer({
   const router = useRouter();
   const { phone } = router.query;
   
-  // פתרון שגיאת Hydration
+  // פתרון שגיאת Hydration ו-Prerendering
   const [mounted, setMounted] = useState(false);
   
-  // שדות לוגיסטיים שרויטל תשלים
+  // שדות לוגיסטיים שרויטל תשלים או המשתמש יקליד
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
   const [unloadingType, setUnloadingType] = useState('לא נקבע');
@@ -47,20 +47,22 @@ export default function CartDrawer({
     setMounted(true);
   }, []);
 
-  const total = (items || []).reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  // הגנה על חישוב הסכום בזמן Build
+  const currentItems = items || [];
+  const total = currentItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
   const handleFinalOrder = async () => {
-    if (items.length === 0) return;
+    if (currentItems.length === 0) return;
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
-    // הכנת הנתונים המורחבים לטבלה
+    // הכנת הנתונים המורחבים לטבלה החדשה
     const orderData = {
       phone: String(targetPhone),
-      items: items.map(i => ({ name: i.name, qty: i.quantity })),
-      address: deliveryAddress, // מה שרויטל חילצה
-      delivery_time: deliveryTime, // מה שרויטל חילצה
-      unloading_method: unloadingType, // מנוף 10 מ' או ידני
+      items: currentItems.map(i => ({ name: i.name, qty: i.quantity })),
+      address: deliveryAddress, 
+      delivery_time: deliveryTime, 
+      unloading_method: unloadingType, 
       status: 'pending'
     };
 
@@ -71,29 +73,37 @@ export default function CartDrawer({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
+        }).then(res => {
+          if (!res.ok) throw new Error("שגיאה בשמירה לטבלה");
+          return res.json();
         }),
-        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט. כתובת: ${deliveryAddress}, פריקה: ${unloadingType}`)
+        SabanAPI.sendMessage(targetPhone, `צ'ק-אאוט: ${currentItems.length} פריטים. יעד: ${deliveryAddress || 'לא צוין'}`)
       ]);
 
-      // 2. ריקון הסל המקומי
-      setCartItems([]);
+      // 2. ריקון הסל המקומי (שימוש ב-setCartItems שהגיע מה-Props)
+      if (typeof setCartItems === 'function') {
+        setCartItems([]);
+      }
       
       // 3. סגירת המגירה
       onClose();
 
-      // 4. הודעת סיכום סופית מרויטל
-      onSendMessage(`תודה בוס! ההזמנה נקלטה בסיסטם. 
-      📍 כתובת: ${deliveryAddress || 'תעודכן מול רויטל'}
-      ⏰ מועד: ${deliveryTime || 'יתואם טלפונית'}
-      🏗️ פריקה: ${unloadingType}
-      אנחנו יוצאים לדרך! 🚛`);
+      // 4. הודעת סיכום סופית מרויטל לצ'אט
+      if (typeof onSendMessage === 'function') {
+        onSendMessage(`תודה בוס! ההזמנה נקלטה במערכת בהצלחה. 🏗️
+        📍 יעד אספקה: ${deliveryAddress || 'רויטל תשלים מולך'}
+        ⏰ זמן מבוקש: ${deliveryTime || 'יתואם טלפונית'}
+        🏗️ סוג פריקה: ${unloadingType}
+        נציג מהמחסן יצור קשר לאישור סופי. אנחנו בדרך! 🚛`);
+      }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Order process failed:", error);
-      alert("בוס, הייתה תקלה ברישום. הנתונים בטבלה אבל הסל לא התרוקן.");
+      alert("בוס, הייתה תקלה ברישום: " + error.message);
     }
   };
 
+  // מונע את שגיאת ה-Minified React error #418
   if (!mounted) return null;
 
   return (
@@ -120,7 +130,7 @@ export default function CartDrawer({
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-500" />
-                <h2 className="text-xl font-bold text-white tracking-tight">סיכום הזמנה</h2>
+                <h2 className="text-xl font-bold text-white tracking-tight text-right">סיכום הזמנה</h2>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X className="w-5 h-5 text-slate-400" />
@@ -128,18 +138,18 @@ export default function CartDrawer({
             </div>
 
             {/* Items List */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3 text-right">
               
-              {/* קוביית פרטי אספקה (מה שרויטל משלימה) */}
+              {/* קוביית פרטי אספקה */}
               <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4 space-y-3">
                 <div className="flex items-center gap-3 text-sm text-slate-300">
                   <MapPin className="w-4 h-4 text-emerald-500" />
                   <input 
                     type="text" 
-                    placeholder="כתובת אספקה (רויטל תשלים...)" 
+                    placeholder="כתובת אספקה..." 
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600 text-right"
                   />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-300">
@@ -149,7 +159,7 @@ export default function CartDrawer({
                     placeholder="מועד הגעה מבוקש..." 
                     value={deliveryTime}
                     onChange={(e) => setDeliveryTime(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600 text-right"
                   />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-300">
@@ -157,21 +167,23 @@ export default function CartDrawer({
                   <select 
                     value={unloadingType}
                     onChange={(e) => setUnloadingType(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full text-white appearance-none cursor-pointer"
+                    className="bg-transparent border-none outline-none w-full text-white appearance-none cursor-pointer text-right"
                   >
                     <option value="לא נקבע" className="bg-[#0b141a]">סוג פריקה?</option>
-                    <option value="מנוף 10 מטר" className="bg-[#0b141a]">משאית מנוף (עד 10 מטר)</option>
+                    <option value="משאית מנוף" className="bg-[#0b141a]">משאית מנוף (עד 10 מ')</option>
                     <option value="פריקה ידנית" className="bg-[#0b141a]">פריקה ידנית</option>
                   </select>
                 </div>
               </div>
 
-              {items.length === 0 ? (
+              {currentItems.length === 0 ? (
                 <div className="text-center py-12 opacity-50 text-slate-400 text-xs">הסל ריק, בוס</div>
               ) : (
-                items.map((item, index) => (
+                currentItems.map((item, index) => (
                   <motion.div
-                    key={item.id}
+                    key={item.id || index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="glass-effect-light p-4 rounded-2xl flex items-start justify-between gap-3 border border-white/5"
                   >
                     <div className="flex-1 min-w-0 text-right">
@@ -189,7 +201,7 @@ export default function CartDrawer({
             </div>
 
             {/* Footer */}
-            {items.length > 0 && (
+            {currentItems.length > 0 && (
               <div className="glass-effect-strong border-t border-white/10 p-4 sm:p-6 space-y-4 bg-[#0b141a]/90">
                 <div className="flex justify-between items-center px-1">
                   <span className="text-slate-400 font-medium text-sm">סה"כ לתשלום</span>
@@ -199,7 +211,7 @@ export default function CartDrawer({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleFinalOrder}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg flex items-center justify-center gap-3"
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg flex items-center justify-center gap-3 transition-all"
                 >
                   <Check className="w-6 h-6" />
                   שלח הזמנה לביצוע
