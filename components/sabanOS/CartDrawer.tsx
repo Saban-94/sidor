@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, Check, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { X, Trash2, Check, Plus, Minus, ShoppingBag, MapPin, Clock, Truck } from 'lucide-react';
 import { SabanAPI } from '@/lib/SabanAPI';
 import { useRouter } from 'next/router';
 
@@ -19,8 +19,8 @@ interface CartDrawerProps {
   items: CartItem[];
   onRemoveItem: (id: string) => void;
   onUpdateQuantity?: (id: string, quantity: number) => void;
-  onSendMessage: (text: string) => void; 
-  setCartItems: (items: CartItem[]) => void; 
+  onSendMessage: (text: string) => void;
+  setCartItems: (items: CartItem[]) => void;
 }
 
 export default function CartDrawer({
@@ -35,7 +35,14 @@ export default function CartDrawer({
   const router = useRouter();
   const { phone } = router.query;
   
+  // פתרון שגיאת Hydration
   const [mounted, setMounted] = useState(false);
+  
+  // שדות לוגיסטיים שרויטל תשלים
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
+  const [unloadingType, setUnloadingType] = useState('לא נקבע');
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -47,9 +54,13 @@ export default function CartDrawer({
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
+    // הכנת הנתונים המורחבים לטבלה
     const orderData = {
       phone: String(targetPhone),
       items: items.map(i => ({ name: i.name, qty: i.quantity })),
+      address: deliveryAddress, // מה שרויטל חילצה
+      delivery_time: deliveryTime, // מה שרויטל חילצה
+      unloading_method: unloadingType, // מנוף 10 מ' או ידני
       status: 'pending'
     };
 
@@ -61,22 +72,21 @@ export default function CartDrawer({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
         }),
-        SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה מהסל: ${items.map(i => i.name).join(', ')}`)
+        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט. כתובת: ${deliveryAddress}, פריקה: ${unloadingType}`)
       ]);
 
-      // 2. ריקון הסל המקומי בבת אחת
+      // 2. ריקון הסל המקומי
       setCartItems([]);
       
       // 3. סגירת המגירה
       onClose();
 
-      // 4. הפעלת רויטל לצומת הלוגיסטית (תיקון שם הפונקציה ל-onSendMessage)
-      const summary = items.map(i => `${i.quantity} יחידות של ${i.name}`).join(', ');
-      
-      onSendMessage(`אישור קבלת רשימה: המערכת קלטה את ההזמנה שלך (${summary}). בוא נשלים פרטי אספקה: 
-      1. מה הכתובת המדויקת למשלוח?
-      2. מתי תרצה את האספקה (יום ושעה)?
-      3. איזה פריקה נדרשת: משאית מנוף (עד 10 מטר מרחק הנפה) או פריקה ידנית?`);
+      // 4. הודעת סיכום סופית מרויטל
+      onSendMessage(`תודה בוס! ההזמנה נקלטה בסיסטם. 
+      📍 כתובת: ${deliveryAddress || 'תעודכן מול רויטל'}
+      ⏰ מועד: ${deliveryTime || 'יתואם טלפונית'}
+      🏗️ פריקה: ${unloadingType}
+      אנחנו יוצאים לדרך! 🚛`);
 
     } catch (error) {
       console.error("Order process failed:", error);
@@ -110,7 +120,7 @@ export default function CartDrawer({
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-500" />
-                <h2 className="text-xl font-bold text-white tracking-tight">סל הקניות</h2>
+                <h2 className="text-xl font-bold text-white tracking-tight">סיכום הזמנה</h2>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X className="w-5 h-5 text-slate-400" />
@@ -119,46 +129,60 @@ export default function CartDrawer({
 
             {/* Items List */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3">
-              {items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12 opacity-50">
-                  <ShoppingBag className="w-12 h-12 mb-4 text-slate-600" />
-                  <p className="text-slate-400 mb-1">הסל שלך ריק</p>
-                  <p className="text-xs text-slate-500">הוסף פריטים כדי להתחיל</p>
+              
+              {/* קוביית פרטי אספקה (מה שרויטל משלימה) */}
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4 space-y-3">
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                  <input 
+                    type="text" 
+                    placeholder="כתובת אספקה (רויטל תשלים...)" 
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                  />
                 </div>
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <Clock className="w-4 h-4 text-emerald-500" />
+                  <input 
+                    type="text" 
+                    placeholder="מועד הגעה מבוקש..." 
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                  />
+                </div>
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <Truck className="w-4 h-4 text-emerald-500" />
+                  <select 
+                    value={unloadingType}
+                    onChange={(e) => setUnloadingType(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white appearance-none cursor-pointer"
+                  >
+                    <option value="לא נקבע" className="bg-[#0b141a]">סוג פריקה?</option>
+                    <option value="מנוף 10 מטר" className="bg-[#0b141a]">משאית מנוף (עד 10 מטר)</option>
+                    <option value="פריקה ידנית" className="bg-[#0b141a]">פריקה ידנית</option>
+                  </select>
+                </div>
+              </div>
+
+              {items.length === 0 ? (
+                <div className="text-center py-12 opacity-50 text-slate-400 text-xs">הסל ריק, בוס</div>
               ) : (
                 items.map((item, index) => (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="glass-effect-light p-4 rounded-2xl flex items-start justify-between gap-3 border border-white/5 shadow-inner"
+                    className="glass-effect-light p-4 rounded-2xl flex items-start justify-between gap-3 border border-white/5"
                   >
                     <div className="flex-1 min-w-0 text-right">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
-                        {item.verified && (
-                          <div className="flex-shrink-0 flex items-center gap-1 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                            <Check className="w-3 h-3 text-emerald-500" />
-                            <span className="text-[10px] text-emerald-500 font-black tracking-tighter">אומת AI</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        {onUpdateQuantity && (
-                          <div className="flex items-center gap-2 bg-black/30 rounded-xl px-2 py-1" dir="ltr">
-                            <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} className="p-1 hover:text-emerald-500 text-slate-400"><Plus className="w-3 h-3" /></button>
-                            <span className="text-xs font-black w-4 text-center text-white">{item.quantity}</span>
-                            <button onClick={() => item.quantity > 1 && onUpdateQuantity(item.id, item.quantity - 1)} className="p-1 hover:text-emerald-500 text-slate-400"><Minus className="w-3 h-3" /></button>
-                          </div>
-                        )}
+                      <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-emerald-500 font-black">{item.quantity} יחידות</span>
                         <p className="text-sm font-black text-emerald-500">
                           {item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור מחיר'}
                         </p>
                       </div>
                     </div>
-                    <button onClick={() => onRemoveItem(item.id)} className="p-2 rounded-xl text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                   </motion.div>
                 ))
               )}
