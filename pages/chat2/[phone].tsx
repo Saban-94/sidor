@@ -87,6 +87,7 @@ export default function SabanOSChat() {
       content: text || "📸 ניתוח תמונה...",
       isUser: true,
       timestamp: new Date(),
+      imageBase64: imageBase64 || undefined,
     };
 
     setMessages((prev) => [...prev, userMsg]);
