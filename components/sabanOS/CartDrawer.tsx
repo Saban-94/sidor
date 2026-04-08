@@ -19,6 +19,8 @@ interface CartDrawerProps {
   items: CartItem[];
   onRemoveItem: (id: string) => void;
   onUpdateQuantity?: (id: string, quantity: number) => void;
+  onSendMessage: (text: string) => void; // <-- הוספנו את זה
+  setCartItems: (items: CartItem[]) => void; // <-- והוספנו את זה לניקוי מהיר
 }
 
 export default function CartDrawer({
