@@ -16,7 +16,7 @@ interface CartItem {
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  items: CartItem[];
+  items = [],
   onRemoveItem: (id: string) => void;
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onSendMessage: (text: string) => void;
@@ -49,8 +49,7 @@ export default function CartDrawer({
 
   // הגנה על חישוב הסכום בזמן Build
   const currentItems = items || [];
-  const total = currentItems.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-
+const total = (items ?? []).reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
   const handleFinalOrder = async () => {
     if (currentItems.length === 0) return;
 
