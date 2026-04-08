@@ -3,7 +3,7 @@
  * Author: Rami
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxWiqsm8W82izlKZq4myLafLm8kI8ivkfZW2smw93Q1vkpr2DF7N5svC6La0Z8bj_Or/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw8T264S4_s2Epbx90lXRj3Ux6Mlj6jhLxkeX_oINqg8qzjrFdNmjlJWQ2MZygnCT5M/exec";
 
 export const SabanAPI = {
   /**
@@ -28,25 +28,24 @@ export const SabanAPI = {
     }
   },
 
-  /**
-   * שליחת הודעת לקוח לניתוח על ידי Gemini ורישום ההזמנה
-   * @param {string} phone - מספר טלפון (מזהה הלקוח)
-   * @param {string} message - הטקסט החופשי שהלקוח הקליד
-   */
-  sendMessage: async (phone, message) => {
+  
+
+  sendMessage: async (phone, message, imageBase64 = null) => {
     try {
       const response = await fetch(API_URL, {
         method: "POST",
         redirect: "follow",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8",
-        },
-        body: JSON.stringify({ action: "sendMessage", phone, message })
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ 
+          action: "sendMessage", 
+          phone, 
+          message,
+          image: imageBase64 // הוספת תמיכה בתמונות מהמצלמה
+        })
       });
       return await response.json();
     } catch (error) {
-      console.error("Send message failed:", error);
-      return { success: false, error: "שגיאת תקשורת מול השרת" };
+      return { success: false, error: "שגיאת תקשורת" };
     }
   }
 };
