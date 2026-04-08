@@ -118,20 +118,36 @@ const handleSendMessage = async (text: string, imageBase64: string | null = null
       ]);
 
       // 3. טיפול בעגלת הקניות (אם המוח זיהה מוצרים)
-      if (brainResponse?.cart && brainResponse.cart.length > 0) {
-        playMagicSound();
-        
-        const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
-          id: Math.random().toString(36).substr(2, 9),
-          name: item.name || item.product_name || "מוצר כללי", 
-          price: 0,
-          quantity: Number(item.qty || item.quantity || 1), 
-          verified: true,
-        }));
+if (brainResponse && brainResponse.cart && brainResponse.cart.length > 0) {
+  playMagicSound();
+  
+  const newItems: CartItem[] = brainResponse.cart.map((item: any) => {
+    // מנגנון חילוץ שם חכם - בודק את כל האופציות שה-AI נוטה להמציא
+    const extractedName = 
+      item.name || 
+      item.product_name || 
+      item.item || 
+      item.product || 
+      item.title || 
+      "מוצר מהשטח";
 
-        setCartItems(prev => [...prev, ...newItems]);
-        setTimeout(() => setIsCartOpen(true), 1500);
-      }
+    // חילוץ כמות והפיכה למספר תקין
+    const extractedQty = Number(item.qty || item.quantity || item.amount || 1);
+
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      name: extractedName,
+      price: 0, // המחיר יתעדכן מול המערכת בהמשך
+      quantity: extractedQty,
+      verified: true,
+    };
+  });
+
+  setCartItems(prev => [...prev, ...newItems]);
+  
+  // פתיחה אוטומטית של הסל כדי שהלקוח יראה מה נוסף
+  setTimeout(() => setIsCartOpen(true), 1200);
+}
 
       // 4. הוספת תשובת ה-AI לצ'אט
       if (brainResponse?.reply) {
