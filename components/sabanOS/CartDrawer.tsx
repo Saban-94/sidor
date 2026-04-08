@@ -82,14 +82,7 @@ const handleFinalOrder = async () => {
     }
   };
 
-      const waText = `הזמנה חדשה מ-SabanOS 🏗️\nלקוח: ${targetPhone}\n\nפריטים:\n${items.map(i => `• ${i.name} (כמות: ${i.quantity})`).join('\n')}\n\nנא לאשר הזמנה!`;
-      window.open(`https://wa.me/972508860896?text=${encodeURIComponent(waText)}`, '_blank');
-      
-      onClose();
-    } catch (error: any) {
-      alert("שגיאה ברישום ההזמנה: " + error.message);
-    }
-  };
+
 
   // מונע את שגיאת ה-Minified React error #418
   if (!mounted) return null;
