@@ -1,64 +1,111 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
+// בריכת מודלים חסינה שתומכת ב-Vision
 const MODEL_POOL = [
-  "gemini-3.1-flash-lite-preview",
-  "gemma-4-26b-a4b-it",
-  "gemini-2.0-flash" 
+  "gemini-2.0-flash", 
+  "gemini-1.5-flash"
 ];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // הגנה מפני שיטות לא מורשות
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // בדיקת מפתח API - מונע שגיאת 500
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error("Missing GEMINI_API_KEY");
-    return res.status(500).json({ error: "שרת לא מוגדר כראוי (Missing API Key)" });
-  }
+  const { message, imageBase64, phone } = req.body;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const targetPhone = String(phone || 'אורח');
+
+  if (!geminiKey) return res.status(500).json({ error: "Missing API Key" });
 
   try {
-    const { imageBase64, query } = req.body;
+    // 1. שליפת קונטקסט (זיכרון ומלאי)
+    const [inventory, customerMemory] = await Promise.all([
+      supabase.from('brain_inventory').select('*').limit(20),
+      supabase.from('customer_memory').select('*').eq('clientId', targetPhone).single()
+    ]);
 
-    // אם אין תמונה ואין טקסט - שלח 400
-    if (!imageBase64 && !query) {
-      return res.status(400).json({ error: "נא לספק תמונה או פקודה טקסטואלית" });
-    }
+    const memoryContext = customerMemory.data ? 
+      `לקוח: ${customerMemory.data.user_name} | ידע: ${customerMemory.data.accumulated_knowledge}` : 
+      "לקוח חדש.";
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const inventoryContext = inventory.data?.map(item => 
+      `* ${item.product_name} (${item.sku})`
+    ).join('\n') || "המלאי בטעינה...";
+
+    const prompt = `אתה joni מחברת ח.סבן. ענה תמיד בפורמט JSON בלבד.
+    מלאי זמין: ${inventoryContext}
+    היסטוריית לקוח: ${memoryContext}
     
+    הנחיות קריטיות:
+    - אם יש תמונה: נתח אותה והצע מוצר תואם מהמלאי.
+    - אל תשתמש במילה "בוס".
+    - החזר JSON במבנה הבא: { "reply": "תשובה ללקוח", "cart": [{"name": "שם", "qty": 1}], "update_memory": "תמצית לזיכרון" }`;
+
     for (const modelName of MODEL_POOL) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const parts: any[] = [{ text: prompt }];
         
-        let prompt = `אתה המוח של SabanOS. `;
-        if (imageBase64) prompt += `נתח את תעודת המשלוח הזו והחזר JSON. `;
-        prompt += `בקשת המשתמש: ${query || 'ניתוח כללי'}`;
-
-        const contentParts: any[] = [prompt];
         if (imageBase64) {
-          contentParts.push({
-            inlineData: { mimeType: "image/jpeg", data: imageBase64 }
+          // ניקוי Base64 קשיח למניעת שגיאות פורמט
+          const base64Data = imageBase64.includes('base64,') 
+            ? imageBase64.split('base64,')[1] 
+            : imageBase64;
+
+          parts.push({
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: base64Data
+            }
           });
         }
-
-        const result = await model.generateContent(contentParts);
-        const text = result.response.text();
         
-        return res.status(200).json({ 
-          reply: text.replace(/```json|```/g, "").trim(),
-          model: modelName 
-        });
+        parts.push({ text: message || (imageBase64 ? "נתח את התמונה ששלחתי" : "") });
+
+        const aiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] })
+          }
+        );
+
+        if (!aiRes.ok) continue;
+
+        const data = await aiRes.json();
+        let rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (rawReply) {
+          // ניקוי Markdown ושאריות טקסט מה-JSON
+          const jsonMatch = rawReply.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) continue;
+          
+          const parsed = JSON.parse(jsonMatch[0]);
+          
+          // עדכון זיכרון ב-Supabase
+          if (parsed.update_memory && targetPhone !== 'אורח') {
+            await supabase.from('customer_memory').upsert({
+              clientId: targetPhone,
+              accumulated_knowledge: (customerMemory.data?.accumulated_knowledge || '') + '\n' + parsed.update_memory,
+              updated_at: new Date()
+            });
+          }
+          
+          return res.status(200).json(parsed);
+        }
       } catch (err) {
-        console.error(`מודל ${modelName} נכשל, עובר לבא...`);
+        console.warn(`Model ${modelName} fail`, err);
         continue;
       }
     }
-    
-    res.status(500).json({ error: "כל המודלים נכשלו בעיבוד הבקשה" });
-  } catch (error: any) {
-    console.error("General API Error:", error);
-    res.status(500).json({ error: error.message || "Internal Error" });
+
+    return res.status(500).json({ error: "כל המודלים נכשלו בפענוח ה-JSON" });
+
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 }
