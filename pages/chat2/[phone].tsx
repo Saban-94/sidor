@@ -1,341 +1,181 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { createClient } from '@supabase/supabase-js';
-import { Menu, Send, X, Calculator, Camera, ShoppingCart, Share2, Sparkles, Sun, Moon, Trash2, CheckCircle2, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useRouter } from 'next/router';
-import { SabanAPI } from '@/lib/SabanAPI';
-
-// אתחול Supabase עם טיפול בבילד (ללא סימני קריאה)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { Mail, CalendarDays, Sun, Moon, Search, Settings, Star, AlertCircle, Clock3, Users, LayoutGrid, Package, MessageSquareShare } from 'lucide-react';
 
 const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
-const MAGIC_SOUND = "/magic-chime.mp3"; 
 
-const QUICK_QUERIES = [
-  { label: 'אני רוצה להזמין', icon: '🎯', color: 'text-red-500' },
-  { label: 'הזמנת מכולה/מנוף', icon: '🏗️', color: 'text-blue-400' },
-  { label: 'ייעוץ טכני/מפרט', icon: '🎓', color: 'text-orange-500' },
-  { label: 'מוצרי איטום וגבס', icon: '⛈️', color: 'text-emerald-400' },
-  { label: 'שעות פעילות וסניפים', icon: '🏢', color: 'text-slate-400' },
-  { label: 'צריך עזרה מנציג', icon: '👤', color: 'text-purple-500' }
+// --- דאטה מדומה למערכת האימייל ---
+const mockEmails = [
+  { id: 1, sender: "רויטל AI", subject: "📝 הזמנה חדשה - אתר טייבה", preview: "אח שלי, נקלטה הזמנה של 4 טיט ו-2 משטחי בלוק 20...", time: "10:30", type: "order" },
+  { id: 2, sender: "ראמי מסארוה", subject: "🏗️ משימה: בדיקת סידור נהגים", preview: "ודאי בבקשה שמוחמד ויוסף בסידור למחר ב-8:00.", time: "09:45", type: "task" },
+  { id: 3, sender: "מערכת SabanOS", subject: "📊 סקר שביעות רצון - קבלני איטום", preview: "הסקר היומי מוכן, נותח ע\"י רויטל, 98% מרוצים.", time: "08:15", type: "report" },
+  { id: 4, sender: "ספק ברזל", subject: "🚛 אישור משלוח - מוטות 12 מ\"מ", preview: "המשטח בדרך, צפוי להגיע למגרש תוך שעתיים.", time: "היום", type: "logistic" },
 ];
 
-export default function SabanAIAssistant() {
-  const router = useRouter();
-  const { phone } = router.query;
-
-  // מצבים לממשק
+export default function SabanOSWorkspace() {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [activeTab, setActiveTab] = useState<'mail' | 'calendar'>('mail');
   const [showSplash, setShowSplash] = useState(true);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [cartItems, setCartItems] = useState<any[]>([]);
-  const [showCart, setShowCart] = useState(false);
-  const [selectedProductSku, setSelectedProductSku] = useState<string | null>(null);
-  
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [selectedEmail, setSelectedEmail] = useState(mockEmails[0].id);
 
-  // 1. Splash & Greeting
+  // אתחול מצב תאורה
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 800);
-    if (messages.length === 0) {
-      const hour = new Date().getHours();
-      const greeting = hour < 12 ? "בוקר טוב" : hour < 18 ? "צהריים טובים" : "ערב טוב";
-      setMessages([{ role: 'ai', content: `${greeting} אחי! כאן המוח של ח.סבן. המחסן אצלי בידיים, מה נבנה היום?` }]);
-    }
+    const storedTheme = localStorage.getItem('saban_theme');
+    if (storedTheme) setIsDarkMode(storedTheme === 'dark');
     return () => clearTimeout(timer);
   }, []);
 
-  // 2. האזנה למחשבון (Iframe)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'ADD_TO_ORDER') {
-        const { productName, quantity, sku } = event.data;
-        setSelectedProductSku(null); 
-        askAI(`אני רוצה להזמין ${quantity} יחידות של ${productName} (מק"ט ${sku})`);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []); 
-
-  useEffect(() => { 
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); 
-  }, [messages, streamingText, loading]);
-
-  const playMagicSound = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
+  const toggleTheme = () => {
+    localStorage.setItem('saban_theme', isDarkMode ? 'light' : 'dark');
+    setIsDarkMode(!isDarkMode);
   };
 
-  const askAI = async (query: string | null, base64: string | null = null) => {
-    if ((!query?.trim() && !base64) || loading || isTyping) return;
-    
-    // הוספת הודעת המשתמש לצ'אט
-    if (query) {
-      setMessages(prev => [...prev, { role: 'user', content: query }]);
-    } else if (base64) {
-      setMessages(prev => [...prev, { role: 'user', content: "📸 שלחתי תמונה לניתוח..." }]);
-    }
-
-    setLoading(true);
-    setInput('');
-
-    try {
-      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'admin');
-      
-      // שליחה ל-SabanAPI (כולל תמיכה בתמונה)
-      const data = await SabanAPI.sendMessage(targetPhone, query || "ניתוח תמונה", base64);
-      
-      setLoading(false);
-
-      if (!data || !data.success) {
-        setMessages(prev => [...prev, { role: 'ai', content: data?.reply || "אחי, המוח קצת עמוס. נסה שוב בעוד רגע." }]);
-        return;
-      }
-
-      // --- עדכון סל קניות בזמן אמת ---
-      if (data.orderPlaced) {
-        playMagicSound();
-        const newCartItem = {
-          id: Date.now(),
-          name: data.items || "מוצר מהזמנה",
-          qty: "נקלט",
-          aiVerified: true
-        };
-        setCartItems(prev => [...prev, newCartItem]);
-        // השהייה קלה לפני פתיחת הסל לחוויית משתמש טובה יותר
-        setTimeout(() => setShowCart(true), 600);
-      }
-
-      // אפקט הקלדה לתשובה
-      setIsTyping(true);
-      let i = 0;
-      const words = data.reply.split(" ");
-      const interval = setInterval(() => {
-        if (i < words.length) {
-          setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
-          i++;
-        } else {
-          clearInterval(interval);
-          setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
-          setStreamingText("");
-          setIsTyping(false);
-          
-          if (data.reply.includes("SHOW_PRODUCT_CARD:")) {
-             const sku = data.reply.split("SHOW_PRODUCT_CARD:")[1].split(/\s/)[0].trim();
-             setSelectedProductSku(sku);
-          }
-        }
-      }, 35);
-
-    } catch (e) {
-      setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "משהו השתבש בתקשורת. וודא שאתה מחובר." }]);
-    }
-  };
-
-  const themeClass = isDarkMode ? "bg-[#0b141a] text-[#e9edef]" : "bg-[#f0f2f5] text-[#111b21]";
+  const themeBg = isDarkMode ? "bg-[#0b141a] text-[#e9edef]" : "bg-[#f0f2f5] text-[#111b21]";
+  const cardBg = isDarkMode ? "bg-[#202c33]/80 backdrop-blur-lg" : "bg-white/80 backdrop-blur-lg shadow-sm";
+  const darkFilter = isDarkMode ? "invert(90%) hue-rotate(180deg) brightness(1.1)" : "none";
 
   return (
-    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
+    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeBg}`} dir="rtl">
       <Head>
-        <title>SabanOS | AI Assistant</title>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#10b981" />
+        <title>SabanOS Workspace | מרכז שליטה</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
       </Head>
-      
-      <audio ref={audioRef} src={MAGIC_SOUND} />
 
       {/* Splash Screen */}
       <AnimatePresence>
         {showSplash && (
           <motion.div exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b141a] z-[100] flex items-center justify-center">
-            <motion.img 
-              initial={{ scale: 0.5, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              src={SABAN_LOGO} 
-              className="w-24 h-24 rounded-2xl shadow-2xl shadow-emerald-500/20"
-            />
+            <motion.img initial={{ scale: 0.8 }} animate={{ scale: 1 }} src={SABAN_LOGO} className="w-28 h-28 rounded-3xl shadow-2xl shadow-emerald-500/20"/>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header - Glassmorphism UI */}
-      <header className={`h-16 flex items-center justify-between px-5 z-40 border-b backdrop-blur-md ${isDarkMode ? 'bg-[#202c33]/90 border-white/5' : 'bg-white shadow-sm border-black/5'}`}>
+      {/* רקע דקורטיבי */}
+      <div className="fixed inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover opacity-5 pointer-events-none z-0" />
+
+      {/* Header - Glassmorphism */}
+      <header className={`h-16 flex items-center justify-between px-5 z-40 border-b backdrop-blur-md ${isDarkMode ? 'bg-[#202c33]/90 border-white/5' : 'bg-white/90 border-black/5 shadow-sm'}`}>
         <div className="flex items-center gap-3">
           <Menu size={22} className="text-slate-400 cursor-pointer" />
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-white/5 transition-transform active:scale-90">
+          <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-black/5">
             {isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-slate-600" />}
           </button>
         </div>
-
         <div className="flex flex-col items-center">
-          <span className="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Saban AI</span>
-          <img src={SABAN_LOGO} className="w-8 h-8 rounded-full border border-emerald-500/30" />
+          <span className="text-[10px] font-black tracking-widest text-emerald-500 uppercase">Saban Workspace</span>
+          <img src={SABAN_LOGO} className="w-8 h-8 rounded-full border border-emerald-500/30 object-cover shadow-lg" />
         </div>
-
-        <div className="relative p-2 cursor-pointer active:scale-90 transition-transform" onClick={() => setShowCart(true)}>
-          <ShoppingCart size={22} className="text-emerald-500" />
-          {cartItems.length > 0 && (
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -top-1 -right-1 bg-red-500 text-[10px] w-4 h-4 rounded-full flex items-center justify-center text-white font-black border-2 border-[#202c33]">
-              {cartItems.length}
-            </motion.span>
-          )}
+        <div className="flex items-center gap-2">
+          <Search size={22} className="text-slate-400 cursor-pointer" />
+          <Settings size={22} className="text-slate-400 cursor-pointer" />
         </div>
       </header>
 
-      {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative">
-        <div className="fixed inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center opacity-[0.03] pointer-events-none" />
+      {/* Main Container - Flex Row for Sidebar + Content */}
+      <div className="flex-1 flex overflow-hidden z-10">
         
-        {messages.map((m, i) => (
-          <motion.div initial={{ opacity: 0, x: m.role === 'user' ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] p-3.5 px-4 rounded-2xl shadow-lg ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tl-none border border-white/5' : 'bg-[#005c4b] text-white rounded-tr-none'}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-[14px] prose prose-invert prose-strong:text-emerald-300">{m.content}</ReactMarkdown>
-            </div>
-          </motion.div>
-        ))}
-
-        {(isTyping || streamingText) && (
-          <div className="flex justify-end">
-            <div className="max-w-[85%] p-3.5 px-4 rounded-2xl bg-[#005c4b] rounded-tr-none shadow-md flex items-center gap-2">
-              <span className="text-[14px]">{streamingText || "המוח מעבד נתונים..."}</span>
-              <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1.5 h-1.5 bg-emerald-300 rounded-full" />
-            </div>
-          </div>
-        )}
-        <div ref={scrollRef} className="h-4" />
-      </main>
-
-      {/* Cart Sidebar - Professional Drawer */}
-      <AnimatePresence>
-        {showCart && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[55]" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className={`fixed inset-y-0 right-0 w-[85%] max-w-sm z-[60] p-6 flex flex-col shadow-2xl ${isDarkMode ? 'bg-[#111b21]' : 'bg-white'}`}>
-              <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
-                <div className="flex items-center gap-2">
-                  <Package className="text-emerald-500" size={24} />
-                  <h2 className="text-xl font-black text-white italic tracking-tighter">הסל שלי</h2>
-                </div>
-                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-500 hover:text-white" />
-              </div>
-              
-              <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar">
-                {cartItems.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50 italic text-sm">הסל ריק כרגע...</div>
-                ) : (
-                  cartItems.map((item) => (
-                    <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={item.id} className={`p-4 rounded-2xl border-r-4 border-emerald-500 flex justify-between items-center ${isDarkMode ? 'bg-[#202c33]' : 'bg-slate-50'}`}>
-                      <div className="flex items-center gap-2">
-                        {item.aiVerified && <CheckCircle2 size={16} className="text-emerald-500" />}
-                        <div>
-                          <p className="font-bold text-sm text-white line-clamp-1">{item.name}</p>
-                          <p className="text-emerald-500 font-black text-xs mt-1">{item.qty}</p>
-                        </div>
-                      </div>
-                      <Trash2 size={18} className="text-red-400/40 hover:text-red-400 cursor-pointer transition-colors" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
-                    </motion.div>
-                  ))
-                )}
-              </div>
-
-              <button 
-                onClick={() => window.open(`https://wa.me/972508860896?text=${encodeURIComponent("הזמנה חדשה מ-SabanOS:\n" + cartItems.map(i => `• ${i.name}`).join('\n'))}`)} 
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-4 rounded-2xl mt-6 font-bold text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 active:scale-95 transition-transform"
-              >
-                <Share2 size={18}/> שלח הזמנה לוואטסאפ
-              </button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Product View Modal */}
-      <AnimatePresence>
-        {selectedProductSku && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#111b21] w-full max-w-lg h-[85vh] rounded-[2.5rem] overflow-hidden flex flex-col border border-white/10 shadow-2xl">
-              <div className="p-5 bg-[#202c33] flex justify-between items-center border-b border-white/5">
-                <span className="text-emerald-400 font-bold flex items-center gap-2"><Sparkles size={18}/> כרטיס מוצר חכם</span>
-                <X size={22} className="cursor-pointer text-slate-400" onClick={() => setSelectedProductSku(null)} />
-              </div>
-              <iframe src={`/product/${selectedProductSku}?embed=true`} className="flex-1 w-full bg-white border-none" />
-              <button onClick={() => setSelectedProductSku(null)} className="m-6 py-4 bg-emerald-600 text-white font-black rounded-2xl active:scale-95 transition-all">חזור לצ'אט</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Footer - Professional Input Section */}
-      <footer className={`p-4 pb-8 z-10 transition-colors ${isDarkMode ? 'bg-[#0b141a]' : 'bg-[#f0f2f5]'}`}>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 max-w-5xl mx-auto">
-          {QUICK_QUERIES.map((q, i) => (
-            <motion.button 
-              whileHover={{ y: -2 }} 
-              whileTap={{ scale: 0.95 }} 
-              key={i} 
-              onClick={() => askAI(q.label)} 
-              className={`whitespace-nowrap px-4 py-2.5 rounded-full text-[12px] font-bold border transition-all shadow-sm ${isDarkMode ? 'bg-[#202c33] border-white/5 text-white' : 'bg-white border-black/5 text-slate-700'}`}
-            >
-              <span className={q.color + " ml-2"}>{q.icon}</span>{q.label}
-            </motion.button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-3 max-w-5xl mx-auto bg-[#2a3942] p-2 rounded-[1.5rem] shadow-xl">
-          <motion.button 
-            whileTap={{ scale: 0.85 }} 
-            onClick={() => document.getElementById('camInput')?.click()} 
-            className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-          >
-            <Camera size={24}/>
-          </motion.button>
-          <input id="camInput" type="file" accept="image/*" className="hidden" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (ev) => askAI(null, ev.target?.result as string);
-          }} />
-          
-          <input 
-            value={input} onChange={e => setInput(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && askAI(input)}
-            placeholder="איך עוזרים היום? (רשום או צלם)" 
-            className="flex-1 bg-transparent border-none outline-none text-white text-sm font-medium px-2 placeholder:text-slate-500"
-          />
-          
-          <button 
-            onClick={() => askAI(input)} 
-            disabled={loading || isTyping} 
-            className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 disabled:opacity-30 disabled:grayscale transition-all"
-          >
-            <Send size={20} className="rotate-180" />
+        {/* Sidebar - נקי ותמציתי */}
+        <aside className={`w-16 flex flex-col items-center py-6 border-l ${isDarkMode ? 'bg-[#202c33] border-white/5' : 'bg-white border-black/5'}`}>
+          <button onClick={() => setActiveTab('mail')} className={`p-3 rounded-xl mb-4 transition-all ${activeTab === 'mail' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'text-slate-400'}`}>
+            <Mail size={22} />
           </button>
-        </div>
-      </footer>
+          <button onClick={() => setActiveTab('calendar')} className={`p-3 rounded-xl mb-4 transition-all ${activeTab === 'calendar' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'text-slate-400'}`}>
+            <CalendarDays size={22} />
+          </button>
+          <div className="mt-auto flex flex-col items-center gap-4 text-slate-400">
+             <LayoutGrid size={20}/>
+             <Package size={20}/>
+             <MessageSquareShare size={20}/>
+          </div>
+        </aside>
+
+        {/* Content Area */}
+        <main className="flex-1 flex overflow-hidden">
+          
+          {/* 1. Mail Mode - שילוב רשימה ותוכן אימייל */}
+          <AnimatePresence>
+            {activeTab === 'mail' && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 flex overflow-hidden">
+                
+                {/* Mail List */}
+                <div className={`w-2/5 border-l overflow-y-auto no-scrollbar ${isDarkMode ? 'border-white/5' : 'border-black/5'}`}>
+                  {mockEmails.map((e, i) => (
+                    <div 
+                      key={e.id} 
+                      onClick={() => setSelectedEmail(e.id)}
+                      className={`p-4 border-b cursor-pointer transition-colors relative ${e.id === selectedEmail ? (isDarkMode ? 'bg-[#2a3942]' : 'bg-emerald-50') : (isDarkMode ? 'border-white/5 hover:bg-[#2a3942]/50' : 'border-black/5 hover:bg-slate-50')}`}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`font-black text-sm ${isDarkMode ? 'text-white' : 'text-black'}`}>{e.sender}</span>
+                        <span className="text-xs text-slate-400">{e.time}</span>
+                      </div>
+                      <p className="font-bold text-xs text-emerald-500 mb-1 line-clamp-1">{e.subject}</p>
+                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{e.preview}</p>
+                      {i < 2 && <motion.div animate={{ opacity: [0,1,0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-500 rounded-full"/>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mail Detail - הודעת וואטסאפ מדומה */}
+                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                  {selectedEmail && (
+                    <div className={`${cardBg} p-6 rounded-[2rem] border border-white/5 shadow-xl leading-relaxed`}>
+                      <div className="flex justify-between items-start mb-6 border-b border-white/5 pb-4">
+                        <div className="flex items-center gap-3">
+                          <img src={SABAN_LOGO} className="w-10 h-10 rounded-full border border-emerald-500/30" />
+                          <div>
+                            <p className={`font-black text-sm ${isDarkMode ? 'text-white' : 'text-black'}`}>{mockEmails.find(e => e.id === selectedEmail)?.sender}</p>
+                            <p className="text-xs text-slate-400">נשלח אליך ב-{mockEmails.find(e => e.id === selectedEmail)?.time}</p>
+                          </div>
+                        </div>
+                        <Star size={18} className="text-yellow-500 fill-yellow-500" />
+                      </div>
+                      
+                      <h3 className="text-lg font-black text-emerald-500 mb-4">{mockEmails.find(e => e.id === selectedEmail)?.subject}</h3>
+                      
+                      <div className={`space-y-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                        <p className="text-sm">בוס היקר,</p>
+                        <p className="text-sm">רק מעדכנת שסגרתי את כל הפרטים מול הלקוח לגבי ההזמנה של הטיט והבלוקים. האישור הועבר לנהג דרך מערכת SabanOS. הכל רשום בגיליון לוגיסטיקה ובסידור היומי. ראמי כבר מעודכן וממתין לפריקה.</p>
+                        <p className="text-sm">תיעוד מלא נחת בגיליון Logs לסקרים היומיים.</p>
+                        <p className="text-sm">רויטל כאן לכל סגירה. 🏗️</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 2. Calendar Mode - יומן חי מתוך Google Calendar */}
+          <AnimatePresence>
+            {activeTab === 'calendar' && (
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col p-6 overflow-hidden">
+                <div className={`${cardBg} flex-1 rounded-[2rem] border border-white/5 shadow-xl overflow-hidden`}>
+                  
+                  {/* כתובת ה-Embed של היומן שלך */}
+                  <iframe 
+                    src="https://calendar.google.com/calendar/embed?src=hsaban2025%40gmail.com&ctz=Asia%2FJerusalem" 
+                    style={{ border: 0, filter: darkFilter }} 
+                    className="w-full h-full"
+                    frameBorder="0" 
+                    scrolling="no"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </main>
+      </div>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .prose strong { color: #34d399; font-weight: 800; }
-        body { background: #0b141a; }
+        body { background: #0b141a; font-family: sans-serif; }
       `}</style>
     </div>
   );
