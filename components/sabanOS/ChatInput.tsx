@@ -125,8 +125,7 @@ export default function ChatInput({
         </motion.button>
       </form>
       <p className="text-[10px] text-[#64748b] mt-2 text-center sm:text-right uppercase tracking-widest font-black">
-        Saban AI Vision Technology
-      </p>
+כל הזכויות שמורות לח.סבן חומרי בנין 1994 בע"מ      </p>
     </motion.div>
   );
 }
