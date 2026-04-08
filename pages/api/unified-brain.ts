@@ -2,96 +2,123 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! 
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// בריכת המודלים לגיבוי וביצועי Vision
+const MODEL_POOL = [
+  "gemini-2.0-flash", 
+  "gemini-3.1-flash-lite-preview",
+  "gemini-1.5-flash"
+];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { message, imageBase64, senderPhone } = req.body;
-  const cleanMsg = message?.trim();
-
-  if (!cleanMsg && !imageBase64) {
-    return res.status(200).json({ reply: "בוס, לא שלחת כלום. איך אני יכול לעזור?", success: false });
-  }
+  const targetPhone = String(senderPhone || 'אורח');
+  const geminiKey = process.env.GEMINI_API_KEY;
 
   try {
-    // 1. איסוף הקשר (Context) מהטבלאות ב-Supabase
-    let context = "";
-    
-    // משיכת נתוני מכולות וסידור עבודה
-    const { data: containers } = await supabase.from('containers').select('*');
-    if (containers) {
-      context += "סטטוס מכולות: " + containers.map(c => `מכולה ${c.id}: ${c.status}`).join(", ") + ". ";
-    }
+    // 1. איסוף "בריכת המידע" (Context) מכל הטבלאות במקביל
+    const [inventory, customerMemory, containers, projects] = await Promise.all([
+      supabase.from('brain_inventory').select('*').limit(20),
+      supabase.from('customer_memory').select('*').eq('clientId', targetPhone).single(),
+      supabase.from('container_management').select('*').eq('client_phone', targetPhone).eq('is_active', true),
+      supabase.from('customer_projects').select('*').eq('customer_id', targetPhone)
+    ]);
 
-    const today = new Date().toISOString().split('T')[0];
-    const { data: sidor } = await supabase.from('sidor_entries').select('*').eq('date', today);
-    if (sidor && sidor.length > 0) {
-      context += "סידור להיום: " + sidor.map(s => `${s.driver}: ${s.task}`).join(" | ") + ". ";
-    }
+    // בניית זיכרון וקונטקסט לרויטל
+    const memoryContext = customerMemory.data ? 
+      `שם לקוח: ${customerMemory.data.user_name} | ידע צבור: ${customerMemory.data.accumulated_knowledge}` : 
+      "לקוח חדש - בצע תהליך הקמה.";
 
-    // 2. הכנת הבקשה ל-Gemini עם דגש על פלט JSON מובנה
-    const model = imageBase64 ? "gemini-3.1-flash-lite-preview" : "gemini-2.0-flash"; 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const logisticContext = containers.data?.length ? 
+      `מכולות פעילות בשטח: ${containers.data.map(c => `${c.container_size} ב-${c.delivery_address}`).join(', ')}` : 
+      "אין מכולות פעילות.";
+
+    const inventoryContext = inventory.data?.map(item => 
+      `* ${item.product_name} (${item.sku}) | כיסוי: ${item.coverage_rate || 'לפי צורך'}`
+    ).join('\n');
 
     const systemPrompt = `
-      אתה המוח של 'ה. סבן חומרי בניין'. ענה בסגנון מקצועי וחברי ('אח על מלא').
-      אם המשתמש מבקש להזמין מוצר (גם אם זה מתמונה), עליך לזהות זאת.
+      אתה רויטל, מנהלת הלוגיסטיקה החכמה של ה. סבן. עני בסגנון מקצועי וחברי.
       
-      עליך להחזיר אך ורק JSON במבנה הבא:
+      מלאי זמין: ${inventoryContext}
+      זיכרון לקוח: ${memoryContext}
+      מצב לוגיסטי: ${logisticContext}
+
+      הנחיות קריטיות:
+      1. אם יש תמונה (imageBase64): נתחי אותה (מוצר/שרטוט) והציעי פתרון מהמלאי.
+      2. אם זוהתה הזמנה, החזירי אובייקט cart.
+      3. איסור מוחלט על המילה "בוס".
+      4. החזירי אך ורק JSON תקין.
+      
+      JSON Structure:
       {
-        "reply": "התשובה הטקסטואלית שלך ללקוח",
-        "orderPlaced": true/false (האם זוהתה הזמנה),
-        "items": "שם המוצר והכמות שזוהו (למשל: 3 שקי טיט)",
-        "success": true
+        "reply": "התשובה שלך",
+        "cart": [{"name": "שם המוצר", "qty": 1}],
+        "orderPlaced": true/false,
+        "update_memory": "תובנה חדשה על הלקוח ללמידה"
       }
-      
-      הקשר מהמערכת: ${context}
     `;
 
-    // בניית תוכן ההודעה (טקסט + תמונה אם קיימת)
-    const parts: any[] = [{ text: `הודעת המשתמש: ${cleanMsg || "ניתוח תמונה"}` }];
-    if (imageBase64) {
-      parts.push({
-        inline_data: {
-          mime_type: "image/jpeg",
-          data: imageBase64.split(",")[1] // הסרת ה-Prefix של ה-Base64
+    // 2. לוגיקת MODEL_POOL עם תמיכה במצלמה
+    for (const modelName of MODEL_POOL) {
+      try {
+        const parts: any[] = [{ text: message || "ניתוח תמונה..." }];
+        if (imageBase64) {
+          parts.push({
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: imageBase64.replace(/^data:image\/\w+;base64,/, "")
+            }
+          });
         }
-      });
+
+        const aiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          }
+        );
+
+        if (!aiRes.ok) continue;
+
+        const data = await aiRes.json();
+        const result = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
+
+        // 3. סגירת מעגל: עדכון זיכרון ותיעוד לוגים
+        if (result.update_memory && targetPhone !== 'אורח') {
+          await supabase.from('customer_memory').upsert({
+            clientId: targetPhone,
+            accumulated_knowledge: (customerMemory.data?.accumulated_knowledge || '') + '\n' + result.update_memory,
+            updated_at: new Date()
+          });
+        }
+
+        await supabase.from('logs').insert({
+          customer_phone: targetPhone,
+          message: message,
+          reply: result.reply,
+          is_order: result.orderPlaced
+        });
+
+        return res.status(200).json(result);
+
+      } catch (e) { continue; }
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { responseMimeType: "application/json" }
-      })
-    });
+    throw new Error("All models failed");
 
-    const aiData = await response.json();
-    const result = JSON.parse(aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
-
-    // 3. תיעוד האינטראקציה ב-Logs ב-Supabase
-    await supabase.from('logs').insert({
-      customer_phone: senderPhone,
-      message: cleanMsg,
-      reply: result.reply,
-      is_order: result.orderPlaced
-    });
-
-    return res.status(200).json(result);
-
-  } catch (error) {
-    console.error("Brain Error:", error);
-    return res.status(200).json({ 
-      reply: "בוס, המוח עמוס. וודא שכל המפתחות מוגדרים.", 
-      success: false 
-    });
+  } catch (error: any) {
+    return res.status(500).json({ reply: "רויטל עמוסה כרגע, נסה שוב אחי.", error: error.message });
   }
 }
