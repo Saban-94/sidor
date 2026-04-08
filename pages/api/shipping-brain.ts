@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase } from '@/lib/supabase';
 
 // בריכת המודלים לגיבוי וביצועי Vision כפי שהגדרת
-cconst MODEL_POOL = [
+const MODEL_POOL = [
   "gemini-3.1-flash-lite-preview",
   "gemma-4-26b-a4b-it",
   "gemini-2.0-flash" 
