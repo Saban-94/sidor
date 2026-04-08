@@ -22,7 +22,7 @@ export default function SmartOrderSync() {
     setLoading(true);
     setStatus(null);
     try {
-      const response = await fetch('/api/ai-supervisor-core', {
+      const response = await fetch('/api/shipping-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: text, sender_name: "ראמי מסארווה" })
