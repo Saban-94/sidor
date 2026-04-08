@@ -62,53 +62,50 @@ export default function SabanOSChatV2() {
       audioRef.current.play().catch(() => {});
     }
   };
-
 const askAI = async (query: string, imageBase64: string | null = null) => {
     if ((!query.trim() && !imageBase64) || loading || isTyping) return;
     
-    // הצגת הודעת המשתמש
-    setMessages(prev => [...prev, { 
-      role: 'user', 
-      content: query || "📸 ניתוח תמונה...", 
-      timestamp: new Date() 
-    }]);
-    
+    const userMsg = query || "📸 ניתוח תמונה...";
+    setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp: new Date() }]);
     setLoading(true);
     setInput('');
 
     try {
-      // פנייה למוח החדש ב-API הפנימי
-      const res = await fetch('/api/tools-brain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: query, 
-          imageBase64: imageBase64 // שליחת תמונה אם קיימת
-        })
-      });
+      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
 
-      const data = await res.json();
+      // --- הפנייה הכפולה במקביל ---
+      const [brainResponse, logResponse] = await Promise.all([
+        // 1. המוח הראשי (לחישובים ותשובה מהירה לממשק)
+        fetch('/api/tools-brain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: query, imageBase64 })
+        }).then(res => res.json()),
+
+        // 2. התיעוד ב-Apps Script (לרישום בגיליונות, יומן ורויטל)
+        // אנחנו לא מחכים לתשובה שלו כדי לא לעכב את הלקוח
+        SabanAPI.sendMessage(targetPhone, userMsg, imageBase64).catch(e => console.error("Logging failed", e))
+      ]);
+
       setLoading(false);
 
-      if (data && data.reply) {
-        // 1. בדיקה אם המוח הכניס מוצרים לסל (חישוב כמויות או זיהוי תמונה)
-        if (data.cart && data.cart.length > 0) {
+      if (brainResponse && brainResponse.reply) {
+        // טיפול בסל קניות (אם המוח החזיר פריטים)
+        if (brainResponse.cart && brainResponse.cart.length > 0) {
           playMagicSound();
-          const newItems = data.cart.map((item: any) => ({
+          const newItems = brainResponse.cart.map((item: any) => ({
             id: Math.random().toString(36).substr(2, 9),
             name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
             qty: item.qty
           }));
           setCartItems(prev => [...prev, ...newItems]);
-          
-          // פתיחת הסל אוטומטית אם נוספו פריטים
           setTimeout(() => setShowCart(true), 1200);
         }
 
-        // 2. אפקט הקלדה לתשובה המקצועית
+        // אפקט הקלדה לתשובה
         setIsTyping(true);
         let i = 0;
-        const words = data.reply.split(" ");
+        const words = brainResponse.reply.split(" ");
         setStreamingText("");
         
         const interval = setInterval(() => {
@@ -117,11 +114,7 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
             i++;
           } else {
             clearInterval(interval);
-            setMessages(prev => [...prev, { 
-              role: 'ai', 
-              content: data.reply, 
-              timestamp: new Date() 
-            }]);
+            setMessages(prev => [...prev, { role: 'ai', content: brainResponse.reply, timestamp: new Date() }]);
             setStreamingText("");
             setIsTyping(false);
           }
@@ -129,7 +122,7 @@ const askAI = async (query: string, imageBase64: string | null = null) => {
       }
     } catch (e) {
       setLoading(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "בוס, המוח עמוס כרגע. נסה שוב בעוד רגע." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "בוס, יש עומס בשרתים. נסה שוב." }]);
     }
   };
   
