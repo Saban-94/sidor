@@ -5,7 +5,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
-
+export const config = { runtime: 'edge' };
 // בריכת מודלים חסינה שתומכת ב-Vision
 const MODEL_POOL = [
   "gemini-3.1-pro-preview",       // הכי חכם לניתוח PDF מורכב וכתב יד קשה
