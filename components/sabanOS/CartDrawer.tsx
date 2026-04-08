@@ -157,18 +157,30 @@ export default function CartDrawer({
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {items.length === 0 ? (
-                  <p className="text-center text-slate-500 py-10 text-xs uppercase tracking-widest">הסל ריק בוס</p>
-                ) : (
-                  items.map((item) => (
-                    <div key={item.id} className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center shadow-inner">
-                      <div className="text-right">
-                        <p className="text-white text-sm font-bold">{item.name}</p>
-                        <p className="text-emerald-500 text-xs font-black">{item.quantity} יח'</p>
-                      </div>
-                      <p className="text-emerald-500 text-sm font-black">{item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור'}</p>
-                    </div>
+<div className="space-y-3">
+  {items.length === 0 ? (
+    <p className="text-center text-slate-500 py-10 text-xs uppercase tracking-widest">הסל ריק בוס</p>
+  ) : (
+    items.map((item) => (
+      <div key={item.id} className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center shadow-inner">
+        <div className="text-right">
+          {/* פתרון ה-undefined: בדיקה של כל השמות האפשריים שה-AI עשוי להחזיר */}
+          <p className="text-white text-sm font-bold">
+            {item.name || (item as any).product_name || (item as any).title || "מוצר ללא שם"}
+          </p>
+          <p className="text-emerald-500 text-xs font-black">
+            {item.quantity || (item as any).qty || 1} יח'
+          </p>
+        </div>
+        <p className="text-emerald-500 text-sm font-black">
+          {item.price > 0 
+            ? `${((item.price || 0) * (item.quantity || 1)).toLocaleString()} ₪` 
+            : 'בירור'}
+        </p>
+      </div>
+    ))
+  )}
+</div>
                   ))
                 )}
               </div>
