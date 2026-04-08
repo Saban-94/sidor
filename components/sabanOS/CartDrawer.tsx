@@ -63,7 +63,11 @@ const handleFinalOrder = async () => {
 
     if (result.success) {
       // 1. אפקטים של חגיגה
-      playMagicSound(); // צליל הקסם
+      const playMagicSound = () => {
+     // הוספת גרסה (v=...) מונעת את שגיאת הקאש
+     const audio = new Audio('/magic-chime.mp3?v=' + Date.now());
+       audio.play().catch(e => console.log("צליל נחסם עקב הגדרות דפדפן", e));
+      };צליל הקסם
       triggerConfetti(); // הזיקוקים
 
       // 2. ריקון הסל
