@@ -39,36 +39,48 @@ export default function CartDrawer({
 
   const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
-  const handleFinalOrder = async () => {
+const handleFinalOrder = async () => {
     if (items.length === 0) return;
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
     const orderData = {
       phone: String(targetPhone),
-      items: items.map(item => ({
-        name: item.name,
-        qty: item.quantity,
-        price: item.price
-      })),
+      items: items,
       status: 'pending'
     };
 
     try {
+      // 1. שליחה לטבלה ולתיעוד
       await Promise.all([
         fetch('/api/save-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
-        }).then(async res => {
-          if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || "שגיאת שרת");
-          }
-          return res.json();
         }),
-        SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה סופית: ${items.map(i => i.name).join(', ')}`)
+        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט לסל: ${items.map(i => i.name).join(', ')}`)
       ]);
+
+      // 2. פתיחת וואטסאפ לראמי (אופציונלי)
+      const waText = `הזמנה חדשה מ-SabanOS 🏗️\nפריטים:\n${items.map(i => `• ${i.name}`).join('\n')}`;
+      window.open(`https://wa.me/972508860896?text=${encodeURIComponent(waText)}`, '_blank');
+      
+      // 3. התיקון הקריטי: ניקוי הסל וסגירה
+      if (typeof onUpdateQuantity === 'function') {
+        // כאן אנחנו מאפסים את הסטייט הראשי
+        items.forEach(item => onRemoveItem(item.id)); 
+      }
+      
+      onClose(); // סגירת המגירה
+
+      // 4. הצומת הבאה: רויטל מאשרת וממשיכה לפרטים
+      const summary = items.map(i => `${i.quantity} יחידות של ${i.name}`).join(', ');
+      handleSendMessage(`אישור קבלת רשימה: קיבלתי את הנתונים לסל: ${summary}. בוא נשלים פרטים לאספקה.`);
+
+    } catch (error) {
+      alert("תקלה ברישום, נסה שוב.");
+    }
+  };
 
       const waText = `הזמנה חדשה מ-SabanOS 🏗️\nלקוח: ${targetPhone}\n\nפריטים:\n${items.map(i => `• ${i.name} (כמות: ${i.quantity})`).join('\n')}\n\nנא לאשר הזמנה!`;
       window.open(`https://wa.me/972508860896?text=${encodeURIComponent(waText)}`, '_blank');
