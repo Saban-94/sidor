@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, MapPin, Clock, Truck, Plus, Minus, Trash2, Box } from 'lucide-react';
 import { useRouter } from 'next/router';
+import confetti from 'canvas-confetti'; // וודא שהתקנת: pnpm add canvas-confetti
 
 interface CartItem {
   id: string;
@@ -39,78 +40,79 @@ export default function CartDrawer({
   const [unloadingType, setUnloadingType] = useState('לא נקבע');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-const handleFinalOrder = async () => {
-  if (!items.length || isSubmitting) return;
-  setIsSubmitting(true);
+  useEffect(() => { setMounted(true); }, []);
 
-  try {
-    const { phone } = router.query;
-    const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
+  const triggerMagicEffects = () => {
+    // 1. צליל הקסם
+    const audio = new Audio(`/magic-chime.mp3?v=${Date.now()}`);
+    audio.play().catch(e => console.log("צליל נחסם", e));
 
-    // שליחה ל-API שעדכנו
-    const response = await fetch('/api/save-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: targetPhone,
-        items: items,
-        address: deliveryAddress,
-        unloading_method: unloadingType
-      })
+    // 2. זיקוקים
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#10b981', '#ffffff', '#3b82f6']
     });
+  };
 
-    const result = await response.json();
+  const handleFinalOrder = async () => {
+    if (!items.length || isSubmitting) return;
+    setIsSubmitting(true);
 
-    if (result.success) {
-      // 1. אפקטים של חגיגה
-      const playMagicSound = () => {
-     // הוספת גרסה (v=...) מונעת את שגיאת הקאש
-     const audio = new Audio('/magic-chime.mp3?v=' + Date.now());
-       audio.play().catch(e => console.log("צליל נחסם עקב הגדרות דפדפן", e));
-      };צליל הקסם
-      triggerConfetti(); // הזיקוקים
+    try {
+      const { phone } = router.query;
+      const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
 
-      // 2. ריקון הסל
-      setCartItems([]);
-      
-      // 3. הפניה לדף המעקב בנתיב שציינת
-      const trackUrl = `/track/${result.orderNumber}?phone=${targetPhone}`;
-      
-      onSendMessage(`הזמנה #${result.orderNumber} נשלחה בהצלחה! 🚀 רויטל מעבירה אותך לדף מעקב...`);
-      
-      setTimeout(() => {
-        onClose();
-        router.push(trackUrl);
-      }, 2500);
+      const response = await fetch('/api/save-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: targetPhone,
+          items: items,
+          address: deliveryAddress,
+          unloading_method: unloadingType
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        triggerMagicEffects();
+        setCartItems([]);
+        
+        const trackUrl = `/track/${result.orderNumber}?phone=${targetPhone}`;
+        onSendMessage(`הזמנה #${result.orderNumber} נשלחה! 🚀 עוברים לדף מעקב...`);
+        
+        setTimeout(() => {
+          onClose();
+          router.push(trackUrl);
+        }, 2500);
+      }
+    } catch (error) {
+      console.error("שגיאה:", error);
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (error) {
-    console.error("שגיאה בשליחת הזמנה:", error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
+
+  if (!mounted) return null;
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Overlay מעומעם עם טשטוש יוקרתי */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
             className="fixed inset-0 bg-[#0b141a]/60 backdrop-blur-md z-[60]"
           />
-
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 h-full w-full sm:w-[400px] bg-[#0f172a] z-[70] flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.5)] border-l border-white/10"
             dir="rtl"
           >
-            {/* Header בעיצוב בהיר מנוגד */}
             <div className="p-6 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -118,31 +120,26 @@ const handleFinalOrder = async () => {
                     <ShoppingBag size={24} className="text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black">סל הזמנות</h2>
+                    <h2 className="text-xl font-black text-white">סל הזמנות</h2>
                     <p className="text-xs text-emerald-100 opacity-80 font-medium">ח. סבן לוגיסטיקה בע"מ</p>
                   </div>
                 </div>
-                <button onClick={onClose} className="hover:rotate-90 transition-transform duration-300 p-1">
+                <button onClick={onClose} className="hover:rotate-90 transition-transform duration-300 p-1 text-white">
                   <X size={24} />
                 </button>
               </div>
             </div>
 
-            {/* תוכן הסל */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6 no-scrollbar bg-[#0f172a]">
-              
-              {/* כרטיס פרטי משלוח בעיצוב כהה משולב */}
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4 shadow-inner">
-                <div className="flex items-center gap-3 bg-[#1e293b] p-3 rounded-2xl border border-white/5 group focus-within:border-emerald-500 transition-all">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+                <div className="flex items-center gap-3 bg-[#1e293b] p-3 rounded-2xl border border-white/5">
                   <MapPin size={18} className="text-emerald-500" />
                   <input 
-                    placeholder="לאן לשלוח?" 
-                    value={deliveryAddress} 
+                    placeholder="לאן לשלוח?" value={deliveryAddress} 
                     onChange={e => setDeliveryAddress(e.target.value)}
                     className="bg-transparent text-white outline-none w-full text-sm font-medium"
                   />
                 </div>
-                
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2 bg-[#1e293b] p-3 rounded-2xl border border-white/5">
                     <Clock size={16} className="text-emerald-500" />
@@ -158,7 +155,6 @@ const handleFinalOrder = async () => {
                 </div>
               </div>
 
-              {/* רשימת מוצרים בעיצוב בהיר-כהה משולב */}
               <div className="space-y-3">
                 {items.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 opacity-20">
@@ -167,46 +163,18 @@ const handleFinalOrder = async () => {
                   </div>
                 ) : (
                   items.map((item) => (
-                    <motion.div 
-                      key={item.id}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="group relative bg-white/[0.03] hover:bg-white/[0.07] p-4 rounded-3xl border border-white/5 flex justify-between items-center transition-all"
-                    >
+                    <motion.div key={item.id} layout className="bg-white/[0.03] p-4 rounded-3xl border border-white/5 flex justify-between items-center transition-all">
                       <div className="flex flex-col gap-2">
-                        <span className="text-white font-bold text-sm leading-tight max-w-[180px]">
-                          {item.name || "מוצר ללא שם"}
-                        </span>
-                        
-                        {/* בורר כמות מעוצב */}
+                        <span className="text-white font-bold text-sm leading-tight max-w-[180px]">{item.name}</span>
                         <div className="flex items-center bg-[#0f172a] rounded-full p-1 border border-white/10 w-fit">
-                          <button 
-                            onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                          >
-                            <Minus size={14} />
-                          </button>
+                          <button onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white"><Minus size={14} /></button>
                           <span className="px-3 text-white font-black text-sm">{item.quantity}</span>
-                          <button 
-                            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all"
-                          >
-                            <Plus size={14} />
-                          </button>
+                          <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/20 text-emerald-500"><Plus size={14} /></button>
                         </div>
                       </div>
-
                       <div className="flex flex-col items-end gap-3">
-                        <button 
-                          onClick={() => onRemoveItem(item.id)}
-                          className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-full transition-all"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                        <span className="text-[10px] uppercase tracking-widest text-emerald-500 font-black opacity-60">
-                          בתיאום מחיר
-                        </span>
+                        <button onClick={() => onRemoveItem(item.id)} className="p-2 text-slate-500 hover:text-rose-500"><Trash2 size={18} /></button>
+                        <span className="text-[10px] uppercase tracking-widest text-emerald-500 font-black opacity-60">בתיאום מחיר</span>
                       </div>
                     </motion.div>
                   ))
@@ -214,19 +182,12 @@ const handleFinalOrder = async () => {
               </div>
             </div>
 
-            {/* Footer יוקרתי */}
             {items.length > 0 && (
               <div className="p-6 bg-[#1e293b]/50 border-t border-white/10 backdrop-blur-xl">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-slate-400 font-medium">סה"כ פריטים</span>
-                  <span className="text-white font-black text-2xl">{items.length}</span>
-                </div>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleFinalOrder}
-                  disabled={isSubmitting}
-                  className="w-full py-5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-[2rem] font-black text-lg shadow-[0_10px_20px_rgba(16,185,129,0.3)] disabled:opacity-50 disabled:grayscale transition-all"
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={handleFinalOrder} disabled={isSubmitting}
+                  className="w-full py-5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-[2rem] font-black text-lg shadow-[0_10px_20px_rgba(16,185,129,0.3)] disabled:opacity-50"
                 >
                   {isSubmitting ? 'מעבד הזמנה...' : 'אשר ושלח לרויטל'}
                 </motion.button>
