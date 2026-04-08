@@ -5,23 +5,28 @@ import { X, Trash2, Check, Plus, Minus, ShoppingBag, MapPin, Clock, Truck } from
 import { SabanAPI } from '@/lib/SabanAPI';
 import { useRouter } from 'next/router';
 
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  verified: boolean;
-}
-
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  items = [],
+  items: CartItem[]; // פה רק הגדרת סוג, בלי ערך
   onRemoveItem: (id: string) => void;
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onSendMessage: (text: string) => void;
   setCartItems: (items: CartItem[]) => void;
 }
+
+// 2. פה, בתוך הפונקציה, שמים את ערך ברירת המחדל
+export default function CartDrawer({
+  isOpen,
+  onClose,
+  items = [], // <-- כאן זה המקום הנכון לערך ברירת המחדל!
+  onRemoveItem,
+  onUpdateQuantity,
+  onSendMessage,
+  setCartItems
+}: CartDrawerProps) {
+  
+  const router = useRouter();
 
 export default function CartDrawer({
   isOpen,
