@@ -1,229 +1,214 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
-import { 
-  Menu, 
-  Send, 
-  X, 
-  ShoppingCart, 
-  Trash2, 
-  CheckCircle2, 
-  Sparkles, 
-  Share2, 
-  Sun, 
-  Moon, 
-  Package 
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useRouter } from 'next/router';
+import { X, Trash2, Check, Plus, Minus, ShoppingBag, MapPin, Clock, Truck } from 'lucide-react';
 import { SabanAPI } from '@/lib/SabanAPI';
+import { useRouter } from 'next/router';
 
-const SABAN_LOGO = "https://i.postimg.cc/3wTMxG7W/ai.jpg";
-const MAGIC_SOUND = "/magic-chime.mp3"; 
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  verified: boolean;
+}
 
-const QUICK_ACTIONS = [
-  { label: 'הזמנת חומרים', icon: '🏗️' },
-  { label: 'בדיקת מלאי', icon: '📦' },
-  { label: 'מצב חשבון', icon: '💰' }
-];
+interface CartDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items: CartItem[];
+  onRemoveItem: (id: string) => void;
+  onUpdateQuantity?: (id: string, quantity: number) => void;
+  onSendMessage: (text: string) => void;
+  setCartItems: (items: CartItem[]) => void;
+}
 
-export default function SabanOSChatV2() {
+export default function CartDrawer({
+  isOpen,
+  onClose,
+  items,
+  onRemoveItem,
+  onUpdateQuantity,
+  onSendMessage,
+  setCartItems
+}: CartDrawerProps) {
   const router = useRouter();
   const { phone } = router.query;
-
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [cartItems, setCartItems] = useState<any[]>([]);
-  const [showCart, setShowCart] = useState(false);
   
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // הגדרת משתנה ה-Theme (זה מה שהיה חסר ב-Build)
-  const themeClass = isDarkMode ? "bg-[#0b141a] text-white" : "bg-[#f0f2f5] text-[#111b21]";
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{ id: '1', role: 'ai', content: 'שלום בוס! רויטל כאן. איך עוזרים היום?', timestamp: new Date() }]);
-    }
-    audioRef.current = new Audio(MAGIC_SOUND);
-  }, [messages.length]);
+  // פתרון שגיאת Hydration
+  const [mounted, setMounted] = useState(false);
+  
+  // שדות לוגיסטיים שרויטל תשלים
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
+  const [unloadingType, setUnloadingType] = useState('לא נקבע');
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingText, loading]);
+    setMounted(true);
+  }, []);
 
-  const playMagicSound = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
-  };
+  const total = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
-  const askAI = async (query: string, imageBase64: string | null = null) => {
-    if ((!query.trim() && !imageBase64) || loading || isTyping) return;
-    
-    const userMsg = query || "📸 ניתוח תמונה...";
+  const handleFinalOrder = async () => {
+    if (items.length === 0) return;
+
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
-
-    setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp: new Date() }]);
-    setLoading(true);
-    setInput('');
+    
+    // הכנת הנתונים המורחבים לטבלה
+    const orderData = {
+      phone: String(targetPhone),
+      items: items.map(i => ({ name: i.name, qty: i.quantity })),
+      address: deliveryAddress, // מה שרויטל חילצה
+      delivery_time: deliveryTime, // מה שרויטל חילצה
+      unloading_method: unloadingType, // מנוף 10 מ' או ידני
+      status: 'pending'
+    };
 
     try {
-      const [brainResponse] = await Promise.all([
-        fetch('/api/tools-brain', {
+      // 1. שליחה ל-Supabase ולגוגל במקביל
+      await Promise.all([
+        fetch('/api/save-order', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ message: query || "", imageBase64: imageBase64 || null })
-        }).then(async res => {
-          if (!res.ok) throw new Error(`Brain Error: ${res.status}`);
-          return res.json();
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
         }),
-        SabanAPI.sendMessage(targetPhone, userMsg, imageBase64).catch(e => console.error("Logging failed", e))
+        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט. כתובת: ${deliveryAddress}, פריקה: ${unloadingType}`)
       ]);
 
-      setLoading(false);
+      // 2. ריקון הסל המקומי
+      setCartItems([]);
+      
+      // 3. סגירת המגירה
+      onClose();
 
-      if (brainResponse && brainResponse.reply) {
-        if (brainResponse.cart && brainResponse.cart.length > 0) {
-          playMagicSound();
-          const newItems = brainResponse.cart.map((item: any) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
-            qty: item.qty
-          }));
-          setCartItems(prev => [...prev, ...newItems]);
-          setTimeout(() => setShowCart(true), 1500);
-        }
+      // 4. הודעת סיכום סופית מרויטל
+      onSendMessage(`תודה בוס! ההזמנה נקלטה בסיסטם. 
+      📍 כתובת: ${deliveryAddress || 'תעודכן מול רויטל'}
+      ⏰ מועד: ${deliveryTime || 'יתואם טלפונית'}
+      🏗️ פריקה: ${unloadingType}
+      אנחנו יוצאים לדרך! 🚛`);
 
-        setIsTyping(true);
-        let i = 0;
-        const words = brainResponse.reply.split(" ");
-        setStreamingText("");
-        
-        const interval = setInterval(() => {
-          if (i < words.length) {
-            setStreamingText(prev => prev + (i === 0 ? "" : " ") + words[i]);
-            i++;
-          } else {
-            clearInterval(interval);
-            setMessages(prev => [...prev, { role: 'ai', content: brainResponse.reply, timestamp: new Date() }]);
-            setStreamingText("");
-            setIsTyping(false);
-          }
-        }, 30);
-      }
-    } catch (e: any) {
-      setLoading(false);
-      setIsTyping(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "בוס, יש תקלה זמנית בחיבור." }]);
+    } catch (error) {
+      console.error("Order process failed:", error);
+      alert("בוס, הייתה תקלה ברישום. הנתונים בטבלה אבל הסל לא התרוקן.");
     }
   };
 
+  if (!mounted) return null;
+
   return (
-    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden ${themeClass}`} dir="rtl">
-      <Head>
-        <title>SabanOS | Chat V2</title>
-      </Head>
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+          />
 
-      <header className={`h-16 flex items-center justify-between px-5 z-40 border-b backdrop-blur-md ${isDarkMode ? 'bg-[#202c33]/90 border-white/5' : 'bg-white/90 border-black/5 shadow-sm'}`}>
-        <div className="flex items-center gap-3">
-          <Menu size={24} className="text-slate-400 cursor-pointer" />
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-xl hover:bg-black/5">
-            {isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-slate-600" />}
-          </button>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] font-black tracking-widest text-emerald-500 uppercase">Saban OS</span>
-          <img src={SABAN_LOGO} className="w-8 h-8 rounded-full border border-emerald-500/30 object-cover" />
-        </div>
-        <div className="relative cursor-pointer" onClick={() => setShowCart(true)}>
-          <ShoppingCart size={24} className="text-emerald-500" />
-          {cartItems.length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-[10px] w-5 h-5 rounded-full flex items-center justify-center text-white font-bold border-2 border-[#202c33]">
-              {cartItems.length}
-            </span>
-          )}
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`max-w-[85%] p-3 px-4 rounded-2xl shadow-md ${m.role === 'user' ? 'bg-[#202c33] border border-white/5' : 'bg-[#005c4b] text-white'}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm prose prose-invert">{m.content}</ReactMarkdown>
-            </motion.div>
-          </div>
-        ))}
-        {isTyping && (
-          <div className="flex justify-end">
-            <div className="max-w-[85%] p-3 px-4 rounded-2xl bg-[#005c4b] text-white flex items-center gap-2">
-              <span className="text-sm">{streamingText || "..."}</span>
-              <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-emerald-300 rounded-full" />
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden shadow-2xl bg-[#0b141a]/95"
+            dir="rtl"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-500" />
+                <h2 className="text-xl font-bold text-white tracking-tight">סיכום הזמנה</h2>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
             </div>
-          </div>
-        )}
-        <div ref={scrollRef} className="h-4" />
-      </main>
 
-      <AnimatePresence>
-        {showCart && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55]" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed inset-y-0 right-0 w-[85%] max-w-sm z-[60] p-6 flex flex-col bg-[#111b21] shadow-2xl border-r border-white/10">
-              <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
-                <h2 className="text-xl font-black text-emerald-500 italic flex items-center gap-2"><Package /> הסל של סבן</h2>
-                <X onClick={() => setShowCart(false)} className="cursor-pointer text-slate-400" />
+            {/* Items List */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-6 py-4 space-y-3">
+              
+              {/* קוביית פרטי אספקה (מה שרויטל משלימה) */}
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4 space-y-3">
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                  <input 
+                    type="text" 
+                    placeholder="כתובת אספקה (רויטל תשלים...)" 
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                  />
+                </div>
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <Clock className="w-4 h-4 text-emerald-500" />
+                  <input 
+                    type="text" 
+                    placeholder="מועד הגעה מבוקש..." 
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white placeholder:text-slate-600"
+                  />
+                </div>
+                <div className="flex items-center gap-3 text-sm text-slate-300">
+                  <Truck className="w-4 h-4 text-emerald-500" />
+                  <select 
+                    value={unloadingType}
+                    onChange={(e) => setUnloadingType(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-white appearance-none cursor-pointer"
+                  >
+                    <option value="לא נקבע" className="bg-[#0b141a]">סוג פריקה?</option>
+                    <option value="מנוף 10 מטר" className="bg-[#0b141a]">משאית מנוף (עד 10 מטר)</option>
+                    <option value="פריקה ידנית" className="bg-[#0b141a]">פריקה ידנית</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {cartItems.map(item => (
-                  <div key={item.id} className="p-4 bg-[#202c33] rounded-xl flex justify-between items-center border-r-4 border-emerald-500">
-                    <span className="text-sm font-bold text-white">{item.name}</span>
-                    <Trash2 size={16} className="text-red-400/50 cursor-pointer" onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-auto pt-6 space-y-3">
-                <button 
-                  onClick={() => {/* לוגיקת שמירה כפי שהוספנו קודם */}}
-                  className="w-full bg-white text-black py-4 rounded-2xl font-black flex items-center justify-center gap-2"
+
+              {items.length === 0 ? (
+                <div className="text-center py-12 opacity-50 text-slate-400 text-xs">הסל ריק, בוס</div>
+              ) : (
+                items.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    className="glass-effect-light p-4 rounded-2xl flex items-start justify-between gap-3 border border-white/5"
+                  >
+                    <div className="flex-1 min-w-0 text-right">
+                      <h3 className="text-sm font-bold text-white truncate">{item.name}</h3>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-emerald-500 font-black">{item.quantity} יחידות</span>
+                        <p className="text-sm font-black text-emerald-500">
+                          {item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור מחיר'}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {items.length > 0 && (
+              <div className="glass-effect-strong border-t border-white/10 p-4 sm:p-6 space-y-4 bg-[#0b141a]/90">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-slate-400 font-medium text-sm">סה"כ לתשלום</span>
+                  <span className="font-black text-white text-2xl tracking-tighter">{total.toLocaleString()} ₪</span>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleFinalOrder}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg flex items-center justify-center gap-3"
                 >
-                  <CheckCircle2 size={20} /> שלח הזמנה לביצוע
-                </button>
+                  <Check className="w-6 h-6" />
+                  שלח הזמנה לביצוע
+                </motion.button>
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <footer className="p-4 bg-transparent z-10">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 pb-2 max-w-5xl mx-auto">
-          {QUICK_ACTIONS.map((action, i) => (
-            <button key={i} onClick={() => askAI(action.label)} className="whitespace-nowrap px-4 py-2 bg-[#2a3942] rounded-full text-xs font-bold text-white border border-white/5">
-              <span>{action.icon}</span> {action.label}
-            </button>
-          ))}
-        </div>
-        <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="flex gap-3 max-w-5xl mx-auto items-center">
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder="איך עוזרים היום בוס?" className="flex-1 p-3.5 px-6 rounded-full bg-[#2a3942] text-white outline-none border border-transparent focus:border-emerald-500/50" />
-          <button type="submit" className="w-12 h-12 bg-emerald-500 text-black rounded-full flex items-center justify-center">
-            <Send size={20} className="rotate-180" />
-          </button>
-        </form>
-      </footer>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-      `}</style>
-    </div>
+            )}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
