@@ -2,10 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Camera, Send, Loader2, CheckCircle, 
-  AlertCircle, Zap, Database, MessageSquare 
-} from 'lucide-react';
+import { Camera, Send, Loader2, CheckCircle, AlertCircle, Zap, Database, MessageSquare } from 'lucide-react';
 
 export default function SmartOrderSync() {
   const [input, setInput] = useState('');
@@ -19,24 +16,28 @@ export default function SmartOrderSync() {
     { label: 'דוח נהגים', icon: MessageSquare }
   ];
 
-  const handleSendCommand = async (text) => {
-    if (!text?.trim() || loading) return;
-    setLoading(true);
-    setStatus(null);
-    try {
-      const res = await fetch('/api/shipping-brain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text, imageBase64: null })
-      });
-      setStatus(res.ok ? 'success' : 'error');
-      if (res.ok) setInput('');
-    } catch (err) {
-      setStatus('error');
-    } finally {
-      setLoading(false);
-      setTimeout(() => setStatus(null), 3000);
-    }
+  // פונקציה לדחיסת תמונה - מונעת שגיאת 413
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200; // רזולוציה מושלמת ל-AI
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // דחיסה ל-70% איכות - חוסך המון מקום
+          resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+        };
+      };
+    });
   };
 
   const handleFileUpload = async (e) => {
@@ -44,24 +45,46 @@ export default function SmartOrderSync() {
     if (!file) return;
 
     setLoading(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const base64Clean = event.target.result.split(',')[1];
-        const res = await fetch('/api/shipping-brain', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64Clean, query: "ניתוח תעודה" })
-        });
-        setStatus(res.ok ? 'success' : 'error');
-      } catch (err) {
-        setStatus('error');
-      } finally {
-        setLoading(false);
-        setTimeout(() => setStatus(null), 3000);
-      }
-    };
-    reader.readAsDataURL(file);
+    setStatus(null);
+
+    try {
+      const compressedBase64 = await compressImage(file);
+      
+      const res = await fetch('/api/shipping-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          imageBase64: compressedBase64, 
+          query: "ניתוח תעודה" 
+        })
+      });
+
+      if (res.ok) setStatus('success');
+      else setStatus('error');
+    } catch (err) {
+      console.error("Upload error:", err);
+      setStatus('error');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setStatus(null), 3000);
+    }
+  };
+
+  const handleSendCommand = async (text) => {
+    if (!text?.trim() || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/shipping-brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: text, imageBase64: null })
+      });
+      if (res.ok) {
+        setStatus('success');
+        setInput('');
+      } else setStatus('error');
+    } catch (err) { setStatus('error'); }
+    finally { setLoading(false); setTimeout(() => setStatus(null), 3000); }
   };
 
   return (
@@ -81,7 +104,7 @@ export default function SmartOrderSync() {
           </button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
 
-          <div className="flex-1 bg-white rounded-2xl flex items-center px-4 py-1 border border-slate-200 shadow-sm focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
+          <div className="flex-1 bg-white rounded-2xl flex items-center px-4 py-1 border border-slate-200 shadow-sm focus-within:border-blue-400 transition-all">
             <textarea 
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -89,7 +112,7 @@ export default function SmartOrderSync() {
               className="flex-1 bg-transparent py-3 outline-none text-sm text-slate-700 resize-none min-h-[44px] font-bold"
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendCommand(input))}
             />
-            <button onClick={() => handleSendCommand(input)} disabled={loading || !input?.trim()} className="ml-2 text-blue-600 disabled:opacity-20 hover:scale-110 transition-transform">
+            <button onClick={() => handleSendCommand(input)} disabled={loading || !input?.trim()} className="ml-2 text-blue-600 disabled:opacity-20">
               <Send size={22} className="rotate-180" />
             </button>
           </div>
@@ -97,11 +120,7 @@ export default function SmartOrderSync() {
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar mt-4">
           {quickActions.map((cmd, i) => (
-            <button 
-              key={i}
-              onClick={() => handleSendCommand(cmd.label)}
-              className="whitespace-nowrap px-5 py-2 bg-slate-50 rounded-full text-[10px] font-black border border-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 transition-all uppercase tracking-tight"
-            >
+            <button key={i} onClick={() => handleSendCommand(cmd.label)} className="whitespace-nowrap px-5 py-2 bg-slate-50 rounded-full text-[10px] font-black border border-slate-100 text-slate-500 hover:text-blue-600 transition-all uppercase">
               {cmd.label}
             </button>
           ))}
