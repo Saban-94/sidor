@@ -19,6 +19,7 @@ interface Message {
   content: string;
   isUser: boolean;
   timestamp: Date;
+  
 }
 
 interface CartItem {
