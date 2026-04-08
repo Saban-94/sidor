@@ -20,16 +20,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "הסל ריק או חסר מספר טלפון" });
     }
 
-    // הכנה ל-Supabase - הופך את המערך לטקסט לקריאה נוחה
+// שליחת הנתונים לטבלה החדשה
     const { data, error } = await supabase
       .from('orders')
       .insert([{ 
-        customer_phone: phone, 
-        items: JSON.stringify(items), 
-        total_amount: items.length,
-        status: status || 'pending',
-        created_at: new Date().toISOString()
+        phone: String(phone),           // השם המעודכן בטבלה החדשה
+        items: items,                   // בגלל שזה JSONB בטבלה, אפשר לשלוח את המערך ישירות בלי stringify
+        total_amount: Array.isArray(items) ? items.length : 1,
+        status: status || 'pending'     // created_at ייווצר אוטומטית ב-Supabase (DEFAULT NOW)
       }]);
+
+    if (error) {
+      console.error("Supabase Insert Error:", error.message);
+      throw error;
+    }
 
     if (error) throw error;
 
