@@ -1,10 +1,10 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, Check, Plus, Minus, ShoppingBag, MapPin, Clock, Truck } from 'lucide-react';
 import { SabanAPI } from '@/lib/SabanAPI';
 import { useRouter } from 'next/router';
-export const dynamic = 'force-dynamic';
 
 interface CartItem {
   id: string;
