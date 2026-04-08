@@ -191,7 +191,6 @@ export default function SabanOSChat() {
       </div>
 
       {/* Floating Action Button */}
-      <FloatingActionButton />
 
       {/* Cart Drawer */}
       <CartDrawer
