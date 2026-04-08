@@ -1,12 +1,15 @@
 import React from 'react';
 import Head from 'next/head';
-import OrderBoard from '../components/OrderBoard';
-import SmartOrderSync from '../components/SmartOrderSync';
+import dynamic from 'next/dynamic';
 import Layout from '../components/Layout';
 
+// טעינה דינמית של הרכיבים כדי למנוע שגיאות Prerendering ב-Vercel
+const OrderBoard = dynamic(() => import('../components/OrderBoard'), { ssr: false });
+const SmartOrderSync = dynamic(() => import('../components/SmartOrderSync'), { ssr: false });
+
 /**
- * SabanOS - PWA Console
- * גרסה חסינה ל-Vercel Build
+ * SabanOS - Smart PWA Console
+ * גרסה חסינה לבילד - Force Dynamic
  */
 export default function PWAHome() {
   return (
@@ -39,3 +42,6 @@ export default function PWAHome() {
     </Layout>
   );
 }
+
+// פקודה קריטית לורסל: אל תנסה לרנדר את הדף הזה כסטטי
+export const forceDynamic = 'force-dynamic';
