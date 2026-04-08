@@ -50,7 +50,7 @@ export default function SmartOrderSync() {
     try {
       const compressedBase64 = await compressImage(file);
       
-      const res = await fetch('/pi/unified-brain', {
+      const res = await fetch('/pi/tools-brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
