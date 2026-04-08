@@ -44,44 +44,45 @@ const handleFinalOrder = async () => {
 
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
+    // הכנת הנתונים לטבלה (פורמט נקי)
     const orderData = {
       phone: String(targetPhone),
-      items: items,
+      items: items.map(i => ({ name: i.name, qty: i.quantity })),
       status: 'pending'
     };
 
     try {
-      // 1. שליחה לטבלה ולתיעוד
+      // 1. שליחה ל-Supabase ולגוגל במקביל
       await Promise.all([
         fetch('/api/save-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
         }),
-        SabanAPI.sendMessage(targetPhone, `בוצע צ'ק-אאוט לסל: ${items.map(i => i.name).join(', ')}`)
+        SabanAPI.sendMessage(targetPhone, `ביצוע הזמנה מהסל: ${items.map(i => i.name).join(', ')}`)
       ]);
 
-      // 2. פתיחת וואטסאפ לראמי (אופציונלי)
-      const waText = `הזמנה חדשה מ-SabanOS 🏗️\nפריטים:\n${items.map(i => `• ${i.name}`).join('\n')}`;
-      window.open(`https://wa.me/972508860896?text=${encodeURIComponent(waText)}`, '_blank');
+      // 2. התיקון שביקשת: ריקון הסל המקומי
+      // אנחנו קוראים ל-onRemoveItem על כל פריט כדי לאפס את ה-State
+      items.forEach(item => onRemoveItem(item.id));
       
-      // 3. התיקון הקריטי: ניקוי הסל וסגירה
-      if (typeof onUpdateQuantity === 'function') {
-        // כאן אנחנו מאפסים את הסטייט הראשי
-        items.forEach(item => onRemoveItem(item.id)); 
-      }
-      
-      onClose(); // סגירת המגירה
+      // 3. סגירת המגירה
+      onClose();
 
-      // 4. הצומת הבאה: רויטל מאשרת וממשיכה לפרטים
+      // 4. הפעלת רויטל לצומת הלוגיסטית
       const summary = items.map(i => `${i.quantity} יחידות של ${i.name}`).join(', ');
-      handleSendMessage(`אישור קבלת רשימה: קיבלתי את הנתונים לסל: ${summary}. בוא נשלים פרטים לאספקה.`);
+      
+      // שליחת הודעה אוטומטית למוח כדי שרויטל תגיב ללקוח
+      handleSendMessage(`אישור קבלת רשימה: המערכת קלטה את ההזמנה שלך (${summary}). בוא נשלים פרטי אספקה: 
+      1. מה הכתובת המדויקת למשלוח?
+      2. מתי תרצה את האספקה (יום ושעה)?
+      3. איזה פריקה נדרשת: מנוף (עד 10 מטר) או פריקה ידנית?`);
 
     } catch (error) {
-      alert("תקלה ברישום, נסה שוב.");
+      console.error("Order process failed:", error);
+      alert("בוס, הרשימה נשלחה אבל הייתה תקלה קטנה בריקון הסל. נסה לרענן.");
     }
   };
-
 
 
   // מונע את שגיאת ה-Minified React error #418
