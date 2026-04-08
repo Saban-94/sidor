@@ -114,20 +114,22 @@ export default function SabanOSChat() {
         )
       ]);
 
-      if (brainResponse && brainResponse.reply) {
-        // הוספה אוטומטית לסל אם המוח זיהה פריטים
-        if (brainResponse.cart && brainResponse.cart.length > 0) {
-          playMagicSound();
-          const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            name: `${item.name} (${item.qty} ${item.unit || 'יח'})`,
-            price: 0,
-            quantity: item.qty,
-            verified: true,
-          }));
-          setCartItems(prev => [...prev, ...newItems]);
-          setTimeout(() => setIsCartOpen(true), 1500);
-        }
+if (brainResponse && brainResponse.cart && brainResponse.cart.length > 0) {
+  playMagicSound();
+  
+  const newItems: CartItem[] = brainResponse.cart.map((item: any) => ({
+    // הגנה: אם המוח החזיר name או product_name, אנחנו לוקחים מה שיש
+    id: Math.random().toString(36).substr(2, 9),
+    name: item.name || item.product_name || "מוצר כללי", 
+    price: 0,
+    // הגנה: המוח לפעמים מחזיר qty ולפעמים quantity
+    quantity: Number(item.qty || item.quantity || 1), 
+    verified: true,
+  }));
+
+  setCartItems(prev => [...prev, ...newItems]);
+  setTimeout(() => setIsCartOpen(true), 1500);
+}
 
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
