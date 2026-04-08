@@ -1,17 +1,29 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Layout from '../components/Layout';
 
-// טעינה דינמית של הרכיבים כדי למנוע שגיאות Prerendering ב-Vercel
-const OrderBoard = dynamic(() => import('../components/OrderBoard'), { ssr: false });
-const SmartOrderSync = dynamic(() => import('../components/SmartOrderSync'), { ssr: false });
+// טעינה דינמית עם מנגנון הגנה
+const OrderBoard = dynamic(() => import('../components/OrderBoard'), { 
+  ssr: false,
+  loading: () => <div className="p-10 text-center text-slate-500 animate-pulse font-black uppercase tracking-widest text-xs">SabanOS Loading Board...</div>
+});
 
-/**
- * SabanOS - Smart PWA Console
- * גרסה חסינה לבילד - Force Dynamic
- */
+const SmartOrderSync = dynamic(() => import('../components/SmartOrderSync'), { 
+  ssr: false 
+});
+
 export default function PWAHome() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
   return (
     <Layout>
       <Head>
@@ -20,28 +32,24 @@ export default function PWAHome() {
       </Head>
 
       <main className="min-h-screen bg-[#0b141a] pb-32">
-        {/* Header - Saban Style */}
-        <div className="p-4 bg-[#111b21] sticky top-0 z-40 border-b border-white/5 flex justify-between items-center shadow-xl">
+        <div className="p-4 bg-[#111b21] sticky top-0 z-40 border-b border-white/5 flex justify-between items-center shadow-2xl">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
             <h1 className="text-xl font-bold text-emerald-500 italic tracking-tighter">SabanOS AI</h1>
           </div>
           <div className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
-            PWA Mode
+            PWA Console
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="p-2 max-w-5xl mx-auto">
           <OrderBoard />
         </div>
 
-        {/* Bottom AI Sync Component */}
         <SmartOrderSync />
       </main>
     </Layout>
   );
 }
 
-// פקודה קריטית לורסל: אל תנסה לרנדר את הדף הזה כסטטי
 export const forceDynamic = 'force-dynamic';
