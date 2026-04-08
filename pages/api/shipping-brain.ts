@@ -8,8 +8,9 @@ const supabase = createClient(
 
 // בריכת מודלים חסינה שתומכת ב-Vision
 const MODEL_POOL = [
-  "gemini-2.0-flash", 
-  "gemini-1.5-flash"
+  "gemini-3.1-pro-preview",       // הכי חכם לניתוח PDF מורכב וכתב יד קשה
+  "gemini-3.1-flash-lite-preview", // הכי מהיר וזול לעיבוד תעודות משלוח המוני
+  "gemini-3.1-flash-image-preview" // מומחה ה-Vision החדש (Nano Banana 2) לניתוח ויזואלי חד
 ];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
