@@ -35,7 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const isVisual = !!imageBase64;
         
-        // פרום טכני, חד וממוקד ללא מילים מיותרות
 const prompt = `STRICT JSON OUTPUT ONLY. DO NOT PROVIDE EXPLANATIONS. DO NOT PROVIDE CHAIN OF THOUGHT.
 אתה המומחה הטכני של ח.סבן. 
 
@@ -56,8 +55,6 @@ ${inventoryContext}
 }
 
 הודעת לקוח: ${message}`;
-
-הודעת לקוח/תוכן: ${message || "נתח תמונה מצורפת"}`;
 
         const parts: any[] = [{ text: prompt }];
         if (isVisual) {
