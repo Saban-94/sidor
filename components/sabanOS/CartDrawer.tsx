@@ -99,19 +99,60 @@ export default function CartDrawer({
                   </select>
                 </div>
               </div>
+<div className="space-y-3">
+  {items.length === 0 ? (
+    <p className="text-center text-slate-500 py-10 text-xs uppercase tracking-widest italic">הסל ריק בוס</p>
+  ) : (
+    items.map((item) => (
+      <div key={item.id} className="bg-white/5 p-4 rounded-2xl border border-white/10 flex justify-between items-center shadow-lg backdrop-blur-md">
+        
+        {/* צד ימין: שם המוצר ובורר כמות */}
+        <div className="text-right flex flex-col gap-2">
+          <p className="text-white text-sm font-bold tracking-wide">
+            {/* הגנה על השם - אם חסר מציג 'מוצר מהשטח' */}
+            {item.name || (item as any).product_name || "מוצר מהשטח"}
+          </p>
+          
+          {/* בורר כמות מקצועי */}
+          <div className="flex items-center gap-3 bg-[#1a2f3f] rounded-full px-2 py-1 w-fit border border-white/5">
+            <motion.button 
+              whileTap={{ scale: 0.8 }}
+              onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
+            >
+              <Minus size={14} />
+            </motion.button>
+            
+            <span className="text-white font-black text-sm min-w-[20px] text-center">
+              {item.quantity || 1}
+            </span>
 
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={item.id} className="bg-white/5 p-4 rounded-xl flex justify-between items-center border border-white/5">
-                    <div className="text-right">
-                      <p className="text-white text-sm font-bold">{item.name || (item as any).product_name}</p>
-                      <p className="text-emerald-500 text-xs">{item.quantity || (item as any).qty} יח'</p>
-                    </div>
-                    <p className="text-emerald-500 font-bold">{item.price > 0 ? `${(item.price * item.quantity).toLocaleString()} ₪` : 'בירור'}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <motion.button 
+              whileTap={{ scale: 0.8 }}
+              onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, item.quantity + 1)}
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition-colors"
+            >
+              <Plus size={14} />
+            </motion.button>
+          </div>
+        </div>
+
+        {/* צד שמאל: מחיר וכפתור מחיקה */}
+        <div className="flex flex-col items-end gap-3">
+          <button 
+            onClick={() => onRemoveItem(item.id)}
+            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+          >
+            <Trash2 size={16} />
+          </button>
+          <p className="text-emerald-400 text-sm font-black italic">
+            {item.price > 0 ? `${((item.price || 0) * (item.quantity || 1)).toLocaleString()} ₪` : 'בירור'}
+          </p>
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
             {items.length > 0 && (
               <div className="p-6 border-t border-white/10">
