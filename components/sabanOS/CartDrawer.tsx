@@ -39,57 +39,52 @@ export default function CartDrawer({
   const [unloadingType, setUnloadingType] = useState('לא נקבע');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
- const handleFinalOrder = async () => {
-    if (!items.length || isSubmitting) return;
-    setIsSubmitting(true);
-    
+const handleFinalOrder = async () => {
+  if (!items.length || isSubmitting) return;
+  setIsSubmitting(true);
+
+  try {
     const { phone } = router.query;
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
 
-    try {
-      // 1. שליחה ל-API ושמירה ב-DB (חובה לקבל ID חזרה למעקב)
-      const response = await fetch('/api/save-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: targetPhone,
-          items: items.map(i => ({ name: i.name, qty: i.quantity })),
-          address: deliveryAddress,
-          unloading_method: unloadingType
-        })
-      });
-      
-      const { orderId } = await response.json();
+    // שליחה ל-API שעדכנו
+    const response = await fetch('/api/save-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: targetPhone,
+        items: items,
+        address: deliveryAddress,
+        unloading_method: unloadingType
+      })
+    });
 
-      // 2. אפקט צליל וזיקוקים
-      const audio = new Audio('/magic-chime.mp3');
-      audio.play().catch(() => {});
-      
-      const confetti = (await import('canvas-confetti')).default;
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#10b981', '#059669', '#ffffff']
-      });
+    const result = await response.json();
 
-      // 3. ריקון הסל וסגירה
+    if (result.success) {
+      // 1. אפקטים של חגיגה
+      playMagicSound(); // צליל הקסם
+      triggerConfetti(); // הזיקוקים
+
+      // 2. ריקון הסל
       setCartItems([]);
       
-      // 4. הודעה מרויטל ומעבר לדף מעקב
-      onSendMessage(`הזמנה #${orderId} בדרך לראמי לטיפול! 🏗️ עובר לדף מעקב...`);
+      // 3. הפניה לדף המעקב בנתיב שציינת
+      const trackUrl = `/track/${result.orderNumber}?phone=${targetPhone}`;
+      
+      onSendMessage(`הזמנה #${result.orderNumber} נשלחה בהצלחה! 🚀 רויטל מעבירה אותך לדף מעקב...`);
       
       setTimeout(() => {
         onClose();
-        router.push(`/track/${orderId}?phone=${targetPhone}`);
-      }, 2000);
-
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
+        router.push(trackUrl);
+      }, 2500);
     }
-  };
+  } catch (error) {
+    console.error("שגיאה בשליחת הזמנה:", error);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   return (
     <AnimatePresence>
       {isOpen && (
