@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
-
+export const dynamic = 'force-dynamic';
 // ייבוא הרכיבים והכלים
 import SabanOSHeader from '@/components/sabanOS/Header';
 import ChatMessages from '@/components/sabanOS/ChatMessages';
