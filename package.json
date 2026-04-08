@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^1.1.0",
     "@google/generative-ai": "^0.23.0",
+    "canvas-confetti": "^1.6.0",
     "styled-jsx": "latest",
     "openai": "^4.0.0",
     "@hookform/resolvers": "^3.10.0",
