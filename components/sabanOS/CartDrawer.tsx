@@ -26,7 +26,7 @@ interface CartDrawerProps {
 export default function CartDrawer({
   isOpen,
   onClose,
-  items = [], // הגנה 1
+  items = [],
   onRemoveItem,
   onUpdateQuantity,
   onSendMessage,
@@ -37,13 +37,21 @@ export default function CartDrawer({
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
   const [unloadingType, setUnloadingType] = useState('לא נקבע');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // הגנה על Prerendering
+  if (!mounted) return null;
+
+  const totalAmount = (items || []).reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+
   const handleFinalOrder = async () => {
-    if (!items || items.length === 0) return;
+    if (!items || items.length === 0 || isSubmitting) return;
+    
+    setIsSubmitting(true);
     const { phone } = router.query;
     const targetPhone = Array.isArray(phone) ? phone[0] : (phone || 'אורח');
     
@@ -57,48 +65,57 @@ export default function CartDrawer({
     };
 
     try {
-      await Promise.all([
-        fetch('/api/save-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
-        }),
-        SabanAPI.sendMessage(targetPhone, `הזמנה חדשה: ${items.length} פריטים ליעד ${deliveryAddress}`)
-      ]);
-      setCartItems([]);
+      // 1. שליחה ל-API (Supabase)
+      const response = await fetch('/api/save-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+
+      if (!response.ok) throw new Error("שגיאה בשמירה לטבלה");
+
+      // 2. שליחה לגוגל שיטס/וואטסאפ (אם נכשל - לא עוצרים את התהליך)
+      try {
+        await SabanAPI.sendMessage(targetPhone, `הזמנה חדשה: ${items.length} פריטים. יעד: ${deliveryAddress}`);
+      } catch (e) {
+        console.warn("Sheets recording failed but order saved in DB");
+      }
+
+      // 3. ריקון הסל וסגירה - התיקון הקריטי
+      if (typeof setCartItems === 'function') {
+        setCartItems([]);
+      }
+      
       onClose();
-      onSendMessage(`ההזמנה נרשמה בסיסטם בוס! 🏗️ הכתובת: ${deliveryAddress}, פריקה: ${unloadingType}. יוצאים לדרך! 🚛`);
-    } catch (error) {
-      alert("תקלה ברישום.");
+
+      // 4. הפעלת רויטל
+      if (typeof onSendMessage === 'function') {
+        onSendMessage(`אישור קבלת רשימה: המערכת קלטה את ההזמנה! 🏗️ 
+        נרשם יעד לאספקה: ${deliveryAddress || 'יתואם מול רויטל'}, פריקה: ${unloadingType}. 
+        אנחנו יוצאים לדרך! 🚛`);
+      }
+
+    } catch (error: any) {
+      console.error("Order process failed:", error);
+      alert("בוס, הייתה תקלה: " + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  // הגנה קריטית 2: מונע מ-Next.js להריץ את ה-reduce בזמן ה-Build
-  if (!mounted) return null;
-
-  // חישוב רק אחרי שהקומפוננטה נטענה בדפדפן
-  const totalAmount = items?.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0) || 0;
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
           />
-
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             className="fixed right-0 top-0 h-full w-full sm:w-96 glass-effect-strong border-l border-white/10 z-50 flex flex-col overflow-hidden bg-[#0b141a]/95 text-right shadow-2xl"
             dir="rtl"
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-500" />
@@ -109,15 +126,12 @@ export default function CartDrawer({
               </button>
             </div>
 
-            {/* Logistics Area */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-4 space-y-4">
               <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-3">
                 <div className="flex items-center gap-3 text-sm">
                   <MapPin className="w-4 h-4 text-emerald-500" />
                   <input 
-                    type="text" 
-                    placeholder="כתובת מלאה..." 
-                    value={deliveryAddress}
+                    type="text" placeholder="כתובת מלאה..." value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
                     className="bg-transparent border-none outline-none w-full text-white text-right placeholder:text-slate-600"
                   />
@@ -125,9 +139,7 @@ export default function CartDrawer({
                 <div className="flex items-center gap-3 text-sm">
                   <Clock className="w-4 h-4 text-emerald-500" />
                   <input 
-                    type="text" 
-                    placeholder="יום ושעה מבוקשים..." 
-                    value={deliveryTime}
+                    type="text" placeholder="יום ושעה מבוקשים..." value={deliveryTime}
                     onChange={(e) => setDeliveryTime(e.target.value)}
                     className="bg-transparent border-none outline-none w-full text-white text-right placeholder:text-slate-600"
                   />
@@ -135,24 +147,22 @@ export default function CartDrawer({
                 <div className="flex items-center gap-3 text-sm">
                   <Truck className="w-4 h-4 text-emerald-500" />
                   <select 
-                    value={unloadingType}
-                    onChange={(e) => setUnloadingType(e.target.value)}
+                    value={unloadingType} onChange={(e) => setUnloadingType(e.target.value)}
                     className="bg-transparent border-none outline-none w-full text-white text-right appearance-none"
                   >
                     <option value="לא נקבע">איזו פריקה דרושה?</option>
                     <option value="משאית מנוף">משאית מנוף (עד 10 מ')</option>
-                    <option value="פריקה ידנית">פריקה ידנית (מהמשאית)</option>
+                    <option value="פריקה ידנית">פריקה ידנית</option>
                   </select>
                 </div>
               </div>
 
-              {/* Items */}
               <div className="space-y-3">
                 {items.length === 0 ? (
-                  <p className="text-center text-slate-500 py-10">הסל ריק בוס</p>
+                  <p className="text-center text-slate-500 py-10 text-xs uppercase tracking-widest">הסל ריק בוס</p>
                 ) : (
                   items.map((item) => (
-                    <div key={item.id} className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center">
+                    <div key={item.id} className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center shadow-inner">
                       <div className="text-right">
                         <p className="text-white text-sm font-bold">{item.name}</p>
                         <p className="text-emerald-500 text-xs font-black">{item.quantity} יח'</p>
@@ -164,7 +174,6 @@ export default function CartDrawer({
               </div>
             </div>
 
-            {/* Footer */}
             {items.length > 0 && (
               <div className="p-6 border-t border-white/10 bg-[#0b141a]">
                 <div className="flex justify-between items-center mb-4">
@@ -174,9 +183,12 @@ export default function CartDrawer({
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={handleFinalOrder}
-                  className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg shadow-lg transition-colors"
+                  disabled={isSubmitting}
+                  className={`w-full py-4 rounded-2xl font-black text-lg shadow-lg transition-all ${
+                    isSubmitting ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
                 >
-                  אשר ושלח לביצוע
+                  {isSubmitting ? 'שולח נתונים...' : 'אשר ושלח לביצוע'}
                 </motion.button>
               </div>
             )}
