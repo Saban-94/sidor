@@ -1,6 +1,10 @@
 {
   "/": "pages/index.js",
+  "/SabanAIAssistant": "pages/SabanAIAssistant.js",
   "/_app": "pages/_app.js",
   "/_document": "pages/_document.js",
-  "/api/tools-brain": "pages/api/tools-brain.js"
+  "/api/tools-brain": "pages/api/tools-brain.js",
+  "/dashboard": "pages/dashboard.js",
+  "/dashboard3": "pages/dashboard3.js",
+  "/index2": "pages/index2.js"
 }

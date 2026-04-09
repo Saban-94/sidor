@@ -22,3 +22,16 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 [00:05:50.173] Browser DEBUG   binding to error
 [00:07:47.789] Server  LOG      ✓ Compiled in 138ms
 [00:07:48.359] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:1 (2.103.0) 2026-04-09T23:05:19.958Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+[00:08:20.605] Browser DEBUG   binding to error
+[00:10:50.583] Server  LOG      ○ Compiling /_not-found/page ...
+[00:12:07.293] Browser DEBUG   binding to error
+[00:12:53.877] Browser DEBUG   binding to error
+[00:13:05.908] Browser DEBUG   binding to error
+[00:13:11.875] Browser DEBUG   binding to error
+[00:13:11.876] Browser LOG     OneSignal Initializing...
+[00:13:11.876] Browser ERROR   {}
+[00:13:11.876] Browser LOG     OneSignal Initializing...
+[00:13:11.876] Browser ERROR   {}
+[00:13:29.163] Server  LOG      ✓ Compiled in 173ms
+[00:13:32.821] Server  LOG      ✓ Compiled in 100ms
+[00:13:38.050] Server  LOG      ✓ Compiled in 144ms

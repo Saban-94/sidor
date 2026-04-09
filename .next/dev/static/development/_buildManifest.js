@@ -2,6 +2,18 @@ self.__BUILD_MANIFEST = {
   "/": [
     "static/chunks/pages/index.js"
   ],
+  "/SabanAIAssistant": [
+    "static/chunks/pages/SabanAIAssistant.js"
+  ],
+  "/dashboard": [
+    "static/chunks/pages/dashboard.js"
+  ],
+  "/dashboard3": [
+    "static/chunks/pages/dashboard3.js"
+  ],
+  "/index2": [
+    "static/chunks/pages/index2.js"
+  ],
   "__rewrites": {
     "afterFiles": [],
     "beforeFiles": [],
