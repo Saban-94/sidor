@@ -29,10 +29,34 @@ export default function SabanExpertCatalog() {
     magicChimeRef.current = new Audio('/magic-chime.mp3');
   }, []);
 
-  const openProduct = (product: any) => {
-    if (magicChimeRef.current) magicChimeRef.current.play().catch(() => {});
+const openProduct = async (product: any) => {
+  // צלצול הקסם
+  if (magicChimeRef.current) magicChimeRef.current.play().catch(() => {});
+
+  // פנייה למוח החדש כדי לקבל נתונים "חיים" מהדרייב
+  try {
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: `ספק מידע טכני על ${product.name}`,
+        senderPhone: 'catalog_user' 
+      }),
+    });
+    
+    const data = await response.json();
+    
+    // מעדכנים את המוצר הנבחר עם המדיה שנשלפה מהדרייב
+    setSelectedProduct({ 
+      ...product, 
+      aiAnalysis: data.reply,
+      suggested_media: data.suggested_media 
+    });
+  } catch (e) {
+    console.error("שגיאה בשליפת נתוני מוח:", e);
     setSelectedProduct(product);
-  };
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#f3f6f9] text-slate-900 font-sans selection:bg-emerald-100 overflow-x-hidden" dir="rtl">
