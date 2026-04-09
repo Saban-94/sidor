@@ -35,3 +35,16 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 [00:13:29.163] Server  LOG      ✓ Compiled in 173ms
 [00:13:32.821] Server  LOG      ✓ Compiled in 100ms
 [00:13:38.050] Server  LOG      ✓ Compiled in 144ms
+[00:14:00.022] Browser DEBUG   binding to error
+[00:14:00.145] Browser LOG     OneSignal Initializing...
+[00:14:00.145] Browser LOG     OneSignal initialization skipped: Can only be used on: https://sidor.vercel.app
+[00:14:00.145] Browser LOG     OneSignal Initializing...
+[00:14:00.145] Browser LOG     OneSignal initialization skipped: SDK already initialized
+[00:14:06.691] Browser LOG     OneSignal Initializing...
+[00:14:06.922] Browser LOG     OneSignal initialization skipped: Can only be used on: https://sidor.vercel.app
+[00:14:06.922] Browser LOG     OneSignal Initializing...
+[00:14:06.922] Browser LOG     OneSignal initialization skipped: SDK already initialized
+[00:14:41.553] Browser DEBUG   binding to error
+[00:19:02.617] Server  LOG      ✓ Compiled in 381ms
+[00:19:19.868] Server  LOG      ✓ Compiled in 112ms
+[00:19:21.346] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:1 (2.103.0) 2026-04-09T23:16:52.104Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.

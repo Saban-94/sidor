@@ -215,7 +215,17 @@ export default function SabanAIAssistant() {
         <Calculator size={22} className="text-emerald-500" />
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 z-10 custom-scrollbar">
+      <main
+        className="flex-1 overflow-y-auto z-10 custom-scrollbar flex flex-col justify-end items-center py-[55px] px-[1px]"
+        style={{
+          backgroundImage: 'url(https://cdn.builder.io/api/v1/image/assets%2Fcabd8c0810ce4a7ba54438e9d28391d7%2F4daee3e0ba8b4b97ab75588ab91cb61d)',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+          fontFamily: 'Helvetica, sans-serif',
+          lineHeight: '44px'
+        }}
+      >
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
             <div className={`max-w-[85%] p-3 px-4 rounded-2xl shadow-md ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tl-none' : 'bg-[#005c4b] text-white rounded-tr-none'}`}>

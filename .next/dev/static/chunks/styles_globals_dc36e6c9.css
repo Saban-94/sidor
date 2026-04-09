@@ -3959,6 +3959,10 @@
     padding-inline: calc(var(--spacing) * 12);
   }
 
+  .px-\[1px\] {
+    padding-inline: 1px;
+  }
+
   .py-0\.5 {
     padding-block: calc(var(--spacing) * .5);
   }
@@ -4009,6 +4013,10 @@
 
   .py-32 {
     padding-block: calc(var(--spacing) * 32);
+  }
+
+  .py-\[55px\] {
+    padding-block: 55px;
   }
 
   .pt-3 {
