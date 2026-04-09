@@ -1,14 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-// חיבור ל-Supabase לצורך תיעוד וזיכרון (Context)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// ה-URL של הסקריפט שסורק את הדרייב שלך
-const DRIVE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwEWO_DfRRHjkLAZxtvnEqHtlYTkT8ZhbQhqxdBD10sKffUmyzrVEhzDLk25U6vCbFE/exec";
+const DRIVE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyKpN3KZ6hGqmIO0rfG1oIjbFlJa2NsTSPsk5DNzI7EyPVhAiL_jdHHK1BW7lq5N849/exec";
 
 async function fetchKnowledgeFromDrive(productName: string) {
   try {
@@ -32,15 +30,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const geminiKey = process.env.GEMINI_API_KEY;
 
   try {
-    // 1. הגדרת ה-System Prompt (ה"אופי" של המוח בסטייל NotebookLM)
-    const systemPrompt = `אתה המוח של ח. סבן - מומחה טכני מנוסה ושותף לביצוע בסטייל NotebookLM.
+    const systemPrompt = `אתה המוח של ח. סבן - מומחה טכני מנוסה בסטייל NotebookLM.
     ענה תמיד בפורמט JSON בלבד.
-    אם זיהית מוצר ספציפי (סיקה 107, דבק 116 וכו'), רשום את שמו המדויק בשדה identifiedProduct.
-    בשדה reply, תן תשובה מקצועית, חמה ותמציתית הכוללת ערך מוסף טכני.`;
+    זהה מוצר בשדה identifiedProduct.
+    בשדה reply תן תשובה מקצועית ותמציתית.`;
 
-    // 2. פנייה ל-Gemini לניתוח השאלה
     const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,21 +48,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    if (!aiResponse.ok) {
-      throw new Error(`Gemini API error: ${aiResponse.statusText}`);
-    }
-
     const aiData = await aiResponse.json();
     const result = JSON.parse(aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
 
-    // 3. הקישור לדרייב: אם המוח זיהה מוצר, נלך להביא עליו מדיה
     let driveAssets = null;
-    const rawName = result.identifiedProduct; // "סיקה 107 (SikaTop Seal-107)"
-    const cleanName = rawName.split('(')[0].trim(); // הופך ל-"סיקה 107"
-    driveAssets = await fetchKnowledgeFromDrive(cleanName);
-}
+    if (result.identifiedProduct) {
+      // ניקוי השם לחיפוש בדרייב (לוקח רק את מה שלפני הסוגריים)
+      const cleanName = result.identifiedProduct.split('(')[0].trim();
+      driveAssets = await fetchKnowledgeFromDrive(cleanName);
+    }
 
-    // 4. בניית האובייקט הסופי עבור הממשק היוקרתי
     const finalOutput = {
       ...result,
       suggested_media: driveAssets?.found ? {
@@ -76,18 +67,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } : null
     };
 
-    // 5. תיעוד הלוג ב-Supabase
+    // תיעוד לוג
     await supabase.from('logs').insert({
       customer_phone: targetPhone,
       message: message,
-      reply: finalOutput.reply,
-      is_order: finalOutput.orderPlaced || false
+      reply: finalOutput.reply
     });
 
     return res.status(200).json(finalOutput);
 
   } catch (error: any) {
     console.error("🔴 Brain API Error:", error);
-    return res.status(500).json({ error: "Internal Server Error", message: error.message });
+    return res.status(500).json({ 
+      error: "Internal Server Error", 
+      details: error.message 
+    });
   }
 }
