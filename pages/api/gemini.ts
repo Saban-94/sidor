@@ -61,11 +61,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 3. הקישור לדרייב: אם המוח זיהה מוצר, נלך להביא עליו מדיה
     let driveAssets = null;
-    if (result.identifiedProduct) {
-   // ניקוי שם המוצר מתווים מיותרים וסוגריים כדי שיתאים לשם התיקייה בדרייב
-   const cleanProductName = result.identifiedProduct.split('(')[0].trim(); 
-  
-    driveAssets = await fetchKnowledgeFromDrive(cleanProductName);
+    const rawName = result.identifiedProduct; // "סיקה 107 (SikaTop Seal-107)"
+    const cleanName = rawName.split('(')[0].trim(); // הופך ל-"סיקה 107"
+    driveAssets = await fetchKnowledgeFromDrive(cleanName);
 }
 
     // 4. בניית האובייקט הסופי עבור הממשק היוקרתי
