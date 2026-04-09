@@ -41,16 +41,6 @@ export default function SabanAIAssistant() {
     const storedCid = localStorage.getItem('saban_cid') || `guest_${Math.random().toString(36).slice(2, 9)}`;
     localStorage.setItem('saban_cid', storedCid);
     setUserCid(storedCid);
-
-    if (typeof window !== 'undefined') {
-      const OneSignal = (window as any).OneSignal || [];
-      OneSignal.push(() => {
-        OneSignal.init({
-          appId: "YOUR_ONESIGNAL_APP_ID",
-          allowLocalhostAsSecureOrigin: true,
-        });
-      });
-    }
   }, []);
 
   // 2. Realtime Listener
@@ -198,7 +188,6 @@ export default function SabanAIAssistant() {
         <title>ח.סבן AI | עוזר אישי</title>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#10b981" />
-        <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
       </Head>
 
       <div className="absolute inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover opacity-10 z-0" />

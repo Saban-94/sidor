@@ -9,3 +9,7 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-component
 [00:00:33.580] Browser ERROR   window.OneSignal already defined as 'object'!
          Please make sure to define as 'window.OneSignal = window.OneSignal || [];' {"VERSION":151607,"directFunctionCallsArray":[],"log":{}}
+[00:01:24.518] Server  LOG      ✓ Compiled in 200ms
+[00:01:25.060] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:1 (2.103.0) 2026-04-09T22:58:56.758Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+[00:01:29.138] Server  LOG      ✓ Compiled in 200ms
+[00:01:29.643] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:2 (2.103.0) 2026-04-09T22:59:01.346Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.

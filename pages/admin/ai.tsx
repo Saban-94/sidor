@@ -31,7 +31,7 @@ export default function SabanAIAssistant() {
   const [userCid, setUserCid] = useState<string>('guest');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. אתחול ראשוני (Splash, OneSignal, וזיהוי לקוח)
+  // 1. אתחול ראשוני (Splash וזיהוי לקוח)
   useEffect(() => {
     setTimeout(() => setShowSplash(false), 800);
 
@@ -39,17 +39,6 @@ export default function SabanAIAssistant() {
     const storedCid = localStorage.getItem('saban_cid') || `guest_${Math.random().toString(36).slice(2, 9)}`;
     localStorage.setItem('saban_cid', storedCid);
     setUserCid(storedCid);
-
-    // אתחול OneSignal
-    if (typeof window !== 'undefined') {
-      const OneSignal = (window as any).OneSignal || [];
-      OneSignal.push(() => {
-        OneSignal.init({
-          appId: "YOUR_ONESIGNAL_APP_ID", // בוס, שים כאן את ה-ID שלך
-          allowLocalhostAsSecureOrigin: true,
-        });
-      });
-    }
   }, []);
 
   // 2. האזנה למענה ידני מהמשלט (Realtime Listener)
@@ -149,7 +138,6 @@ export default function SabanAIAssistant() {
         <title>ח.סבן AI | עוזר אישי</title>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#10b981" />
-        <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
       </Head>
 
       <div className="absolute inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover opacity-10 z-0" />
