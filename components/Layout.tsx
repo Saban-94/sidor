@@ -10,6 +10,8 @@ import { Menu, X, Truck, Box, MessageSquare, Settings, ChevronLeft } from 'lucid
 declare global {
   interface Window {
     OneSignalDeferred: any;
+    OneSignal?: any;
+    __oneSignalInitialized?: boolean;
   }
 }
 
@@ -18,18 +20,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // אתחול OneSignal - ירוץ פעם אחת בכל המאגר
   useEffect(() => {
+    // Skip if already initialized
+    if (window.__oneSignalInitialized) {
+      return;
+    }
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
-    console.log("OneSignal Initializing...");
-      await OneSignal.init({
-        appId: "546472ac-f9ab-4c6c-beb2-e41c72af9849",
-        safari_web_id: "web.onesignal.auto.195e7e66-9dea-4e11-b56c-b4a654da5ab7",
-        notifyButton: {
-          enable: true,
-        },
-        allowLocalhostAsSecureOrigin: true,
-      });
-      console.log("OneSignal Ready!");
+      try {
+        // Check if SDK is already initialized
+        if (OneSignal.isInitialized && OneSignal.isInitialized()) {
+          console.log("OneSignal already initialized");
+          return;
+        }
+
+        console.log("OneSignal Initializing...");
+        await OneSignal.init({
+          appId: "546472ac-f9ab-4c6c-beb2-e41c72af9849",
+          safari_web_id: "web.onesignal.auto.195e7e66-9dea-4e11-b56c-b4a654da5ab7",
+          notifyButton: {
+            enable: true,
+          },
+          allowLocalhostAsSecureOrigin: true,
+        });
+        window.__oneSignalInitialized = true;
+        console.log("OneSignal Ready!");
+      } catch (error: any) {
+        // Suppress domain restriction errors and SDK already initialized errors
+        if (error?.message?.includes("Can only be used on") || error?.message?.includes("already initialized")) {
+          console.log("OneSignal initialization skipped:", error.message);
+          window.__oneSignalInitialized = true;
+        } else {
+          console.error("OneSignal initialization error:", error);
+        }
+      }
     });
   }, []);
 

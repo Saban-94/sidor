@@ -166,7 +166,17 @@ export default function SabanAIAssistant() {
       </header>
 
       {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative">
+      <main
+        className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col justify-end items-center py-[55px] px-[1px]"
+        style={{
+          backgroundImage: 'url(https://cdn.builder.io/api/v1/image/assets%2Fcabd8c0810ce4a7ba54438e9d28391d7%2F4daee3e0ba8b4b97ab75588ab91cb61d)',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+          fontFamily: 'Helvetica, sans-serif',
+          lineHeight: '44px'
+        }}
+      >
         <div className="absolute inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center opacity-[0.03] pointer-events-none" />
         
         {messages.map((m, i) => (
@@ -235,7 +245,7 @@ export default function SabanAIAssistant() {
       <footer className={`p-4 z-10 transition-colors ${isDarkMode ? 'bg-[#0b141a]' : 'bg-[#f0f2f5]'}`}>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4">
           {QUICK_QUERIES.map((q, i) => (
-            <button key={i} onClick={() => askAI(q.label)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${isDarkMode ? 'bg-[#202c33] border-white/5 text-white' : 'bg-white border-black/5 shadow-sm'}`}>
+            <button key={i} onClick={() => askAI(q.label)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${isDarkMode ? 'bg-[#202c33] border-black text-white' : 'bg-white border-black shadow-sm'}`}>
               <span className={q.color + " ml-2"}>{q.icon}</span>{q.label}
             </button>
           ))}
@@ -251,11 +261,11 @@ export default function SabanAIAssistant() {
             reader.onload = (ev) => askAI(null, ev.target.result);
           }} />
           
-          <input 
-            value={input} onChange={e => setInput(e.target.value)} 
+          <input
+            value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && askAI(input)}
-            placeholder="איך עוזרים היום?" 
-            className={`flex-1 p-3.5 px-6 rounded-full outline-none text-sm font-bold shadow-inner transition-all ${isDarkMode ? 'bg-[#2a3942] text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white text-black border border-black/5'}`}
+            placeholder="איך עוזרים היום?"
+            className={`flex-1 p-3.5 px-6 rounded-full outline-none text-sm font-semibold shadow-inner transition-all ${isDarkMode ? 'bg-[#2a3942] text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white text-black border border-black/5'}`}
           />
           
           <button onClick={() => askAI(input)} disabled={loading || isTyping} className="w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center hover:bg-emerald-500 disabled:opacity-50">
@@ -269,6 +279,8 @@ export default function SabanAIAssistant() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .prose strong { color: #34d399; font-weight: 800; }
+        .prose p { font-weight: 600; text-align: right; }
+        .prose u { text-decoration: underline; }
       `}</style>
     </div>
   );

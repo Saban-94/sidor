@@ -2,6 +2,18 @@ self.__BUILD_MANIFEST = {
   "/": [
     "static/chunks/pages/index.js"
   ],
+  "/SabanAIAssistant": [
+    "static/chunks/pages/SabanAIAssistant.js"
+  ],
+  "/dashboard": [
+    "static/chunks/pages/dashboard.js"
+  ],
+  "/dashboard3": [
+    "static/chunks/pages/dashboard3.js"
+  ],
+  "/index2": [
+    "static/chunks/pages/index2.js"
+  ],
   "__rewrites": {
     "afterFiles": [],
     "beforeFiles": [],
@@ -12,6 +24,7 @@ self.__BUILD_MANIFEST = {
     "/SabanAIAssistant",
     "/_app",
     "/_error",
+    "/admin/admin-ai",
     "/admin/ai",
     "/admin/ai-assistant",
     "/admin/ai-simulator",
@@ -43,14 +56,18 @@ self.__BUILD_MANIFEST = {
     "/api/containers",
     "/api/customer-brain",
     "/api/dispatch-ai",
+    "/api/drive-catalog",
     "/api/gemini",
     "/api/google-ai",
     "/api/save-order",
     "/api/send-message",
+    "/api/shipping-brain",
     "/api/tools-brain",
     "/api/unified-brain",
     "/api/update-order",
     "/api/whatsapp/send",
+    "/catalog",
+    "/catalog/desktop",
     "/chat/[phone]",
     "/chat-premium",
     "/chat2/[phone]",
@@ -58,9 +75,11 @@ self.__BUILD_MANIFEST = {
     "/crm",
     "/dashboard",
     "/dashboard3",
+    "/index2",
     "/knowledge-hub",
     "/product/[id]",
     "/saban-os",
-    "/start"
+    "/start",
+    "/track/[orderId]"
   ]
 };self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()

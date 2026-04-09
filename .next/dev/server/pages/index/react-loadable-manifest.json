@@ -2,13 +2,15 @@
   "[project]/pages/admin/ai.tsx [client] (ecmascript, next/dynamic entry)": {
     "id": "[project]/pages/admin/ai.tsx [client] (ecmascript, next/dynamic entry)",
     "files": [
-      "static/chunks/b11ed_@supabase_auth-js_dist_module_1b234f79._.js",
-      "static/chunks/35311_motion-dom_dist_es_28728c6b._.js",
-      "static/chunks/876ae_framer-motion_dist_es_4ca27e7d._.js",
-      "static/chunks/b5ecd_micromark-core-commonmark_dev_lib_f7b16d9d._.js",
-      "static/chunks/node_modules__pnpm_984b925b._.js",
+      "static/chunks/node_modules_@supabase_postgrest-js_dist_index_mjs_a2185a3e._.js",
+      "static/chunks/node_modules_@supabase_auth-js_dist_module_e0400d86._.js",
+      "static/chunks/node_modules_motion-dom_dist_es_3893f2ca._.js",
+      "static/chunks/node_modules_framer-motion_dist_es_c5da70f3._.js",
+      "static/chunks/node_modules_micromark-core-commonmark_dev_lib_e19c1c6a._.js",
+      "static/chunks/node_modules_@supabase_29cf443f._.js",
+      "static/chunks/node_modules_ebb4aef9._.js",
       "static/chunks/pages_admin_ai_tsx_2cd6e0c4._.js",
-      "static/chunks/pages_admin_ai_tsx_4e79b69f._.js"
+      "static/chunks/pages_admin_ai_tsx_e5b19ad3._.js"
     ]
   }
 }

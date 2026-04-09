@@ -41,16 +41,6 @@ export default function SabanAIAssistant() {
     const storedCid = localStorage.getItem('saban_cid') || `guest_${Math.random().toString(36).slice(2, 9)}`;
     localStorage.setItem('saban_cid', storedCid);
     setUserCid(storedCid);
-
-    if (typeof window !== 'undefined') {
-      const OneSignal = (window as any).OneSignal || [];
-      OneSignal.push(() => {
-        OneSignal.init({
-          appId: "YOUR_ONESIGNAL_APP_ID",
-          allowLocalhostAsSecureOrigin: true,
-        });
-      });
-    }
   }, []);
 
   // 2. Realtime Listener
@@ -198,7 +188,6 @@ export default function SabanAIAssistant() {
         <title>ח.סבן AI | עוזר אישי</title>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#10b981" />
-        <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
       </Head>
 
       <div className="absolute inset-0 bg-[url('https://i.postimg.cc/wTFJbMNp/Designer-1.png')] bg-center bg-cover opacity-10 z-0" />
@@ -226,7 +215,17 @@ export default function SabanAIAssistant() {
         <Calculator size={22} className="text-emerald-500" />
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 z-10 custom-scrollbar">
+      <main
+        className="flex-1 overflow-y-auto z-10 custom-scrollbar flex flex-col justify-end items-center py-[55px] px-[1px]"
+        style={{
+          backgroundImage: 'url(https://cdn.builder.io/api/v1/image/assets%2Fcabd8c0810ce4a7ba54438e9d28391d7%2F4daee3e0ba8b4b97ab75588ab91cb61d)',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+          fontFamily: 'Helvetica, sans-serif',
+          lineHeight: '44px'
+        }}
+      >
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
             <div className={`max-w-[85%] p-3 px-4 rounded-2xl shadow-md ${m.role === 'user' ? 'bg-[#202c33] text-white rounded-tl-none' : 'bg-[#005c4b] text-white rounded-tr-none'}`}>
@@ -260,7 +259,7 @@ export default function SabanAIAssistant() {
       <footer className="p-3 bg-[#0b141a] border-t border-white/5 z-10">
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
           {QUICK_QUERIES.map((q, i) => (
-            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] rounded-full text-[12px] font-semibold border border-white/5 flex items-center gap-2 active:scale-95 shadow-md">
+            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] rounded-full text-[12px] font-semibold border border-black flex items-center gap-2 active:scale-95 shadow-md">
               <span className={q.color}>{q.icon}</span>{q.label}
             </button>
           ))}
@@ -282,12 +281,12 @@ export default function SabanAIAssistant() {
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileAction} accept="image/*,application/pdf" />
 
           <div className="flex-1 bg-[#2a3942] rounded-full flex items-center px-4 py-1 border border-white/5 shadow-inner">
-            <textarea 
+            <textarea
               rows={1}
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="איך אפשר לעזור אחי?"
-              className="flex-1 bg-transparent py-3 outline-none text-sm resize-none font-bold"
+              className="flex-1 bg-transparent py-3 outline-none text-sm resize-none font-semibold"
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), askAI(input))}
             />
             <button type="submit" disabled={loading} className="mr-2 text-emerald-500 active:scale-90 transition-transform"><Send size={22} className="rotate-180"/></button>
@@ -300,6 +299,8 @@ export default function SabanAIAssistant() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .prose strong { color: #10b981; }
+        .prose p { font-weight: 600; text-align: right; }
+        .prose u { text-decoration: underline; }
       `}</style>
     </div>
   );

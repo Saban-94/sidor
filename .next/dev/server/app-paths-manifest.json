@@ -1,1 +1,4 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/upload-to-drive/route": "app/api/upload-to-drive/route.js"
+}
