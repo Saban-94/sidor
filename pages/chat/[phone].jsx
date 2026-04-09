@@ -235,7 +235,7 @@ export default function SabanAIAssistant() {
       <footer className={`p-4 z-10 transition-colors ${isDarkMode ? 'bg-[#0b141a]' : 'bg-[#f0f2f5]'}`}>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4">
           {QUICK_QUERIES.map((q, i) => (
-            <button key={i} onClick={() => askAI(q.label)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${isDarkMode ? 'bg-[#202c33] border-white/5 text-white' : 'bg-white border-black/5 shadow-sm'}`}>
+            <button key={i} onClick={() => askAI(q.label)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${isDarkMode ? 'bg-[#202c33] border-black text-white' : 'bg-white border-black shadow-sm'}`}>
               <span className={q.color + " ml-2"}>{q.icon}</span>{q.label}
             </button>
           ))}

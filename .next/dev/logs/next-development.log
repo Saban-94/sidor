@@ -15,3 +15,7 @@ See more info here: https://nextjs.org/docs/messages/no-script-tags-in-head-comp
 [00:01:29.643] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:2 (2.103.0) 2026-04-09T22:59:01.346Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
 [00:01:45.244] Browser DEBUG   binding to error
 [00:02:32.368] Browser DEBUG   binding to error
+[00:04:01.247] Browser DEBUG   binding to error
+[00:04:46.318] Browser DEBUG   [Fusion] Error in selection: {"error":"Selection aborted","success":false}
+[00:05:37.071] Server  LOG      ✓ Compiled in 106ms
+[00:05:37.542] Browser WARN    GoTrueClient@sb-sqslrnbduxtxsvwqryxq-auth-token:1 (2.103.0) 2026-04-09T23:03:09.243Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.

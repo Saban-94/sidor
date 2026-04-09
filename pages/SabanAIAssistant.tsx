@@ -249,7 +249,7 @@ export default function SabanAIAssistant() {
       <footer className="p-3 bg-[#0b141a] border-t border-white/5 z-10">
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
           {QUICK_QUERIES.map((q, i) => (
-            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] rounded-full text-[12px] font-semibold border border-white/5 flex items-center gap-2 active:scale-95 shadow-md">
+            <button key={i} onClick={() => askAI(q.label)} className="whitespace-nowrap px-4 py-2 bg-[#202c33] rounded-full text-[12px] font-semibold border border-black flex items-center gap-2 active:scale-95 shadow-md">
               <span className={q.color}>{q.icon}</span>{q.label}
             </button>
           ))}
