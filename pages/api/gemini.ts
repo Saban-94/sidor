@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 
 // ה-URL של הסקריפט שסורק את הדרייב שלך
-const DRIVE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyKpN3KZ6hGqmIO0rfG1oIjbFlJa2NsTSPsk5DNzI7EyPVhAiL_jdHHK1BW7lq5N849/exec";
+const DRIVE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwEWO_DfRRHjkLAZxtvnEqHtlYTkT8ZhbQhqxdBD10sKffUmyzrVEhzDLk25U6vCbFE/exec";
 
 async function fetchKnowledgeFromDrive(productName: string) {
   try {
