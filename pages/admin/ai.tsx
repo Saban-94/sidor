@@ -192,7 +192,7 @@ export default function SabanAIAssistant() {
           ))}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); askAI(input); }} className="flex gap-2 max-w-5xl mx-auto">
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder="איך אפשר לעזור אחי?" className="flex-1 p-3 px-5 rounded-full bg-[#2a3942] text-white outline-none text-sm"/>
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="איך אפשר לעזור אחי?" className="flex-1 p-3 px-5 rounded-full bg-[#2a3942] text-white outline-none text-sm font-semibold"/>
           <button type="submit" disabled={loading} className="w-12 h-12 bg-emerald-500 text-[#0b141a] rounded-full flex items-center justify-center disabled:opacity-50"><Send size={18} className="rotate-180"/></button>
         </form>
       </footer>
@@ -201,6 +201,8 @@ export default function SabanAIAssistant() {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .prose p { font-weight: 600; text-align: right; }
+        .prose u { text-decoration: underline; }
       `}</style>
     </div>
   );

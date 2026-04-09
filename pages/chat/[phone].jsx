@@ -251,11 +251,11 @@ export default function SabanAIAssistant() {
             reader.onload = (ev) => askAI(null, ev.target.result);
           }} />
           
-          <input 
-            value={input} onChange={e => setInput(e.target.value)} 
+          <input
+            value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && askAI(input)}
-            placeholder="איך עוזרים היום?" 
-            className={`flex-1 p-3.5 px-6 rounded-full outline-none text-sm font-bold shadow-inner transition-all ${isDarkMode ? 'bg-[#2a3942] text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white text-black border border-black/5'}`}
+            placeholder="איך עוזרים היום?"
+            className={`flex-1 p-3.5 px-6 rounded-full outline-none text-sm font-semibold shadow-inner transition-all ${isDarkMode ? 'bg-[#2a3942] text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white text-black border border-black/5'}`}
           />
           
           <button onClick={() => askAI(input)} disabled={loading || isTyping} className="w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center hover:bg-emerald-500 disabled:opacity-50">
@@ -269,6 +269,8 @@ export default function SabanAIAssistant() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .prose strong { color: #34d399; font-weight: 800; }
+        .prose p { font-weight: 600; text-align: right; }
+        .prose u { text-decoration: underline; }
       `}</style>
     </div>
   );

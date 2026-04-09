@@ -271,12 +271,12 @@ export default function SabanAIAssistant() {
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileAction} accept="image/*,application/pdf" />
 
           <div className="flex-1 bg-[#2a3942] rounded-full flex items-center px-4 py-1 border border-white/5 shadow-inner">
-            <textarea 
+            <textarea
               rows={1}
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="איך אפשר לעזור אחי?"
-              className="flex-1 bg-transparent py-3 outline-none text-sm resize-none font-bold"
+              className="flex-1 bg-transparent py-3 outline-none text-sm resize-none font-semibold"
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), askAI(input))}
             />
             <button type="submit" disabled={loading} className="mr-2 text-emerald-500 active:scale-90 transition-transform"><Send size={22} className="rotate-180"/></button>
@@ -289,6 +289,8 @@ export default function SabanAIAssistant() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .prose strong { color: #10b981; }
+        .prose p { font-weight: 600; text-align: right; }
+        .prose u { text-decoration: underline; }
       `}</style>
     </div>
   );
